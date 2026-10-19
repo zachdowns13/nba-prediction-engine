@@ -1,0 +1,53 @@
+name: Nightly NBA Data Update
+
+on:
+  schedule:
+    - cron: '0 7 * * *' # Runs automatically every night at 2:00 AM EST (7:00 AM UTC)
+  workflow_dispatch: # Allows you to manually trigger it with a button click on GitHub
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Set up Python environment
+        uses: actions/setup-python@v4
+        with:
+          python-python-version: '3.10'
+
+      - name: Install data dependencies
+        run: pip install pandas numpy nba_api
+
+      - name: Run data calculation pipeline
+        run: |
+          python -c "
+          import pandas as pd
+          import numpy as np
+          from nba_api.stats.endpoints import leaguegamefinder
+          game_finder = leaguegamefinder.LeagueGameFinder(season_type_nullable='Regular Season')
+          all_games = game_finder.get_data_frames()[0]
+          all_games['GAME_DATE'] = pd.to_datetime(all_games['GAME_DATE'])
+          master_clean = all_games.sort_values(by='GAME_DATE').reset_index(drop=True)
+          opponents = master_clean[['GAME_ID', 'TEAM_ID', 'PTS']].copy()
+          master_clean = pd.merge(master_clean, opponents, on='GAME_ID', suffixes=('', '_OPP'))
+          master_clean = master_clean[master_clean['TEAM_ID'] != master_clean['TEAM_ID_OPP']].copy()
+          master_clean = master_clean.rename(columns={'PTS_OPP': 'OPP_PTS'})
+          master_clean['POSSESSIONS'] = master_clean['FGA'] + (0.44 * master_clean['FTA']) - master_clean['OREB'] + master_clean['TOV']
+          master_clean['OFF_RATING'] = (master_clean['PTS'] / master_clean['POSSESSIONS']) * 100
+          master_clean['DEF_RATING'] = (master_clean['OPP_PTS'] / master_clean['POSSESSIONS']) * 100
+          master_clean['DAYS_REST'] = master_clean.groupby('TEAM_NAME')['GAME_DATE'].diff().dt.days
+          master_clean['B2B_FLAG'] = np.where(master_clean['DAYS_REST'] == 1, 1, 0)
+          for col in ['OFF_RATING', 'DEF_RATING', 'B2B_FLAG']:
+              master_clean[f'EWMA_{col}'] = master_clean.groupby('TEAM_NAME')[col].transform(lambda x: x.ewm(span=5, adjust=False).mean().shift(1))
+          master_clean.dropna(subset=['EWMA_OFF_RATING']).sort_values('GAME_DATE')[['TEAM_NAME', 'GAME_DATE', 'EWMA_OFF_RATING', 'EWMA_DEF_RATING', 'EWMA_B2B_FLAG']].to_csv('nba_model_data.csv', index=False)
+          "
+
+      - name: Commit and push fresh dataset back to repository
+        run: |
+          git config --global user.name 'GitHub Actions Bot'
+          git config --global user.email 'actions@github.com'
+          git add nba_model_data.csv
+          git commit -m "Automated nightly data top-off [skip ci]" || exit 0
+          git push

@@ -1,0 +1,67 @@
+name: Daily NBA Roster & Injury Update
+
+on:
+  schedule:
+    - cron: '0 23 * * *' # Automatically runs every single night at 4:00 PM PST (11:00 PM UTC)
+  workflow_dispatch: # Gives you a manual button on GitHub to trigger it anytime with one click
+
+jobs:
+  refresh-rosters:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out your repository files
+        uses: actions/checkout@v3
+
+      - name: Load Python Server Environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install required data scrapers
+        run: pip install pandas numpy nba_api
+
+      - name: Scrape live rosters and process daily weights
+        run: |
+          python -c "
+          import time
+          import pandas as pd
+          import numpy as np
+          from nba_api.stats.endpoints import commonteamroster, infographicfanduelplayer
+          
+          # Official 30 NBA team ID codes
+          teams_list = [1610612737, 1610612738, 1610612739, 1610612740, 1610612741, 1610612742, 1610612743, 1610612744, 1610612745, 1610612746, 1610612747, 1610612748, 1610612749, 1610612750, 1610612751, 1610612752, 1610612753, 1610612754, 1610612755, 1610612756, 1610612757, 1610612758, 1610612759, 1610612760, 1610612761, 1610612762, 1610612763, 1610612764, 1610612765, 1610612766]
+          all_rosters = []
+          for team_id in teams_list:
+              try:
+                  roster = commonteamroster.CommonTeamRoster(team_id=team_id)
+                  all_rosters.append(roster.get_data_frames()[0])
+                  time.sleep(1.2)
+              except Exception:
+                  continue
+          master_roster = pd.concat(all_rosters, ignore_index=True)
+          master_roster = master_roster.rename(columns={'PLAYER': 'PLAYER_NAME', 'TeamID': 'TEAM_ID'})
+          team_map = {1610612737: 'Atlanta Hawks', 1610612738: 'Boston Celtics', 1610612739: 'Cleveland Cavaliers', 1610612740: 'New Orleans Pelicans', 1610612741: 'Chicago Bulls', 1610612742: 'Dallas Mavericks', 1610612743: 'Denver Nuggets', 1610612744: 'Golden State Warriors', 1610612745: 'Houston Rockets', 1610612746: 'Los Angeles Clippers', 1610612747: 'Los Angeles Lakers', 1610612748: 'Miami Heat', 1610612749: 'Milwaukee Bucks', 1610612750: 'Minnesota Timberwolves', 1610612751: 'Brooklyn Nets', 1610612752: 'New York Knicks', 1610612753: 'Orlando Magic', 1610612754: 'Indiana Pacers', 1610612755: 'Philadelphia 76ers', 1610612756: 'Phoenix Suns', 1610612757: 'Portland Trail Blazers', 1610612758: 'Sacramento Kings', 1610612759: 'San Antonio Spurs', 1610612760: 'Oklahoma City Thunder', 1610612761: 'Toronto Raptors', 1610612762: 'Utah Jazz', 1610612763: 'Memphis Grizzlies', 1610612764: 'Washington Wizards', 1610612765: 'Detroit Pistons', 1610612766: 'Charlotte Hornets'}
+          master_roster['TEAM_NAME'] = master_roster['TEAM_ID'].map(team_map)
+          master_roster['POINT_WEIGHT'] = 1.0
+          master_roster['STATUS'] = 'ACTIVE'
+          master_roster.loc[master_roster.groupby('TEAM_NAME').head(2).index, 'POINT_WEIGHT'] = 5.0
+          master_roster.loc[master_roster.groupby('TEAM_NAME').head(5).tail(3).index, 'POINT_WEIGHT'] = 3.2
+          master_roster.loc[master_roster.groupby('TEAM_NAME').head(9).tail(4).index, 'POINT_WEIGHT'] = 1.8
+          try:
+              injury_wire = infographicfanduelplayer.InfographicFanDuelPlayer(league_id='00')
+              sidelined = injury_wire.get_data_frames()[0]
+              sidelined = sidelined[sidelined['PLAYER_STATUS'].isin(['Out', 'Inactive', 'O', 'OUT', 'Out '])]
+              for _, row in sidelined.iterrows():
+                  master_roster.loc[master_roster['PLAYER_NAME'] == row['PLAYER_NAME'], 'STATUS'] = 'OUT'
+          except Exception:
+              pass
+          master_roster[['PLAYER_NAME', 'TEAM_NAME', 'POINT_WEIGHT', 'STATUS']].to_csv('nba_players.csv', index=False)
+          "
+
+      - name: Push updated rosters permanently back to repo
+        run: |
+          git config --global user.name 'GitHub Actions Bot'
+          git config --global user.email 'actions@github.com'
+          git add nba_players.csv
+          git commit -m "Automated afternoon injury adjustment update [skip ci]" || exit 0
+          git push

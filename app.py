@@ -2,20 +2,13 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# 1. Page Configuration & Aesthetic Theme
+# 1. Page Configuration
 st.set_page_config(page_title="NBA Prediction Engine", page_icon="🏀", layout="centered")
-
-st.markdown("""
-    <style>
-    .reportview-container { background: #f0f2f6; }
-    .stButton>button { width: 100%; background-color: #ff4b4b; color: white; font-weight: bold; }
-    </style>
-""", unsafe_allowed_html=True)
 
 st.title("🏀 NBA Game Prediction Engine")
 st.write("Simulate any matchup 10,000 times using live 5-game rolling metrics.")
 
-# 2. Data Sourcing (Online Source with Local File Upload Fallback)
+# 2. Data Sourcing 
 DATA_URL = "https://githubusercontent.com"
 
 @st.cache_data
@@ -24,7 +17,6 @@ def load_default_data():
         df = pd.read_csv(DATA_URL)
         return df
     except Exception:
-        # Fallback to look locally in the repository folder
         try:
             return pd.read_csv("nba_model_data.csv")
         except Exception:
@@ -118,3 +110,4 @@ SIMULATED WIN PROBABILITIES
  ✈️ {away_team} Wins: {away_win_pct:.1f}%
 ==================================================
         """, language="text")
+

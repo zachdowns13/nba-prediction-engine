@@ -5,7 +5,7 @@ import plotly.express as px
 
 st.set_page_config(page_title="NBA Prediction Engine", page_icon="🏀", layout="centered")
 st.title("🏀 NBA Game Prediction Engine")
-st.write("Simulate any matchup 10,000 times using live rolling efficiency metrics.")
+st.write("Simulate any matchup 10,000 times using live rolling metrics.")
 
 DATA_URL = "https://githubusercontent.com"
 
@@ -19,7 +19,6 @@ def load_default_data():
         except Exception:
             return None
 
-st.sidebar.header("📁 Data Controls")
 clean_model_df = load_default_data()
 
 if clean_model_df is None:
@@ -42,15 +41,27 @@ if st.button("🚀 Run 10,000 Simulations"):
     if home_data.empty or away_data.empty:
         st.error("Error retrieving metrics.")
     else:
-        # Pull your advanced metrics automatically
-        h_off = home_data['EWMA_OFF_RATING'].iloc[-1] if 'EWMA_OFF_RATING' in home_data.columns else home_data['ROLLING_PTS_5'].iloc[-1]
-        h_def = home_data['EWMA_DEF_RATING'].iloc[-1] if 'EWMA_DEF_RATING' in home_data.columns else home_data['ROLLING_OPP_PTS_5'].iloc[-1]
-        a_off = away_data['EWMA_OFF_RATING'].iloc[-1] if 'EWMA_OFF_RATING' in away_data.columns else away_data['ROLLING_PTS_5'].iloc[-1]
-        a_def = away_data['EWMA_DEF_RATING'].iloc[-1] if 'EWMA_DEF_RATING' in away_data.columns else away_data['ROLLING_OPP_PTS_5'].iloc[-1]
+        # Detect if file uses advanced ratings or traditional raw points
+        is_advanced = 'EWMA_OFF_RATING' in home_data.columns or 'OFF_RATING' in home_data.columns
         
-        # Calculate standard pace models (99.2 possessions)
-        projected_home_base = (((h_off + a_def) / 2) + 2.5) / 100 * 99.2 if 'EWMA_OFF_RATING' in home_data.columns else ((h_off + a_def) / 2) + 2.5
-        projected_away_base = ((a_off + h_def) / 2) / 100 * 99.2 if 'EWMA_OFF_RATING' in home_data.columns else (a_off + h_def) / 2
+        if is_advanced:
+            h_off = home_data['EWMA_OFF_RATING'].iloc[-1] if 'EWMA_OFF_RATING' in home_data.columns else home_data['OFF_RATING'].iloc[-1]
+            h_def = home_data['EWMA_DEF_RATING'].iloc[-1] if 'EWMA_DEF_RATING' in home_data.columns else home_data['DEF_RATING'].iloc[-1]
+            a_off = away_data['EWMA_OFF_RATING'].iloc[-1] if 'EWMA_OFF_RATING' in away_data.columns else away_data['OFF_RATING'].iloc[-1]
+            a_def = away_data['EWMA_DEF_RATING'].iloc[-1] if 'EWMA_DEF_RATING' in away_data.columns else away_data['DEF_RATING'].iloc[-1]
+            
+            # Pace conversion calculation
+            projected_home_base = (((h_off + a_def) / 2) + 2.5) / 100 * 99.2
+            projected_away_base = ((a_off + h_def) / 2) / 100 * 99.2
+        else:
+            # Safe Fallback: Handle traditional raw points correctly without shrinking the totals
+            h_off = home_data['ROLLING_PTS_5'].iloc[-1] if 'ROLLING_PTS_5' in home_data.columns else home_data.iloc[-1, 1]
+            h_def = home_data['ROLLING_OPP_PTS_5'].iloc[-1] if 'ROLLING_OPP_PTS_5' in home_data.columns else home_data.iloc[-1, 2]
+            a_off = away_data['ROLLING_PTS_5'].iloc[-1] if 'ROLLING_PTS_5' in away_data.columns else away_data.iloc[-1, 1]
+            a_def = away_data['ROLLING_OPP_PTS_5'].iloc[-1] if 'ROLLING_OPP_PTS_5' in away_data.columns else away_data.iloc[-1, 2]
+            
+            projected_home_base = ((h_off + a_def) / 2) + 2.5
+            projected_away_base = (a_off + h_def) / 2
         
         # Run the 10,000 Simulations
         np.random.seed(42)
@@ -66,7 +77,10 @@ if st.button("🚀 Run 10,000 Simulations"):
         projected_total = avg_home_final + avg_away_final
         raw_spread = avg_home_final - avg_away_final 
         
-        spread_string = f"{home_team} -{raw_spread:.1f}" if raw_spread > 0 else f"{away_team} -{abs(raw_spread):.1f}"
+        if raw_spread > 0:
+            spread_string = f"{home_team} -{raw_spread:.1f}"
+        else:
+            spread_string = f"{away_team} -{abs(raw_spread):.1f}"
             
         # Display Text Results
         st.markdown("### 📊 Simulation Dashboard Results")
@@ -89,7 +103,7 @@ SIMULATED WIN PROBABILITIES
 ==================================================
         """, language="text")
 
-        # 3. Create a beautiful, automated visual chart of the margin of victory
+        # 3. Create a visual chart of the margin of victory
         st.markdown("### 📈 Visual Margin Distribution Chart")
         margins = sim_home_scores - sim_away_scores
         chart_data = pd.DataFrame({'Margin of Victory': margins})

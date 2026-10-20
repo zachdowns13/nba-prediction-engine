@@ -368,8 +368,11 @@ if st.button("🔥 Simulate Game", type="primary"):
 
     col1, col2, col3 = st.columns(3)
 
+    def short(team):
+        return team.split()[-1]  # "Detroit Pistons" -> "Pistons"
+
     med = float(np.median(margin))
-    proj_winner = f"{home_team} by {med:.1f}" if med > 0 else f"{away_team} by {abs(med):.1f}"
+    proj_winner = f"{short(home_team)} by {med:.1f}" if med > 0 else f"{short(away_team)} by {abs(med):.1f}"
 
     # Moneyline
     ml_pick, ml_p = (home_team, p_home) if p_home >= 0.5 else (away_team, 1 - p_home)
@@ -378,8 +381,8 @@ if st.button("🔥 Simulate Game", type="primary"):
     bk_o = odds["home_ml"] if bk == home_team else odds["away_ml"]
     with col1:
         card("Moneyline",
-             f"**{ml_pick}** to win\n\nChance: **{ml_p * 100:.1f}%**\n\nFair odds: {fair_american(ml_p)}",
-             f"**{bk}** favored\n\nChance: **{bk_p * 100:.1f}%**\n\nOdds: {bk_o:+d}",
+             f"The **{short(ml_pick)}** are **{ml_p * 100:.1f}%** to win.\n\nFair odds: {fair_american(ml_p)}",
+             f"The **{short(bk)}** are favored at **{bk_o:+d}**.\n\nThat implies **{bk_p * 100:.1f}%** to win.",
              (rows[0], rows[1]))
 
     # Spread
@@ -388,21 +391,21 @@ if st.button("🔥 Simulate Game", type="primary"):
     else:
         sp_pick, sp_line, sp_p = away_team, -line, ca
     if line == 0:
-        bk_line_txt = "Pick'em"
+        bk_line_txt = "The game is a **pick'em**."
     else:
-        bk_line_txt = f"{home_team if line < 0 else away_team} -{abs(line):.1f}"
+        bk_line_txt = f"The **{short(home_team if line < 0 else away_team)} -{abs(line):.1f}** is the favorite."
     with col2:
         card("Spread",
-             f"**{sp_pick} {sp_line:+.1f}**\n\nChance to cover: **{sp_p * 100:.1f}%**\n\nModel projects: {proj_winner}",
-             f"**{bk_line_txt}**\n\n{home_team} {line:+.1f} ({odds['home_spread_odds']:+d})\n\n{away_team} {-line:+.1f} ({odds['away_spread_odds']:+d})",
+             f"The **{short(sp_pick)} {sp_line:+.1f}** are **{sp_p * 100:.1f}%** to cover.\n\nModel projects: {proj_winner}",
+             f"{bk_line_txt}\n\n{short(home_team)} {line:+.1f} at {odds['home_spread_odds']:+d}\n\n{short(away_team)} {-line:+.1f} at {odds['away_spread_odds']:+d}",
              (rows[2], rows[3]))
 
     # Total
     t_pick, t_p = ("Over", ov) if ov >= un else ("Under", un)
     with col3:
         card("Total",
-             f"**{t_pick} {tot_line}**\n\nChance: **{t_p * 100:.1f}%**\n\nModel projects: {np.median(total):.0f} total points",
-             f"**Over/Under {tot_line}**\n\nOver: {odds['over_odds']:+d}\n\nUnder: {odds['under_odds']:+d}",
+             f"The **{t_pick} {tot_line}** is **{t_p * 100:.1f}%** to hit.\n\nModel projects: {np.median(total):.0f} total points",
+             f"The total is set at **{tot_line}**.\n\nOver at {odds['over_odds']:+d}\n\nUnder at {odds['under_odds']:+d}",
              (rows[4], rows[5]))
 
     with st.expander("See full numbers"):

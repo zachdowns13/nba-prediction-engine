@@ -603,6 +603,261 @@ def first_basket_tab(M, g, injuries, now):
 
 
 # =====================================================================
+# RESULTS LOG (saves every pick, grades it from ESPN's final scores)
+# =====================================================================
+LOG_PATH = "picks_log.csv"
+LOG_COLS = ["key", "date", "event_id", "game", "market", "side", "side_role", "line", "home_spread", "total_line",
+            "odds", "model_p", "book_p", "edge", "ev", "flagged", "strength", "saved_at", "result", "profit"]
+
+
+def empty_log():
+    return pd.DataFrame(columns=LOG_COLS)
+
+
+def load_log():
+    try:
+        df = pd.read_csv(LOG_PATH, dtype={"event_id": str, "key": str})
+    except Exception:
+        df = st.session_state.get("log_df", empty_log())
+    for c in LOG_COLS:
+        if c not in df.columns:
+            df[c] = np.nan
+    df = df[LOG_COLS].copy()
+    df["flagged"] = df["flagged"].map(lambda v: str(v).lower() in ("true", "1", "1.0"))
+    return df
+
+
+def save_log(df):
+    st.session_state["log_df"] = df
+    try:
+        df.to_csv(LOG_PATH, index=False)
+        return True
+    except Exception:
+        return False
+
+
+def rows_to_log(res, date_iso):
+    g, o = res["game"], res["odds"]
+    out = []
+    for r in res["rows"]:
+        role = ("home" if r["side"] == g["home"] else "away") if r["market"] != "Total" else r["side"].lower()
+        lab = strength(r["edge"])
+        out.append({"key": f"{date_iso}|{g['id']}|{r['market']}|{role}", "date": date_iso, "event_id": str(g["id"]),
+                    "game": f"{g['away']} @ {g['home']}", "market": r["market"], "side": r["side"], "side_role": role,
+                    "line": r["line"], "home_spread": o["home_spread"] if r["market"] == "Spread" else np.nan,
+                    "total_line": o["total"] if r["market"] == "Total" else np.nan,
+                    "odds": r["book_odds"], "model_p": r["model_p"], "book_p": r["book_p"], "edge": r["edge"], "ev": r["ev"],
+                    "flagged": r["edge"] >= LEAN_MIN, "strength": ("Strong" if "Strong" in lab else "Slight") if lab else "",
+                    "saved_at": dt.datetime.now().isoformat(timespec="seconds"), "result": np.nan, "profit": np.nan})
+    return out
+
+
+def upsert_log(log, new_rows):
+    # Re-saving the same slate updates picks that are not graded yet; graded picks are never changed.
+    new = pd.DataFrame(new_rows, columns=LOG_COLS)
+    graded_keys = set(log.loc[log["result"].isin(["W", "L", "P"]), "key"])
+    new = new[~new["key"].isin(graded_keys)]
+    keep = log[~log["key"].isin(set(new["key"]))]
+    return pd.concat([keep, new], ignore_index=True)[LOG_COLS]
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def get_finals(date_iso):
+    return {g["event_id"]: g for g in _fetch_day(dt.date.fromisoformat(date_iso))}
+
+
+def result_for(row, f):
+    margin, total = f["hs"] - f["as"], f["hs"] + f["as"]
+    role, mk = row["side_role"], row["market"]
+    if mk == "Moneyline":
+        won, push = (margin > 0 if role == "home" else margin < 0), False
+    elif mk == "Spread":
+        cover = margin + float(row["home_spread"])
+        push, won = cover == 0, (cover > 0 if role == "home" else cover < 0)
+    else:
+        diff = total - float(row["total_line"])
+        push, won = diff == 0, (diff > 0 if role == "over" else diff < 0)
+    if push:
+        return "P", 0.0
+    return ("W", 100 * (dec(float(row["odds"])) - 1)) if won else ("L", -100.0)
+
+
+def grade_log(log):
+    log = log.copy()
+    n_new = 0
+    pending = log[~log["result"].isin(["W", "L", "P"])]
+    for d in sorted(pending["date"].dropna().unique()):
+        finals = get_finals(str(d))
+        for i in pending.index[pending["date"] == d]:
+            f = finals.get(str(log.at[i, "event_id"]))
+            if f:
+                log.at[i, "result"], log.at[i, "profit"] = result_for(log.loc[i], f)
+                n_new += 1
+    return log, n_new
+
+
+def record_line(df):
+    w, l, p = (df["result"] == "W").sum(), (df["result"] == "L").sum(), (df["result"] == "P").sum()
+    return f"{w}-{l}" + (f"-{p}" if p else "")
+
+
+def summarize_picks(df):
+    d = df[df["result"].isin(["W", "L"])]
+    n = len(d)
+    wins = int((d["result"] == "W").sum())
+    return {"Picks": len(df), "Record (W-L-P)": record_line(df),
+            "Win %": f"{wins / n * 100:.1f}%" if n else "-",
+            "Break-even %": f"{d['odds'].astype(float).map(implied).mean() * 100:.1f}%" if n else "-",
+            "Profit ($100 per pick)": f"${df['profit'].astype(float).sum():,.0f}",
+            "ROI": f"{df['profit'].astype(float).sum() / (100 * n) * 100:+.1f}%" if n else "-"}
+
+
+def results_tab():
+    st.caption("Every pick you save is graded automatically from ESPN's final scores. This is the real test of the model, "
+               "because it uses the actual lines and injuries from before each game.")
+    log = load_log()
+    if len(log):
+        with st.spinner("Checking final scores..."):
+            log, n_new = grade_log(log)
+        if n_new:
+            save_log(log)
+            st.success(f"Graded {n_new} new picks.")
+    graded = log[log["result"].isin(["W", "L", "P"])].copy()
+    for c in ("odds", "model_p", "book_p", "edge", "profit"):
+        graded[c] = pd.to_numeric(graded[c])
+
+    if log.empty:
+        st.info("Nothing saved yet. Open the **Full slate** tab, run it, and press **Save picks to my results log** before games start.")
+    else:
+        flagged = graded[graded["flagged"]]
+        st.markdown("### 💰 The value picks (the ones the app flagged)")
+        if flagged.empty:
+            st.caption("No graded value picks yet. Check back after the saved games finish.")
+        else:
+            sm = summarize_picks(flagged)
+            cols = st.columns(len(sm))
+            for col, (k, v) in zip(cols, sm.items()):
+                col.metric(k, v)
+            n_dec = int(flagged["result"].isin(["W", "L"]).sum())
+            if n_dec < 100:
+                st.info(f"Only {n_dec} graded value picks so far, which is far too few to judge. Results swing wildly in small samples. "
+                        "Wait for several hundred before drawing conclusions.")
+            else:
+                roi = flagged["profit"].sum() / (100 * n_dec)
+                st.info(("Value picks are profitable so far, but check that it holds up over more picks and isn't a few lucky bets. "
+                         if roi > 0 else "Value picks are not beating the sportsbook so far. If this holds with a few hundred more picks, the model has no real edge. ")
+                        + "Note that this assumes you could get the logged odds.")
+            for label, col in (("By market", "market"), ("By strength", "strength")):
+                rows = {str(k): summarize_picks(flagged[flagged[col] == k]) for k in flagged[col].dropna().unique() if str(k)}
+                if rows:
+                    st.markdown(f"**{label}**")
+                    st.dataframe(pd.DataFrame(rows).T)
+
+        nonpush = graded[graded["result"].isin(["W", "L"])].copy()
+        st.markdown("### 🎯 Is the model more accurate than the sportsbook?")
+        if len(nonpush) < 40:
+            st.caption("Needs at least 40 graded sides. This one uses every side of every saved market, not just flagged picks.")
+        else:
+            y = (nonpush["result"] == "W").astype(float)
+            b_model, b_book = ((nonpush["model_p"] - y) ** 2).mean(), ((nonpush["book_p"] - y) ** 2).mean()
+            c1, c2 = st.columns(2)
+            c1.metric("Model error (Brier, lower is better)", f"{b_model:.4f}")
+            c2.metric("Sportsbook error (Brier, lower is better)", f"{b_book:.4f}")
+            st.caption("If the model's error is not clearly lower than the sportsbook's, the model adds nothing beyond the line. "
+                       "The difference needs a few hundred games to mean anything.")
+            nonpush["bucket"] = pd.cut(nonpush["model_p"], [0, .3, .4, .45, .5, .55, .6, .7, 1.0])
+            cal = nonpush.assign(won=y).groupby("bucket", observed=True).agg(
+                picks=("won", "size"), model_said=("model_p", "mean"), actually_won=("won", "mean")).round(3)
+            st.markdown("**Calibration: when the model says X%, how often does it happen?**")
+            st.dataframe(cal)
+
+    with st.expander("My saved picks, backup and restore"):
+        st.caption("On Streamlit Cloud the saved file can be erased when the app restarts or is redeployed. "
+                   "Download a backup now and then and upload it here to restore. Anyone who opens this site can see and change the log.")
+        if len(log):
+            st.dataframe(log.drop(columns=["key"]).sort_values("date", ascending=False), hide_index=True)
+        st.download_button("⬇️ Download my log (CSV)", log.to_csv(index=False), file_name="picks_log.csv", mime="text/csv")
+        up = st.file_uploader("Restore from a saved log (CSV)", type="csv")
+        if up is not None and st.button("Merge uploaded log"):
+            try:
+                other = pd.read_csv(up, dtype={"event_id": str, "key": str})
+                for c in LOG_COLS:
+                    if c not in other.columns:
+                        other[c] = np.nan
+                merged = pd.concat([log, other[LOG_COLS]], ignore_index=True)
+                merged["_g"] = merged["result"].isin(["W", "L", "P"])
+                merged = merged.sort_values("_g", ascending=False).drop_duplicates("key").drop(columns="_g")
+                save_log(merged[LOG_COLS])
+                st.success(f"Log restored: {len(merged)} picks.")
+            except Exception as e:
+                st.error(f"Could not read that file: {e}")
+        confirm = st.checkbox("I'm sure I want to erase my whole log")
+        if st.button("🗑️ Erase log") and confirm:
+            save_log(empty_log())
+            st.success("Log erased.")
+
+
+# =====================================================================
+# FULL SLATE
+# =====================================================================
+def pick_name(r):
+    if r["market"] == "Moneyline":
+        return f"{short(r['side'])} moneyline"
+    if r["market"] == "Total":
+        return f"{r['side']} {r['line']}"
+    return f"{short(r['side'])} {r['line']}"
+
+
+def slate_tab(M, date, games, injuries, b2b):
+    st.caption("Runs every game on the date and ranks the best spots. Injured players are all treated as Rotation-level here, "
+               "so for a game where a star is out, open the **Game odds** tab and set his role.")
+    if not games:
+        st.info("No games on this date.")
+        return
+    key = f"slate_{date.isoformat()}"
+    if st.button("🔥 Run full slate (10,000x per game)", type="primary", key="run_slate"):
+        with st.spinner(f"Simulating {len(games)} games..."):
+            st.session_state[key] = [analyze_game(M, g, g["odds"], injury_impact(g["home"], injuries, {}),
+                                                  injury_impact(g["away"], injuries, {}), b2b) for g in games]
+    results = st.session_state.get(key)
+    if not results:
+        return
+    flagged = sorted([(res, r) for res in results for r in res["rows"] if r["edge"] >= LEAN_MIN], key=lambda x: -x[1]["edge"])
+    st.markdown("### 🎯 Best spots today")
+    if not flagged:
+        st.info("No value found: the model and the sportsbook agree across the slate (or no lines are posted yet).")
+    else:
+        st.dataframe(pd.DataFrame([{
+            "Game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "Market": r["market"], "Pick": pick_name(r),
+            "Odds": f"{r['book_odds']:+d}", "Model chance": pct(r["model_p"]), "Sportsbook implies": pct(r["book_p"]),
+            "Edge (pts)": f"{r['edge'] * 100:+.1f}", "Profit per $100 if model is right": f"${r['ev']:,.0f}",
+            "Value": strength(r["edge"])} for res, r in flagged]), hide_index=True)
+        st.caption("Sorted by edge. Big edges usually mean the model is missing something (often an injury), not a real opportunity. "
+                   "Sportsbook lines are very hard to beat.")
+
+    pre = [res for res in results if res["game"]["state"] == "pre" and res["rows"]]
+    st.markdown("### 💾 Track these picks")
+    st.caption(f"Saves every market side for the {len(pre)} games that haven't started (flagged picks and the rest, so the model's accuracy "
+               "can be checked too). Do this BEFORE games start. The Results tab grades them afterward.")
+    if not pre:
+        st.info("Every game has already started or has no lines posted, so there is nothing new to save.")
+    elif st.button("💾 Save picks to my results log", key="save_slate"):
+        log = load_log()
+        new_rows = [row for res in pre for row in rows_to_log(res, date.isoformat())]
+        log = upsert_log(log, new_rows)
+        ok = save_log(log)
+        st.success(f"Saved {len(new_rows)} market sides from {len(pre)} games." + ("" if ok else " (Could not write the file, so they're kept for this session only. Download a backup in the Results tab.)"))
+
+    st.markdown("### Every game")
+    for res in results:
+        g = res["game"]
+        best = max(res["rows"], key=lambda r: r["edge"]) if res["rows"] else None
+        tag = f"  ·  {strength(best['edge'])}: {pick_name(best)}" if best and best["edge"] >= LEAN_MIN else ""
+        with st.expander(f"{g['away']} @ {g['home']}{tag}"):
+            render_result(res)
+
+
+# =====================================================================
 # THE PAGE
 # =====================================================================
 date = st.date_input("Game date", dt.date.today())
@@ -647,7 +902,8 @@ else:
         st.warning("This game has started or finished, so ESPN may no longer show pregame lines.")
 gid = g["id"]
 
-tab_game, tab_fb = st.tabs(["📊 Game odds", "🏀 First basket"])
+st.caption("The game selector above applies to the Game odds and First basket tabs. Full slate and Results cover the whole date.")
+tab_game, tab_slate, tab_fb, tab_results = st.tabs(["📊 Game odds", "📋 Full slate", "🏀 First basket", "📈 Results"])
 
 with tab_game:
     if None in (odds["home_ml"], odds["away_ml"], odds["home_spread"], odds["total"]):
@@ -687,8 +943,14 @@ with tab_game:
     if f"res_{gid}" in st.session_state:
         render_result(st.session_state[f"res_{gid}"])
 
+with tab_slate:
+    slate_tab(M, date, games, injuries, b2b_teams)
+
 with tab_fb:
     first_basket_tab(M, g, injuries, date)
+
+with tab_results:
+    results_tab()
 
 with st.expander("How this works and how much to trust it"):
     st.markdown(

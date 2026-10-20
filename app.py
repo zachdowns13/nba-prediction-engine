@@ -381,8 +381,8 @@ if st.button("🔥 Simulate Game", type="primary"):
     bk_o = odds["home_ml"] if bk == home_team else odds["away_ml"]
     with col1:
         card("Moneyline",
-             f"The **{short(ml_pick)}** are **{ml_p * 100:.1f}%** to win.\n\nFair odds: {fair_american(ml_p)}",
-             f"The **{short(bk)}** are favored at **{bk_o:+d}**.\n\nThat implies **{bk_p * 100:.1f}%** to win.",
+             f"**{short(ml_pick)}** have **{ml_p * 100:.1f}%** odds to win.\n\nFair odds: {fair_american(ml_p)}",
+             f"**{short(bk)}** are favored at **{bk_o:+d}**.\n\nThat implies **{bk_p * 100:.1f}%** to win.",
              (rows[0], rows[1]))
 
     # Spread
@@ -393,10 +393,10 @@ if st.button("🔥 Simulate Game", type="primary"):
     if line == 0:
         bk_line_txt = "The game is a **pick'em**."
     else:
-        bk_line_txt = f"The **{short(home_team if line < 0 else away_team)} -{abs(line):.1f}** is the favorite."
+        bk_line_txt = f"**{short(home_team if line < 0 else away_team)} -{abs(line):.1f}** is the favorite."
     with col2:
         card("Spread",
-             f"The **{short(sp_pick)} {sp_line:+.1f}** are **{sp_p * 100:.1f}%** to cover.\n\nModel projects: {proj_winner}",
+             f"**{short(sp_pick)} {sp_line:+.1f}** have **{sp_p * 100:.1f}%** odds to cover.\n\nModel projects: {proj_winner}",
              f"{bk_line_txt}\n\n{short(home_team)} {line:+.1f} at {odds['home_spread_odds']:+d}\n\n{short(away_team)} {-line:+.1f} at {odds['away_spread_odds']:+d}",
              (rows[2], rows[3]))
 
@@ -404,7 +404,7 @@ if st.button("🔥 Simulate Game", type="primary"):
     t_pick, t_p = ("Over", ov) if ov >= un else ("Under", un)
     with col3:
         card("Total",
-             f"The **{t_pick} {tot_line}** is **{t_p * 100:.1f}%** to hit.\n\nModel projects: {np.median(total):.0f} total points",
+             f"**{t_pick} {tot_line}** has **{t_p * 100:.1f}%** odds to hit.\n\nModel projects: {np.median(total):.0f} total points",
              f"The total is set at **{tot_line}**.\n\nOver at {odds['over_odds']:+d}\n\nUnder at {odds['under_odds']:+d}",
              (rows[4], rows[5]))
 

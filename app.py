@@ -340,8 +340,7 @@ if st.button("🔥 Simulate Game", type="primary"):
     if best["_edge"] >= LEAN_MIN:
         label = f"{best['Side']} {best['Line']}".strip()
         st.success(f"### ✅ Best edge: {best['Market']} — {label}\n"
-                   f"Model {best['Model %']} vs sportsbook {best['Book % (no-vig)']}  ·  "
-                   f"edge {best['Edge']} pts  ·  EV {best['EV/$100']} per $100")
+                   f"Model: {best['Model %']}  |  Sportsbook: {best['Book % (no-vig)']}  |  Edge: {best['Edge']} pts")
     else:
         st.info("### No edge found\nThe model agrees with the sportsbook on all three markets.")
 
@@ -358,9 +357,9 @@ if st.button("🔥 Simulate Game", type="primary"):
             st.markdown("**💰 EDGE**")
             vlabel = f"{v['Side']} {v['Line']}".strip()
             if v["_edge"] >= LEAN_STRONG:
-                st.success(f"🟢 Strong edge on **{vlabel}**\n\n+{v['_edge'] * 100:.1f} pts  ·  EV {v['EV/$100']} per $100")
+                st.success(f"🟢 Strong edge: **{vlabel}**\n\nEdge: **+{v['_edge'] * 100:.1f} pts**\n\nExpected profit: **${v['EV/$100']} per $100 bet**")
             elif v["_edge"] >= LEAN_MIN:
-                st.warning(f"🟡 Small edge on **{vlabel}**\n\n+{v['_edge'] * 100:.1f} pts  ·  EV {v['EV/$100']} per $100")
+                st.warning(f"🟡 Small edge: **{vlabel}**\n\nEdge: **+{v['_edge'] * 100:.1f} pts**\n\nExpected profit: **${v['EV/$100']} per $100 bet**")
             else:
                 st.markdown("⚪ No edge — model and book agree")
 
@@ -369,15 +368,18 @@ if st.button("🔥 Simulate Game", type="primary"):
 
     col1, col2, col3 = st.columns(3)
 
+    med = float(np.median(margin))
+    proj_winner = f"{home_team} by {med:.1f}" if med > 0 else f"{away_team} by {abs(med):.1f}"
+
     # Moneyline
     ml_pick, ml_p = (home_team, p_home) if p_home >= 0.5 else (away_team, 1 - p_home)
-    bk = fav_name(odds["home_ml"], odds["away_ml"])
+    bk = home_team if odds["home_ml"] < odds["away_ml"] else away_team
     bk_p = nv_ml[0] if bk == home_team else nv_ml[1]
     bk_o = odds["home_ml"] if bk == home_team else odds["away_ml"]
     with col1:
         card("Moneyline",
-             f"**{ml_pick}** wins\n\n{ml_p * 100:.1f}%  (fair odds {fair_american(ml_p)})",
-             f"**{bk}** favored\n\n{bk_p * 100:.1f}%  (odds {bk_o:+d})",
+             f"**{ml_pick}** to win\n\nChance: **{ml_p * 100:.1f}%**\n\nFair odds: {fair_american(ml_p)}",
+             f"**{bk}** favored\n\nChance: **{bk_p * 100:.1f}%**\n\nOdds: {bk_o:+d}",
              (rows[0], rows[1]))
 
     # Spread
@@ -385,20 +387,22 @@ if st.button("🔥 Simulate Game", type="primary"):
         sp_pick, sp_line, sp_p = home_team, line, ch
     else:
         sp_pick, sp_line, sp_p = away_team, -line, ca
-    bk_fav = home_team if line < 0 else away_team if line > 0 else "Pick'em"
-    bk_line_txt = f"{bk_fav} {-abs(line):+.1f}" if line != 0 else "Pick'em (0)"
+    if line == 0:
+        bk_line_txt = "Pick'em"
+    else:
+        bk_line_txt = f"{home_team if line < 0 else away_team} -{abs(line):.1f}"
     with col2:
         card("Spread",
-             f"**{sp_pick} {sp_line:+.1f}** covers\n\n{sp_p * 100:.1f}%  ·  model line: {home_team} {-np.median(margin):+.1f}",
-             f"**{bk_line_txt}**\n\n{home_team} {line:+.1f} ({odds['home_spread_odds']:+d})  /  {away_team} {-line:+.1f} ({odds['away_spread_odds']:+d})",
+             f"**{sp_pick} {sp_line:+.1f}**\n\nChance to cover: **{sp_p * 100:.1f}%**\n\nModel projects: {proj_winner}",
+             f"**{bk_line_txt}**\n\n{home_team} {line:+.1f} ({odds['home_spread_odds']:+d})\n\n{away_team} {-line:+.1f} ({odds['away_spread_odds']:+d})",
              (rows[2], rows[3]))
 
     # Total
     t_pick, t_p = ("Over", ov) if ov >= un else ("Under", un)
     with col3:
         card("Total",
-             f"**{t_pick} {tot_line}**\n\n{t_p * 100:.1f}%  ·  model total: {np.median(total):.1f}",
-             f"**O/U {tot_line}**\n\nOver ({odds['over_odds']:+d})  /  Under ({odds['under_odds']:+d})",
+             f"**{t_pick} {tot_line}**\n\nChance: **{t_p * 100:.1f}%**\n\nModel projects: {np.median(total):.0f} total points",
+             f"**Over/Under {tot_line}**\n\nOver: {odds['over_odds']:+d}\n\nUnder: {odds['under_odds']:+d}",
              (rows[4], rows[5]))
 
     with st.expander("See full numbers"):

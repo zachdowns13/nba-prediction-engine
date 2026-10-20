@@ -30,7 +30,7 @@ if clean_model_df is None or player_df is None:
     st.error("Missing core database tracking files in repository. Please verify your CSV names.")
     st.stop()
 
-# 1. Dropdown Matchup Selector Layout (CRITICAL FIX: External Image Scrapers Wiped Out)
+# 1. Dropdown Matchup Selector Layout
 team_list = sorted(clean_model_df['TEAM_NAME'].unique())
 col1, col2 = st.columns(2)
 with col1:
@@ -101,7 +101,7 @@ SIMULATED WIN PROBABILITIES
         """, language="text")
 
         # =====================================================================
-        # INFOGRAPHIC CONTAINER BLOCKS (CLEAN, SECURE TEXT MATRICES)
+        # EYE-FRIENDLY MULTI-ATTRIBUTE SELECTION MATRIX TABLE (FIXED)
         # =====================================================================
         if enable_props and selected_player != "No Star Players Indexed for Matchup":
             p_row = player_df[player_df['PLAYER_NAME'] == selected_player].iloc[-1]
@@ -131,31 +131,33 @@ SIMULATED WIN PROBABILITIES
             def get_edge_string(projected, line):
                 p_round, l_round = round(projected, 1), round(line, 1)
                 if p_round > (l_round + 0.2):
-                    return "🟢 VALUE OVER EDGE"
+                    return "VALUE OVER 🟢"
                 elif p_round < (l_round - 0.2):
-                    return "🔴 VALUE UNDER EDGE"
+                    return "VALUE UNDER 🔴"
                 else:
-                    return "🟡 NO ADADVANTAGE LINE"
+                    return "NO EDGE 🟡"
 
-            props_data = [
-                {"Market": "Points (PTS)", "Proj": f"{proj_pts:.1f}", "Base": f"{live_pts:.1f}", "Edge": get_edge_string(proj_pts, live_pts)},
-                {"Market": "Rebounds (REB)", "Proj": f"{proj_reb:.1f}", "Base": f"{live_reb:.1f}", "Edge": get_edge_string(proj_reb, live_reb)},
-                {"Market": "Assists (AST)", "Proj": f"{proj_ast:.1f}", "Base": f"{live_ast:.1f}", "Edge": get_edge_string(proj_ast, live_ast)},
-                {"Market": "3-Pointers (3PM)", "Proj": f"{proj_3pm:.1f}", "Base": f"{live_3pm:.1f}", "Edge": get_edge_string(proj_3pm, live_3pm)},
-                {"Market": "Turnovers (TOV)", "Proj": f"{proj_tov:.1f}", "Base": f"{live_tov:.1f}", "Edge": get_edge_string(proj_tov, live_tov)},
-                {"Market": "Steals (STL)", "Proj": f"{proj_stl:.1f}", "Base": f"{live_stl:.1f}", "Edge": get_edge_string(proj_stl, live_stl)},
-                {"Market": "Blocks (BLK)", "Proj": f"{proj_blk:.1f}", "Base": f"{live_blk:.1f}", "Edge": get_edge_string(proj_blk, live_blk)}
-            ]
+            pts_edge = get_edge_string(proj_pts, live_pts)
+            reb_edge = get_edge_string(proj_reb, live_reb)
+            ast_edge = get_edge_string(proj_ast, live_ast)
+            pm3_edge = get_edge_string(proj_3pm, live_3pm)
+            tov_edge = get_edge_string(proj_tov, live_tov)
+            stl_edge = get_edge_string(proj_stl, live_stl)
+            blk_edge = get_edge_string(proj_blk, live_blk)
             
-            # Print card text data directly inside clean, frictionless containers
-            for p in props_data:
-                with st.container():
-                    st.markdown(f"""
-                    **{p['Market']}**  
-                    `Model Projection: {p['Proj']}` | `Vegas Baseline: {p['Base']}`  
-                    **Trading Signal: {p['Edge']}**
-                    ---
-                    """)
+            # MANDATORY REPLACEMENT: Outputs a clean, crisp, reader-aligned tabular grid
+            st.markdown(f"""
+
+| Prop Market Category | 📈 Model Projected Line | 🏛️ Pre-Game Book Odds Line | 🎯 Actionable Edge Guidance |
+| :--- | :--- | :--- | :--- |
+| **Points (PTS)** | **{proj_pts:.1f} PTS** | {live_pts:.1f} PTS | {pts_edge} |
+| **Rebounds (REB)** | **{proj_reb:.1f} REB** | {live_reb:.1f} REB | {reb_edge} |
+| **Assists (AST)** | **{proj_ast:.1f} AST** | {live_ast:.1f} AST | {ast_edge} |
+| **3-Pointers Made (3PM)** | **{proj_3pm:.1f} 3PM** | {live_3pm:.1f} 3PM | {pm3_edge} |
+| **Turnovers (TOV)** | **{proj_tov:.1f} TOV** | {live_tov:.1f} TOV | {tov_edge} |
+| **Steals (STL)** | **{proj_stl:.1f} STL** | {live_stl:.1f} STL | {stl_edge} |
+| **Blocks (BLK)** | **{proj_blk:.1f} BLK** | {live_blk:.1f} BLK | {blk_edge} |
+            """)
         
         margins = sim_home_scores - sim_away_scores
         fig = px.histogram(pd.DataFrame({'Margin': margins}), x='Margin', nbins=50, title="Matchup Outcome Distribution Curve", color_discrete_sequence=['#ff4b4b'])

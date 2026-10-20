@@ -185,16 +185,16 @@ def fair_american(p):
 
 
 # =====================================================================
-# SIDEBAR
+# FIXED MODEL SETTINGS (no sidebar)
 # =====================================================================
-st.sidebar.header("⚙️ Model Settings")
-sims = st.sidebar.select_slider("Simulations", [10_000, 25_000, 50_000, 100_000], value=10_000)
-pace = st.sidebar.slider("Projected possessions (pace)", 90.0, 105.0, 98.5, 0.5)
-hca = st.sidebar.slider("Home-court advantage (pts)", 0.0, 4.0, 2.0, 0.25)
-margin_sd = st.sidebar.slider("Std dev of final margin", 10.0, 15.0, 12.0, 0.5)
-total_sd = st.sidebar.slider("Std dev of game total", 14.0, 24.0, 18.0, 0.5)
-st.sidebar.caption("NBA margin SD is historically ~12 and total SD ~18. "
-                   "The old version used 11.2 per team, which implied a ~15.8 margin SD (too wide).")
+SIMS = 10_000
+HCA = 2.0          # home-court advantage, points
+MARGIN_SD = 12.0   # std dev of final margin
+TOTAL_SD = 18.0    # std dev of game total
+LEAN_MIN, LEAN_STRONG = 0.02, 0.04   # edge thresholds (probability)
+
+ROLE_PTS = {"Star": 6.0, "Starter": 3.0, "Rotation": 1.2, "Deep bench": 0.0}
+STATUS_W = {"out": 1.0, "doubtful": 0.85, "questionable": 0.5, "day-to-day": 0.3, "probable": 0.1}
 
 # =====================================================================
 # GAME SELECTION
@@ -207,61 +207,40 @@ try:
     live_ok = True
 except Exception as e:
     games, injuries, form, live_ok = [], {}, {}, False
-    st.error(f"Could not reach ESPN ({e}). Falling back to manual entry.")
+    st.error(f"Could not reach ESPN ({e}). Use manual matchup.")
 
 all_teams = sorted(PRIORS.keys())
-labels = ["✏️ Manual matchup"] + [f"{g['away']} @ {g['home']}" for g in games]
-choice = st.selectbox("Select game", labels, index=1 if games else 0)
+labels = [f"{g['away']} @ {g['home']}" for g in games] + ["✏️ Manual matchup"]
+choice = st.selectbox("Select game", labels)
 
-if choice == labels[0]:
+blank = {"provider": "manual", "total": None, "home_spread": None, "home_ml": None, "away_ml": None,
+         "home_spread_odds": -110, "away_spread_odds": -110, "over_odds": -110, "under_odds": -110}
+if choice == "✏️ Manual matchup":
     c1, c2 = st.columns(2)
     home_team = c1.selectbox("Home team", all_teams, index=all_teams.index("Philadelphia 76ers"))
     away_team = c2.selectbox("Away team", all_teams, index=all_teams.index("Boston Celtics"))
-    odds, gid = {"provider": "manual", "total": 224.5, "home_spread": 0.0, "home_ml": -110, "away_ml": -110,
-                 "home_spread_odds": -110, "away_spread_odds": -110, "over_odds": -110, "under_odds": -110}, "manual"
+    odds, gid = dict(blank), "manual"
 else:
-    g = games[labels.index(choice) - 1]
-    home_team, away_team, odds, gid = g["home"], g["away"], g["odds"], g["id"]
+    g = games[labels.index(choice)]
+    home_team, away_team, odds, gid = g["home"], g["away"], dict(g["odds"]), g["id"]
     if g["state"] != "pre":
-        st.warning("This game has started or finished — ESPN removes pregame lines once a game begins.")
+        st.warning("Game has started or finished, so ESPN may no longer show pregame lines.")
 
 if not games and live_ok:
-    st.info("No games on this date (or the season hasn't started). Pick another date or use manual matchup.")
+    st.info("No games found for this date (or the season hasn't started). Pick another date or use manual matchup.")
 
-# =====================================================================
-# MARKET LINES (auto-filled from ESPN, editable)
-# =====================================================================
-st.subheader(f"🎰 Pregame Market Lines  ·  source: {odds['provider']}")
-if odds["home_spread"] is None or odds["total"] is None:
-    st.caption("ESPN has no posted lines for this game yet — enter them manually.")
-
-m1, m2, m3 = st.columns(3)
-with m1:
-    st.markdown("**Moneyline**")
-    home_ml = st.number_input(f"{home_team} ML", value=int(odds["home_ml"] or -110), step=5, key=f"hml{gid}")
-    away_ml = st.number_input(f"{away_team} ML", value=int(odds["away_ml"] or -110), step=5, key=f"aml{gid}")
-with m2:
-    st.markdown("**Spread** (home line; negative = home favored)")
-    home_spread = st.number_input(f"{home_team} spread", value=float(odds["home_spread"] or 0.0), step=0.5, key=f"sp{gid}")
-    hs_odds = st.number_input("Home spread odds", value=int(odds["home_spread_odds"]), step=5, key=f"hso{gid}")
-    as_odds = st.number_input("Away spread odds", value=int(odds["away_spread_odds"]), step=5, key=f"aso{gid}")
-with m3:
-    st.markdown("**Total**")
-    total_line = st.number_input("Over/Under", value=float(odds["total"] or 224.5), step=0.5, key=f"tot{gid}")
-    over_odds = st.number_input("Over odds", value=int(odds["over_odds"]), step=5, key=f"oo{gid}")
-    under_odds = st.number_input("Under odds", value=int(odds["under_odds"]), step=5, key=f"uo{gid}")
+# If the book has no lines posted, let the user type them in. Otherwise they're read-only.
+if None in (odds["home_ml"], odds["away_ml"], odds["home_spread"], odds["total"]):
+    with st.expander("No sportsbook lines found — enter them manually", expanded=True):
+        a, b, c = st.columns(3)
+        odds["home_ml"] = a.number_input(f"{home_team} ML", value=odds["home_ml"] or -110, step=5, key=f"hml{gid}")
+        odds["away_ml"] = a.number_input(f"{away_team} ML", value=odds["away_ml"] or -110, step=5, key=f"aml{gid}")
+        odds["home_spread"] = b.number_input(f"{home_team} spread", value=float(odds["home_spread"] or 0.0), step=0.5, key=f"sp{gid}")
+        odds["total"] = c.number_input("Total", value=float(odds["total"] or 224.5), step=0.5, key=f"tot{gid}")
 
 # =====================================================================
 # INJURIES
 # =====================================================================
-ROLE_PTS = {"Star": 6.0, "Starter": 3.0, "Rotation": 1.2, "Deep bench": 0.0}
-STATUS_W = {"out": 1.0, "doubtful": 0.85, "questionable": 0.5, "day-to-day": 0.3, "probable": 0.1}
-
-st.subheader("🩹 Injury Report (live from ESPN)")
-st.caption("ESPN doesn't provide player value, so set each player's **Role** — this is the biggest lever on accuracy. "
-           "Impact = role points × chance they miss (Out=100%, Doubtful=85%, Questionable=50%, Day-to-Day=30%).")
-
-
 def injury_panel(team, key):
     rows = injuries.get(team, [])
     if not rows:
@@ -274,97 +253,103 @@ def injury_panel(team, key):
         disabled=["Player", "Pos", "Status", "Note"],
         column_config={"Role": st.column_config.SelectboxColumn(options=list(ROLE_PTS), required=True)},
     )
-    total = sum(ROLE_PTS[r] * STATUS_W.get(str(s).lower(), 0.3) for r, s in zip(edited["Role"], edited["Status"]))
-    total = min(total, 15.0)
-    st.caption(f"Estimated impact: **-{total:.1f} pts** of net rating")
+    total = min(sum(ROLE_PTS[r] * STATUS_W.get(str(s).lower(), 0.3)
+                    for r, s in zip(edited["Role"], edited["Status"])), 15.0)
+    st.caption(f"Estimated impact: **-{total:.1f} pts**")
     return total
 
 
+st.subheader("🩹 Injuries")
+st.caption("Live from ESPN. Set the Role on key players (default is Rotation) so the model knows who actually matters.")
 i1, i2 = st.columns(2)
 with i1:
     st.markdown(f"**🏠 {home_team}**")
     home_inj = injury_panel(home_team, f"hinj{gid}")
-    home_b2b = st.checkbox("On a back-to-back", key=f"hb{gid}")
+    home_b2b = st.checkbox("Back-to-back", key=f"hb{gid}")
 with i2:
     st.markdown(f"**✈️ {away_team}**")
     away_inj = injury_panel(away_team, f"ainj{gid}")
-    away_b2b = st.checkbox("On a back-to-back", key=f"ab{gid}")
+    away_b2b = st.checkbox("Back-to-back", key=f"ab{gid}")
 
 st.markdown("---")
 
 # =====================================================================
-# SIMULATION
+# SIMULATE
 # =====================================================================
-if st.button(f"🔥 Run {sims:,} simulations"):
+if st.button("🔥 Simulate Game", type="primary"):
     if home_team == away_team:
         st.error("A team can't play itself.")
         st.stop()
 
-    h_off, h_allowed, h_gp = team_strength(home_team, form)
-    a_off, a_allowed, a_gp = team_strength(away_team, form)
-    scalar = pace / 98.5
-
-    home_pts = (h_off + a_allowed) / 2 * scalar + hca / 2
-    away_pts = (a_off + h_allowed) / 2 * scalar - hca / 2
-
-    # Injuries hurt the team's own offense AND defense, so split the effect.
+    h_off, h_allowed, _ = team_strength(home_team, form)
+    a_off, a_allowed, _ = team_strength(away_team, form)
+    home_pts = (h_off + a_allowed) / 2 + HCA / 2
+    away_pts = (a_off + h_allowed) / 2 - HCA / 2
     home_pts -= home_inj / 2; away_pts += home_inj / 2
     away_pts -= away_inj / 2; home_pts += away_inj / 2
-    # Back-to-backs (~1.5 pt net effect)
     if home_b2b: home_pts -= 0.75; away_pts += 0.75
     if away_b2b: away_pts -= 0.75; home_pts += 0.75
 
-    margin_mu, total_mu = home_pts - away_pts, home_pts + away_pts
-
     rng = np.random.default_rng()
-    margin = np.rint(rng.normal(margin_mu, margin_sd, sims))
-    total = np.rint(rng.normal(total_mu, total_sd, sims))
-    ties = margin == 0                                  # no ties in the NBA (overtime)
+    margin = np.rint(rng.normal(home_pts - away_pts, MARGIN_SD, SIMS))
+    total = np.rint(rng.normal(home_pts + away_pts, TOTAL_SD, SIMS))
+    ties = margin == 0
     margin[ties] = rng.choice([-1, 1], ties.sum())
-    home_sc, away_sc = (total + margin) / 2, (total - margin) / 2
 
+    line, tot_line = odds["home_spread"], odds["total"]
     p_home = float(np.mean(margin > 0))
-    p_away = 1 - p_home
-    cover_h = float(np.mean(margin + home_spread > 0))
-    cover_a = float(np.mean(margin + home_spread < 0))
-    push_s = 1 - cover_h - cover_a
-    over = float(np.mean(total > total_line))
-    under = float(np.mean(total < total_line))
-    push_t = 1 - over - under
+    ch = float(np.mean(margin + line > 0))
+    ca = float(np.mean(margin + line < 0))
+    ov = float(np.mean(total > tot_line))
+    un = float(np.mean(total < tot_line))
 
-    st.success(f"Completed {sims:,} simulations "
-               f"(team data: {home_team} {h_gp} GP, {away_team} {a_gp} GP; early season leans on priors)")
+    nv_ml = novig(odds["home_ml"], odds["away_ml"])
+    nv_sp = novig(odds["home_spread_odds"], odds["away_spread_odds"])
+    nv_t = novig(odds["over_odds"], odds["under_odds"])
 
-    r1, r2, r3 = st.columns(3)
-    r1.metric("🏆 Projected winner", home_team if p_home > 0.5 else away_team, f"{max(p_home, p_away) * 100:.1f}%")
-    r2.metric("📏 Model spread (home)", f"{-np.median(margin):+.1f}", f"market {home_spread:+.1f}", delta_color="off")
-    r3.metric("🏀 Model total", f"{np.median(total):.1f}", f"market {total_line}", delta_color="off")
+    def lean(edge):
+        if edge >= LEAN_STRONG: return "🟢 Strong lean"
+        if edge >= LEAN_MIN: return "🟡 Lean"
+        return "—"
 
-    s1, s2 = st.columns(2)
-    s1.metric(f"🏠 {home_team}", f"{home_sc.mean():.0f} PTS", f"{p_home * 100:.1f}% win · fair ML {fair_american(p_home)}", delta_color="off")
-    s2.metric(f"✈️ {away_team}", f"{away_sc.mean():.0f} PTS", f"{p_away * 100:.1f}% win · fair ML {fair_american(p_away)}", delta_color="off")
+    def row(market, side, line_txt, book_odds, model_p, push, book_p):
+        edge = model_p - book_p
+        return {"Market": market, "Side": side, "Line": line_txt,
+                "Model %": f"{model_p * 100:.1f}%", "Model odds": fair_american(model_p),
+                "Sportsbook odds": f"{book_odds:+d}", "Book % (no-vig)": f"{book_p * 100:.1f}%",
+                "Edge": f"{edge * 100:+.1f}", "EV/$100": f"{ev100(model_p, push, book_odds):+.1f}",
+                "Model leans": lean(edge), "_edge": edge}
 
-    # ---- Edge table ----
-    nv_ml_h, nv_ml_a = novig(home_ml, away_ml)
-    nv_sp_h, nv_sp_a = novig(hs_odds, as_odds)
-    nv_o, nv_u = novig(over_odds, under_odds)
+    push_s, push_t = 1 - ch - ca, 1 - ov - un
+    rows = [
+        row("Moneyline", home_team, "", odds["home_ml"], p_home, 0, nv_ml[0]),
+        row("Moneyline", away_team, "", odds["away_ml"], 1 - p_home, 0, nv_ml[1]),
+        row("Spread", home_team, f"{line:+.1f}", odds["home_spread_odds"], ch, push_s, nv_sp[0]),
+        row("Spread", away_team, f"{-line:+.1f}", odds["away_spread_odds"], ca, push_s, nv_sp[1]),
+        row("Total", "Over", f"{tot_line}", odds["over_odds"], ov, push_t, nv_t[0]),
+        row("Total", "Under", f"{tot_line}", odds["under_odds"], un, push_t, nv_t[1]),
+    ]
 
-    def row(market, side, line, o, model, push, mkt):
-        return {"Market": market, "Side": side, "Line": line, "Odds": f"{o:+d}",
-                "Model %": round(model * 100, 1), "Market % (no-vig)": round(mkt * 100, 1),
-                "Edge (pts of prob)": round((model - mkt) * 100, 1),
-                "EV per $100": round(ev100(model, push, o), 2)}
+    # ---- Headline ----
+    st.subheader(f"{away_team} @ {home_team}")
+    st.caption(f"Sportsbook: {odds['provider']}  ·  {SIMS:,} simulations")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Projected score", f"{away_pts:.0f} – {home_pts:.0f}", f"{away_team} – {home_team}", delta_color="off")
+    c2.metric("Model spread (home)", f"{-np.median(margin):+.1f}", f"book {line:+.1f}", delta_color="off")
+    c3.metric("Model total", f"{np.median(total):.1f}", f"book {tot_line}", delta_color="off")
 
-    table = pd.DataFrame([
-        row("Moneyline", home_team, "", home_ml, p_home, 0, nv_ml_h),
-        row("Moneyline", away_team, "", away_ml, p_away, 0, nv_ml_a),
-        row("Spread", home_team, f"{home_spread:+.1f}", hs_odds, cover_h, push_s, nv_sp_h),
-        row("Spread", away_team, f"{-home_spread:+.1f}", as_odds, cover_a, push_s, nv_sp_a),
-        row("Total", "Over", f"{total_line}", over_odds, over, push_t, nv_o),
-        row("Total", "Under", f"{total_line}", under_odds, under, push_t, nv_u),
-    ])
-    st.markdown("### 📊 Model vs. Market")
-    st.dataframe(table, hide_index=True)
-    st.caption("Market % removes the sportsbook's vig so it's comparable to the model. "
-               "Edges above ~5 points almost always mean the model is missing something (usually injuries or "
-               "stale ratings) rather than a true edge — the closing line is very hard to beat.")
+    best = max(rows, key=lambda r: r["_edge"])
+    if best["_edge"] >= LEAN_MIN:
+        label = f"{best['Side']} {best['Line']}".strip()
+        st.success(f"**Model leans: {best['Market']} — {label}**  "
+                   f"(model {best['Model %']} vs book {best['Book % (no-vig)']}, edge {best['Edge']} pts, "
+                   f"{best['Model leans'].split(' ', 1)[1]})")
+    else:
+        st.info("**No lean** — the model agrees with the sportsbook on every market.")
+
+    # ---- Side-by-side table ----
+    st.markdown("### Model vs. Sportsbook")
+    st.dataframe(pd.DataFrame(rows).drop(columns="_edge"), hide_index=True)
+    st.caption("Book % has the vig removed so it compares fairly with the model. Edge = model % minus book %, "
+               "in percentage points. A big edge usually means the model is missing something (an injury, stale "
+               "ratings) rather than a real opportunity.")

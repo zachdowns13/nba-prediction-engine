@@ -1,0 +1,151 @@
+PLAYER_NAME,TEAM_NAME,pts,reb,ast,stl,blk,pm3,tov
+Star Hawks Player 1,Atlanta Hawks,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Hawks Player 2,Atlanta Hawks,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Hawks 1,Atlanta Hawks,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Hawks 2,Atlanta Hawks,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Hawks Asset,Atlanta Hawks,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Celtics Player 1,Boston Celtics,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Celtics Player 2,Boston Celtics,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Celtics 1,Boston Celtics,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Celtics 2,Boston Celtics,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Celtics Asset,Boston Celtics,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Nets Player 1,Brooklyn Nets,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Nets Player 2,Brooklyn Nets,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Nets 1,Brooklyn Nets,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Nets 2,Brooklyn Nets,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Nets Asset,Brooklyn Nets,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Hornets Player 1,Charlotte Hornets,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Hornets Player 2,Charlotte Hornets,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Hornets 1,Charlotte Hornets,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Hornets 2,Charlotte Hornets,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Hornets Asset,Charlotte Hornets,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Bulls Player 1,Chicago Bulls,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Bulls Player 2,Chicago Bulls,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Bulls 1,Chicago Bulls,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Bulls 2,Chicago Bulls,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Bulls Asset,Chicago Bulls,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Cavaliers Player 1,Cleveland Cavaliers,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Cavaliers Player 2,Cleveland Cavaliers,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Cavaliers 1,Cleveland Cavaliers,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Cavaliers 2,Cleveland Cavaliers,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Cavaliers Asset,Cleveland Cavaliers,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Mavericks Player 1,Dallas Mavericks,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Mavericks Player 2,Dallas Mavericks,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Mavericks 1,Dallas Mavericks,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Mavericks 2,Dallas Mavericks,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Mavericks Asset,Dallas Mavericks,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Nuggets Player 1,Denver Nuggets,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Nuggets Player 2,Denver Nuggets,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Nuggets 1,Denver Nuggets,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Nuggets 2,Denver Nuggets,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Nuggets Asset,Denver Nuggets,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Pistons Player 1,Detroit Pistons,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Pistons Player 2,Detroit Pistons,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Pistons 1,Detroit Pistons,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Pistons 2,Detroit Pistons,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Pistons Asset,Detroit Pistons,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Warriors Player 1,Golden State Warriors,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Warriors Player 2,Golden State Warriors,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Warriors 1,Golden State Warriors,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Warriors 2,Golden State Warriors,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Warriors Asset,Golden State Warriors,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Rockets Player 1,Houston Rockets,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Rockets Player 2,Houston Rockets,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Rockets 1,Houston Rockets,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Rockets 2,Houston Rockets,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Rockets Asset,Houston Rockets,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Pacers Player 1,Indiana Pacers,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Pacers Player 2,Indiana Pacers,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Pacers 1,Indiana Pacers,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Pacers 2,Indiana Pacers,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Pacers Asset,Indiana Pacers,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Clippers Player 1,Los Angeles Clippers,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Clippers Player 2,Los Angeles Clippers,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Clippers 1,Los Angeles Clippers,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Clippers 2,Los Angeles Clippers,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Clippers Asset,Los Angeles Clippers,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Lakers Player 1,Los Angeles Lakers,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Lakers Player 2,Los Angeles Lakers,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Lakers 1,Los Angeles Lakers,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Lakers 2,Los Angeles Lakers,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Lakers Asset,Los Angeles Lakers,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Grizzlies Player 1,Memphis Grizzlies,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Grizzlies Player 2,Memphis Grizzlies,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Grizzlies 1,Memphis Grizzlies,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Grizzlies 2,Memphis Grizzlies,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Grizzlies Asset,Memphis Grizzlies,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Heat Player 1,Miami Heat,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Heat Player 2,Miami Heat,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Heat 1,Miami Heat,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Heat 2,Miami Heat,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Heat Asset,Miami Heat,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Bucks Player 1,Milwaukee Bucks,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Bucks Player 2,Milwaukee Bucks,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Bucks 1,Milwaukee Bucks,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Bucks 2,Milwaukee Bucks,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Bucks Asset,Milwaukee Bucks,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Timberwolves Player 1,Minnesota Timberwolves,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Timberwolves Player 2,Minnesota Timberwolves,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Timberwolves 1,Minnesota Timberwolves,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Timberwolves 2,Minnesota Timberwolves,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Timberwolves Asset,Minnesota Timberwolves,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Pelicans Player 1,New Orleans Pelicans,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Pelicans Player 2,New Orleans Pelicans,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Pelicans 1,New Orleans Pelicans,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Pelicans 2,New Orleans Pelicans,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Pelicans Asset,New Orleans Pelicans,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Knicks Player 1,New York Knicks,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Knicks Player 2,New York Knicks,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Knicks 1,New York Knicks,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Knicks 2,New York Knicks,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Knicks Asset,New York Knicks,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Thunder Player 1,Oklahoma City Thunder,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Thunder Player 2,Oklahoma City Thunder,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Thunder 1,Oklahoma City Thunder,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Thunder 2,Oklahoma City Thunder,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Thunder Asset,Oklahoma City Thunder,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Magic Player 1,Orlando Magic,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Magic Player 2,Orlando Magic,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Magic 1,Orlando Magic,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Magic 2,Orlando Magic,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Magic Asset,Orlando Magic,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star 76ers Player 1,Philadelphia 76ers,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star 76ers Player 2,Philadelphia 76ers,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter 76ers 1,Philadelphia 76ers,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter 76ers 2,Philadelphia 76ers,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench 76ers Asset,Philadelphia 76ers,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Suns Player 1,Phoenix Suns,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Suns Player 2,Phoenix Suns,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Suns 1,Phoenix Suns,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Suns 2,Phoenix Suns,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Suns Asset,Phoenix Suns,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Blazers Player 1,Portland Trail Blazers,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Blazers Player 2,Portland Trail Blazers,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Blazers 1,Portland Trail Blazers,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Blazers 2,Portland Trail Blazers,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Blazers Asset,Portland Trail Blazers,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Kings Player 1,Sacramento Kings,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Kings Player 2,Sacramento Kings,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Kings 1,Sacramento Kings,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Kings 2,Sacramento Kings,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Kings Asset,Sacramento Kings,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Spurs Player 1,San Antonio Spurs,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Spurs Player 2,San Antonio Spurs,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Spurs 1,San Antonio Spurs,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Spurs 2,San Antonio Spurs,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Spurs Asset,San Antonio Spurs,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Raptors Player 1,Toronto Raptors,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Raptors Player 2,Toronto Raptors,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Raptors 1,Toronto Raptors,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Raptors 2,Toronto Raptors,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Raptors Asset,Toronto Raptors,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Jazz Player 1,Utah Jazz,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Jazz Player 2,Utah Jazz,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Jazz 1,Utah Jazz,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Jazz 2,Utah Jazz,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Jazz Asset,Utah Jazz,8.5,3.0,1.5,0.5,0.3,0.9,1.0
+Star Wizards Player 1,Washington Wizards,24.5,6.5,5.5,1.5,1.0,2.5,2.5
+Star Wizards Player 2,Washington Wizards,22.0,5.5,4.5,1.2,0.8,2.0,2.0
+Starter Wizards 1,Washington Wizards,14.5,4.5,2.5,1.0,0.5,1.5,1.5
+Starter Wizards 2,Washington Wizards,12.0,4.0,2.0,0.8,0.4,1.2,1.2
+Bench Wizards Asset,Washington Wizards,8.5,3.0,1.5,0.5,0.3,0.9,1.0

@@ -330,26 +330,79 @@ if st.button("🔥 Simulate Game", type="primary"):
         row("Total", "Under", f"{tot_line}", odds["under_odds"], un, push_t, nv_t[1]),
     ]
 
-    # ---- Headline ----
+    # ---- Header ----
     st.subheader(f"{away_team} @ {home_team}")
     st.caption(f"Sportsbook: {odds['provider']}  ·  {SIMS:,} simulations")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Projected score", f"{away_pts:.0f} – {home_pts:.0f}", f"{away_team} – {home_team}", delta_color="off")
-    c2.metric("Model spread (home)", f"{-np.median(margin):+.1f}", f"book {line:+.1f}", delta_color="off")
-    c3.metric("Model total", f"{np.median(total):.1f}", f"book {tot_line}", delta_color="off")
+    st.markdown(f"#### Projected score: {away_team} **{away_pts:.0f}** – {home_team} **{home_pts:.0f}**")
 
+    # ---- Bottom line ----
     best = max(rows, key=lambda r: r["_edge"])
     if best["_edge"] >= LEAN_MIN:
         label = f"{best['Side']} {best['Line']}".strip()
-        st.success(f"**Model leans: {best['Market']} — {label}**  "
-                   f"(model {best['Model %']} vs book {best['Book % (no-vig)']}, edge {best['Edge']} pts, "
-                   f"{best['Model leans'].split(' ', 1)[1]})")
+        st.success(f"### ✅ Best edge: {best['Market']} — {label}\n"
+                   f"Model {best['Model %']} vs sportsbook {best['Book % (no-vig)']}  ·  "
+                   f"edge {best['Edge']} pts  ·  EV {best['EV/$100']} per $100")
     else:
-        st.info("**No lean** — the model agrees with the sportsbook on every market.")
+        st.info("### No edge found\nThe model agrees with the sportsbook on all three markets.")
 
-    # ---- Side-by-side table ----
-    st.markdown("### Model vs. Sportsbook")
-    st.dataframe(pd.DataFrame(rows).drop(columns="_edge"), hide_index=True)
-    st.caption("Book % has the vig removed so it compares fairly with the model. Edge = model % minus book %, "
-               "in percentage points. A big edge usually means the model is missing something (an injury, stale "
-               "ratings) rather than a real opportunity.")
+    # ---- One card per market: Model says / Sportsbook says / Edge ----
+    def card(title, model_txt, book_txt, pair):
+        a, b = pair
+        v = a if a["_edge"] >= b["_edge"] else b
+        with st.container(border=True):
+            st.markdown(f"### {title}")
+            st.markdown("**🤖 MODEL SAYS**")
+            st.markdown(model_txt)
+            st.markdown("**🏦 SPORTSBOOK SAYS**")
+            st.markdown(book_txt)
+            st.markdown("**💰 EDGE**")
+            vlabel = f"{v['Side']} {v['Line']}".strip()
+            if v["_edge"] >= LEAN_STRONG:
+                st.success(f"🟢 Strong edge on **{vlabel}**\n\n+{v['_edge'] * 100:.1f} pts  ·  EV {v['EV/$100']} per $100")
+            elif v["_edge"] >= LEAN_MIN:
+                st.warning(f"🟡 Small edge on **{vlabel}**\n\n+{v['_edge'] * 100:.1f} pts  ·  EV {v['EV/$100']} per $100")
+            else:
+                st.markdown("⚪ No edge — model and book agree")
+
+    def fav_name(ml_h, ml_a):
+        return home_team if ml_h < ml_a else away_team
+
+    col1, col2, col3 = st.columns(3)
+
+    # Moneyline
+    ml_pick, ml_p = (home_team, p_home) if p_home >= 0.5 else (away_team, 1 - p_home)
+    bk = fav_name(odds["home_ml"], odds["away_ml"])
+    bk_p = nv_ml[0] if bk == home_team else nv_ml[1]
+    bk_o = odds["home_ml"] if bk == home_team else odds["away_ml"]
+    with col1:
+        card("Moneyline",
+             f"**{ml_pick}** wins\n\n{ml_p * 100:.1f}%  (fair odds {fair_american(ml_p)})",
+             f"**{bk}** favored\n\n{bk_p * 100:.1f}%  (odds {bk_o:+d})",
+             (rows[0], rows[1]))
+
+    # Spread
+    if ch >= ca:
+        sp_pick, sp_line, sp_p = home_team, line, ch
+    else:
+        sp_pick, sp_line, sp_p = away_team, -line, ca
+    bk_fav = home_team if line < 0 else away_team if line > 0 else "Pick'em"
+    bk_line_txt = f"{bk_fav} {-abs(line):+.1f}" if line != 0 else "Pick'em (0)"
+    with col2:
+        card("Spread",
+             f"**{sp_pick} {sp_line:+.1f}** covers\n\n{sp_p * 100:.1f}%  ·  model line: {home_team} {-np.median(margin):+.1f}",
+             f"**{bk_line_txt}**\n\n{home_team} {line:+.1f} ({odds['home_spread_odds']:+d})  /  {away_team} {-line:+.1f} ({odds['away_spread_odds']:+d})",
+             (rows[2], rows[3]))
+
+    # Total
+    t_pick, t_p = ("Over", ov) if ov >= un else ("Under", un)
+    with col3:
+        card("Total",
+             f"**{t_pick} {tot_line}**\n\n{t_p * 100:.1f}%  ·  model total: {np.median(total):.1f}",
+             f"**O/U {tot_line}**\n\nOver ({odds['over_odds']:+d})  /  Under ({odds['under_odds']:+d})",
+             (rows[4], rows[5]))
+
+    with st.expander("See full numbers"):
+        st.dataframe(pd.DataFrame(rows).drop(columns="_edge"), hide_index=True)
+        st.caption("Book % has the vig removed. Edge = model % minus book %, in percentage points. "
+                   "A big edge usually means the model is missing something (an injury, stale ratings) "
+                   "rather than a real opportunity.")

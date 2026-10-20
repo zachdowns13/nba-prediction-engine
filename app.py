@@ -8,7 +8,7 @@ st.set_page_config(page_title="NBA Prediction & Props Engine", page_icon="🏀",
 st.title("🏀 NBA Prediction & Player Props Engine")
 st.write("Simulate matchups 10,000 times and evaluate player prop prediction thresholds across 7 core categories.")
 
-# File Configurations
+# File Configuration layouts
 DATA_FILE = "nba_model_data.csv"
 PLAYER_FILE = "nba_players.csv"
 
@@ -30,15 +30,53 @@ if clean_model_df is None or player_df is None:
     st.error("Missing core database tracking files in repository. Please verify your CSV names.")
     st.stop()
 
-# 1. Dropdown Matchup Selector Layout
+# OFFICIAL LEAGUE LOGO INDEX CDN MAPPING
+LOGO_MAP = {
+    "Atlanta Hawks": "https://nba.com",
+    "Boston Celtics": "https://nba.com",
+    "Cleveland Cavaliers": "https://nba.com",
+    "New Orleans Pelicans": "https://nba.com",
+    "Chicago Bulls": "https://nba.com",
+    "Dallas Mavericks": "https://nba.com",
+    "Denver Nuggets": "https://nba.com",
+    "Golden State Warriors": "https://nba.com",
+    "Houston Rockets": "https://nba.com",
+    "Los Angeles Clippers": "https://nba.com",
+    "Los Angeles Lakers": "https://nba.com",
+    "Miami Heat": "https://nba.com",
+    "Milwaukee Bucks": "https://nba.com",
+    "Minnesota Timberwolves": "https://nba.com",
+    "Brooklyn Nets": "https://nba.com",
+    "New York Knicks": "https://nba.com",
+    "Orlando Magic": "https://nba.com",
+    "Indiana Pacers": "https://nba.com",
+    "Philadelphia 76ers": "https://nba.com",
+    "Phoenix Suns": "https://nba.com",
+    "Portland Trail Blazers": "https://nba.com",
+    "Sacramento Kings": "https://nba.com",
+    "San Antonio Spurs": "https://nba.com",
+    "Oklahoma City Thunder": "https://nba.com",
+    "Toronto Raptors": "https://nba.com",
+    "Utah Jazz": "https://nba.com",
+    "Memphis Grizzlies": "https://nba.com",
+    "Washington Wizards": "https://nba.com",
+    "Detroit Pistons": "https://nba.com",
+    "Charlotte Hornets": "https://nba.com"
+}
+
+# 1. Dropdown Selection Layout with Live Logos side-by-side
 team_list = sorted(clean_model_df['TEAM_NAME'].unique())
 col1, col2 = st.columns(2)
 with col1:
     home_team = st.selectbox("Select HOME Team", team_list, index=0)
+    if home_team in LOGO_MAP:
+        st.image(LOGO_MAP[home_team], width=110)
 with col2:
     away_team = st.selectbox("Select AWAY Team", team_list, index=1)
+    if away_team in LOGO_MAP:
+        st.image(LOGO_MAP[away_team], width=110)
 
-# 2. OPTIONAL Player Prop Selection Module Checkbox
+# 2. Interactive Selection Filtering check box options
 st.markdown("### ⚙️ Option Controls")
 enable_props = st.checkbox("Activate Individual Player Prop Analyzer", value=True)
 
@@ -51,7 +89,7 @@ if enable_props:
         sorted(list(set(valid_players))) if valid_players else ["No Star Players Indexed for Matchup"]
     )
 
-# 3. Calculation & Simulation Engine
+# 3. Calculation & Simulation Engine Execution Card Blocks
 if st.button("🚀 Run 10,000 Game Matchup Simulations"):
     home_data = clean_model_df[clean_model_df['TEAM_NAME'] == home_team]
     away_data = clean_model_df[clean_model_df['TEAM_NAME'] == away_team]
@@ -101,26 +139,7 @@ SIMULATED WIN PROBABILITIES
         """, language="text")
 
         # =====================================================================
-        # LIVE VEGAS MARKET COMPARISON PANEL (ADDED)
-        # =====================================================================
-        st.markdown("### 🏛️ Live DraftKings Sportsbook vs. Model Discrepancy Auditor")
-        
-        # Real-world dynamic estimation line structures
-        v_spread = round(raw_spread + 1.5, 1)
-        v_total = round(projected_total - 2.5, 1)
-        
-        st.markdown(f"""
-Your model cross-references live betting arrays to highlight market inefficiencies instantly:
-
-| Game Market Category | 📈 Model Projection | 🏛️ DraftKings Live Line | 🎯 Value Edge Discrepancy |
-| :--- | :--- | :--- | :--- |
-| **Point Spread** | **{spread_string}** | {home_team if v_spread > 0 else away_team} -{abs(v_spread):.1f} | {abs(raw_spread - v_spread):.1f} PTS Advantage |
-| **Game Point Total** | **{projected_total:.1f} PTS** | {v_total:.1f} O/U Total | {"BET THE OVER 🟢" if projected_total > v_total else "BET THE UNDER 🔴"} |
-| **Moneyline Odds** | **{home_team if raw_spread > 0 else away_team}** | Implied Edge Baseline | **{home_win_pct if raw_spread > 0 else away_win_pct:.1f}% Win Likelihood** |
-        """)
-
-        # =====================================================================
-        # UPGRADED HIGH-PRECISION DECIMAL PROP COMPARATOR ENGINE
+        # CLEAN CARD LAYOUT SPEC BREAKDOWN MOCK (REPLACES UGLY TABLES)
         # =====================================================================
         if enable_props and selected_player != "No Star Players Indexed for Matchup":
             p_row = player_df[player_df['PLAYER_NAME'] == selected_player].iloc[-1]
@@ -129,7 +148,6 @@ Your model cross-references live betting arrays to highlight market inefficienci
             opp_def = h_def if p_team == away_team else a_def
             m_factor = opp_def / 114.5 
             
-            # Pull clean decimal floats natively from your new master roster spreadsheet
             live_pts = float(p_row["pts"])
             live_reb = float(p_row["reb"])
             live_ast = float(p_row["ast"])
@@ -138,43 +156,34 @@ Your model cross-references live betting arrays to highlight market inefficienci
             live_3pm = float(p_row["pm3"])
             live_tov = float(p_row["tov"])
 
-            # Matchup-Efficiency Deflection Scaling Math
             proj_pts = live_pts * m_factor
             proj_reb = live_reb * (1 / m_factor)
             proj_ast = live_ast * m_factor
-            proj_stl = stl_val * m_factor if 'stl_val' in locals() else live_stl * m_factor
-            proj_blk = blk_val * (1 / m_factor) if 'blk_val' in locals() else live_blk * (1 / m_factor)
+            proj_stl = live_stl * m_factor
+            proj_blk = live_blk * (1 / m_factor)
             proj_3pm = live_3pm * m_factor  
             proj_tov = live_tov * m_factor  
                 
-            st.markdown(f"### 🎯 Player Prop Discrepancies: {selected_player} ({p_team})")
+            st.markdown(f"### 🎯 Player Prop Projections: {selected_player} ({p_team})")
             
             def get_edge_string(projected, line):
                 p_round, l_round = round(projected, 1), round(line, 1)
                 if p_round > (l_round + 0.2):
-                    return "VALUE OVER 🟢"
+                    return "🟢 VALUE OVER EDGE"
                 elif p_round < (l_round - 0.2):
-                    return "VALUE UNDER 🔴"
+                    return "🔴 VALUE UNDER EDGE"
                 else:
-                    return "NO EDGE 🟡"
-            
-            # Render structured Multi-Attribute Breakdown Matrix Table
-            st.markdown(f"""
+                    return "🟡 NO ADADVANTAGE LINE"
 
-| Prop Market Category | 📈 Model Projected Line | 🏛️ Live DraftKings Line | 🎯 Actionable Edge Guidance |
-| :--- | :--- | :--- | :--- |
-| **Points (PTS)** | **{proj_pts:.1f} PTS** | {live_pts:.1f} PTS | {get_edge_string(proj_pts, live_pts)} |
-| **Rebounds (REB)** | **{proj_reb:.1f} REB** | {live_reb:.1f} REB | {get_edge_string(proj_reb, live_reb)} |
-| **Assists (AST)** | **{proj_ast:.1f} AST** | {live_ast:.1f} AST | {get_edge_string(proj_ast, live_ast)} |
-| **3-Pointers Made (3PM)** | **{proj_3pm:.1f} 3PM** | {live_3pm:.1f} 3PM | {get_edge_string(proj_3pm, live_3pm)} |
-| **Turnovers (TOV)** | **{proj_tov:.1f} TOV** | {live_tov:.1f} TOV | {get_edge_string(proj_tov, live_tov)} |
-| **Steals (STL)** | **{proj_stl:.1f} STL** | {live_stl:.1f} STL | {get_edge_string(proj_stl, live_stl)} |
-| **Blocks (BLK)** | **{proj_blk:.1f} BLK** | {live_blk:.1f} BLK | {get_edge_string(proj_blk, live_blk)} |
-            """)
-        
-        # Visual distribution chart logic
-        margins = sim_home_scores - sim_away_scores
-        fig = px.histogram(pd.DataFrame({'Margin': margins}), x='Margin', nbins=50, title="Matchup Outcome Distribution Curve", color_discrete_sequence=['#ff4b4b'])
-        fig.add_vline(x=0, line_dash="dash", line_color="white")
-        fig.add_vline(x=raw_spread, line_color="yellow", annotation_text=f"Spread ({raw_spread:.1f})")
-        st.plotly_chart(fig, use_container_width=True)
+            # WE CONVERT THE MULTI-ATTRIBUTE MATRIX DIRECTLY INTO AN INFOGRAPHIC-STYLE GRID
+            props_data = [
+                {"Market": "Points (PTS)", "Proj": f"{proj_pts:.1f}", "Base": f"{live_pts:.1f}", "Edge": get_edge_string(proj_pts, live_pts)},
+                {"Market": "Rebounds (REB)", "Proj": f"{proj_reb:.1f}", "Base": f"{live_reb:.1f}", "Edge": get_edge_string(proj_reb, live_reb)},
+                {"Market": "Assists (AST)", "Proj": f"{proj_ast:.1f}", "Base": f"{live_ast:.1f}", "Edge": get_edge_string(proj_ast, live_ast)},
+                {"Market": "3-Pointers (3PM)", "Proj": f"{proj_3pm:.1f}", "Base": f"{live_3pm:.1f}", "Edge": get_edge_string(proj_3pm, live_3pm)},
+                {"Market": "Turnovers (TOV)", "Proj": f"{proj_tov:.1f}", "Base": f"{live_tov:.1f}", "Edge": get_edge_string(proj_tov, live_tov)},
+                {"Market": "Steals (STL)", "Proj": f"{proj_stl:.1f}", "Base": f"{live_stl:.1f}", "Edge": get_edge_string(proj_stl, live_stl)},
+                {"Market": "Blocks (BLK)", "Proj": f"{proj_blk:.1f}", "Base": f"{live_blk:.1f}", "Edge": get_edge_string(proj_blk, live_blk)}
+            ]
+            
+

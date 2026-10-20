@@ -101,7 +101,7 @@ SIMULATED WIN PROBABILITIES
         """, language="text")
 
         # =====================================================================
-        # UPGRADED 7-CATEGORY MASTER PROPS ENGINE
+        # UPGRADED 7-CATEGORY PROPS MODULE WITH TRIPLE CONDITIONAL LOGIC
         # =====================================================================
         if enable_props and selected_player != "No Star Players Indexed for Matchup":
             p_row = player_df[player_df['PLAYER_NAME'] == selected_player].iloc[-1]
@@ -109,20 +109,16 @@ SIMULATED WIN PROBABILITIES
             
             # Matchup alterations against opponent metrics
             opp_def = h_def if p_team == away_team else a_def
-            opp_data = clean_model_df[clean_model_df['TEAM_NAME'] == (home_team if p_team == away_team else away_team)]
-            
             m_factor = opp_def / 114.5 
             
-            # Fallback handling for new baseline metrics if not in CSV files yet
-            base_3pm = p_row.get("pm3", 1.8) if pd.notna(p_row.get("pm3", np.nan)) else 1.8
-            base_tov = p_row.get("tov", 2.2) if pd.notna(p_row.get("tov", np.nan)) else 2.2
-            
-            # Core Baseline Checks from CSV columns
+            # Core Baseline Check Fallbacks
             pts_val = p_row["pts"] if "pts" in p_row else 15.0
             reb_val = p_row["reb"] if "reb" in p_row else 5.0
             ast_val = p_row["ast"] if "ast" in p_row else 3.0
             stl_val = p_row["stl"] if "stl" in p_row else 1.0
             blk_val = p_row["blk"] if "blk" in p_row else 0.5
+            base_3pm = p_row.get("pm3", 1.8) if pd.notna(p_row.get("pm3", np.nan)) else 1.8
+            base_tov = p_row.get("tov", 2.2) if pd.notna(p_row.get("tov", np.nan)) else 2.2
 
             # Dynamic Projections Math
             proj_pts = pts_val * m_factor
@@ -130,27 +126,46 @@ SIMULATED WIN PROBABILITIES
             proj_ast = ast_val * m_factor
             proj_stl = stl_val * m_factor
             proj_blk = blk_val * (1 / m_factor)
-            proj_3pm = base_3pm * m_factor  # Faster paces lead to higher perimeter volume
-            proj_tov = base_tov * m_factor  # Harder matchups cause higher turnover pressure
+            proj_3pm = base_3pm * m_factor  
+            proj_tov = base_tov * m_factor  
                 
             st.markdown(f"### 🎯 Player Prop Projections: {selected_player} ({p_team})")
             
-            # Simple automatic line estimation thresholds
-            live_pts, live_reb, live_ast, live_stl, live_blk = round(pts_val), round(reb_val), round(ast_val), 1.0, 1.0
+            # Establish comparative targets rounded to matching single precision floats
+            live_pts, live_reb, live_ast = round(pts_val, 1), round(reb_val, 1), round(ast_val, 1)
             live_3pm, live_tov = round(base_3pm, 1), round(base_tov, 1)
+            live_stl, live_blk = round(stl_val, 1), round(blk_val, 1)
             
-            # Render multi-attribute spec breakdown as a structured Markdown table
+            # Helper logic block to assign safe conditional tags
+            def get_edge_string(projected, line):
+                p_round, l_round = round(projected, 1), round(line, 1)
+                if p_round > l_round:
+                    return "VALUE OVER 🟢"
+                elif p_round < l_round:
+                    return "VALUE UNDER 🔴"
+                else:
+                    return "NO EDGE 🟡"
+
+            pts_edge = get_edge_string(proj_pts, live_pts)
+            reb_edge = get_edge_string(proj_reb, live_reb)
+            ast_edge = get_edge_string(proj_ast, live_ast)
+            pm3_edge = get_edge_string(proj_3pm, live_3pm)
+            tov_edge = get_edge_string(proj_tov, live_tov)
+            stl_edge = get_edge_string(proj_stl, live_stl)
+            blk_edge = get_edge_string(proj_blk, live_blk)
+            
+            # Render structured Multi-Attribute Breakdown Matrix Table
             st.markdown(f"""
 
 | Prop Market Category | 📈 Model Projected Line | 🏛️ Estimated Market Baseline | 🎯 Actionable Edge Guidance |
 | :--- | :--- | :--- | :--- |
-| **Points (PTS)** | **{proj_pts:.1f} PTS** | {live_pts:.1f} PTS | {"VALUE OVER 🟢" if proj_pts > live_pts else "VALUE UNDER 🔴"} |
-| **Rebounds (REB)** | **{proj_reb:.1f} REB** | {live_reb:.1f} REB | {"VALUE OVER 🟢" if proj_reb > live_reb else "VALUE UNDER 🔴"} |
-| **Assists (AST)** | **{proj_ast:.1f} AST** | {live_ast:.1f} AST | {"VALUE OVER 🟢" if proj_ast > live_ast else "VALUE UNDER 🔴"} |
-| **3-Pointers Made (3PM)** | **{proj_3pm:.1f} 3PM** | {live_3pm:.1f} 3PM | {"VALUE OVER 🟢" if proj_3pm > live_3pm else "VALUE UNDER 🔴"} |
-| **Turnovers (TOV)** | **{proj_tov:.1f} TOV** | {live_tov:.1f} TOV | {"VALUE OVER 🟢" if proj_tov > live_tov else "VALUE UNDER 🔴"} |
-| **Steals (STL)** | **{proj_stl:.1f} STL** | {live_stl:.1f} STL | {"VALUE OVER 🟢" if proj_stl > live_stl else "VALUE UNDER 🔴"} |
-| **Blocks (BLK)** | **{proj_blk:.1f} BLK** | {live_blk:.1f} BLK | {"VALUE OVER 🟢" if proj_blk > live_blk else "VALUE UNDER 🔴"} |
+| **Points (PTS)** | **{proj_pts:.1f} PTS** | {live_pts:.1f} PTS | {pts_edge} |
+| **Rebounds (REB)** | **{proj_reb:.1f} REB** | {live_reb:.1f} REB | {reb_edge} |
+| **Assists (AST)** | **{proj_ast:.1f} AST** | {live_ast:.1f} AST | {ast_edge} |
+| **3-Pointers Made (3PM)** | **{proj_3pm:.1f} 3PM** | {live_3pm:.1f} 3PM | {pm3_edge} |
+| **Turnovers (TOV)** | **{proj_tov:.1f} TOV** | {live_tov:.1f} TOV | {tov_edge} |
+| **Steals (STL)** | **{proj_stl:.1f} STL** | {live_stl:.1f} STL | {stl_edge} |
+| **Blocks (BLK)** | **{proj_blk:.1f} BLK** | {live_blk:.1f} BLK | {blk_edge} |
             """)
         
         margins = sim_home_scores - sim_away_scores

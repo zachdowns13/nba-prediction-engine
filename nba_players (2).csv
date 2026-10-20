@@ -1,0 +1,519 @@
+PLAYER_NAME,TEAM_NAME,POINT_WEIGHT,STATUS
+Keshon Gilbert,Atlanta Hawks,5.0,ACTIVE
+RayJ Dennis,Atlanta Hawks,5.0,ACTIVE
+Luguentz Dort,Atlanta Hawks,1.0,ACTIVE
+Jalen Johnson,Atlanta Hawks,1.0,ACTIVE
+Aaron Wiggins,Atlanta Hawks,1.0,ACTIVE
+CJ McCollum,Atlanta Hawks,1.0,ACTIVE
+Kingston Flemings,Atlanta Hawks,1.0,ACTIVE
+Dyson Daniels,Atlanta Hawks,1.0,ACTIVE
+Nickeil Alexander-Walker,Atlanta Hawks,1.0,ACTIVE
+Dorian Finney-Smith,Atlanta Hawks,1.0,ACTIVE
+Henri Veesaar,Atlanta Hawks,1.0,ACTIVE
+Asa Newell,Atlanta Hawks,1.0,ACTIVE
+Onyeka Okongwu,Atlanta Hawks,1.0,ACTIVE
+Mouhamed Gueye,Atlanta Hawks,1.0,ACTIVE
+Zuby Ejiofor,Atlanta Hawks,1.0,ACTIVE
+Jalen Wilson,Atlanta Hawks,1.0,ACTIVE
+Corey Kispert,Atlanta Hawks,1.0,ACTIVE
+Jock Landale,Atlanta Hawks,1.0,ACTIVE
+Jayson Tatum,Boston Celtics,5.0,ACTIVE
+Mitchell Robinson,Boston Celtics,5.0,ACTIVE
+Derrick White,Boston Celtics,1.0,ACTIVE
+Payton Pritchard,Boston Celtics,1.0,ACTIVE
+Chris Cenac Jr.,Boston Celtics,1.0,ACTIVE
+Ron Harper Jr.,Boston Celtics,1.0,ACTIVE
+Paul George,Boston Celtics,1.0,ACTIVE
+Dillon Mitchell,Boston Celtics,1.0,ACTIVE
+Devin Carter,Boston Celtics,1.0,ACTIVE
+Jordan Walsh,Boston Celtics,1.0,ACTIVE
+Hugo González,Boston Celtics,1.0,ACTIVE
+Sam Hauser,Boston Celtics,1.0,ACTIVE
+Mike Conley,Boston Celtics,1.0,ACTIVE
+Luka Garza,Boston Celtics,1.0,ACTIVE
+Baylor Scheierman,Boston Celtics,1.0,ACTIVE
+Amari Williams,Boston Celtics,1.0,ACTIVE
+Neemias Queta,Boston Celtics,1.0,ACTIVE
+James Harden,Cleveland Cavaliers,5.0,ACTIVE
+Thomas Bryant,Cleveland Cavaliers,5.0,ACTIVE
+Evan Mobley,Cleveland Cavaliers,1.0,ACTIVE
+Sam Merrill,Cleveland Cavaliers,1.0,ACTIVE
+Peyton Watson,Cleveland Cavaliers,1.0,ACTIVE
+Craig Porter Jr.,Cleveland Cavaliers,1.0,ACTIVE
+Riley Minix,Cleveland Cavaliers,1.0,ACTIVE
+Meleek Thomas,Cleveland Cavaliers,1.0,ACTIVE
+Khalifa Diop,Cleveland Cavaliers,1.0,ACTIVE
+Jaylon Tyson,Cleveland Cavaliers,1.0,ACTIVE
+Tristan Enaruna,Cleveland Cavaliers,1.0,ACTIVE
+Tyrese Proctor,Cleveland Cavaliers,1.0,ACTIVE
+Jarrett Allen,Cleveland Cavaliers,1.0,ACTIVE
+Mario Hezonja,Cleveland Cavaliers,1.0,ACTIVE
+Nae'Qwan Tomlin,Cleveland Cavaliers,1.0,ACTIVE
+Donovan Mitchell,Cleveland Cavaliers,1.0,ACTIVE
+"Ernest Udeh, Jr.",Cleveland Cavaliers,1.0,ACTIVE
+Jeremiah Fears,New Orleans Pelicans,5.0,ACTIVE
+Zion Williamson,New Orleans Pelicans,5.0,ACTIVE
+Herbert Jones,New Orleans Pelicans,1.0,ACTIVE
+Jordan Poole,New Orleans Pelicans,1.0,ACTIVE
+Dejounte Murray,New Orleans Pelicans,1.0,ACTIVE
+DeAndre Jordan,New Orleans Pelicans,1.0,ACTIVE
+Malik Dia,New Orleans Pelicans,1.0,ACTIVE
+Trendon Watford,New Orleans Pelicans,1.0,ACTIVE
+Jaron Pierre Jr.,New Orleans Pelicans,1.0,ACTIVE
+Bryce McGowens,New Orleans Pelicans,1.0,ACTIVE
+Julian Reese,New Orleans Pelicans,1.0,ACTIVE
+AJ Johnson,New Orleans Pelicans,1.0,ACTIVE
+Karlo Matković,New Orleans Pelicans,1.0,ACTIVE
+Yves Missi,New Orleans Pelicans,1.0,ACTIVE
+Derik Queen,New Orleans Pelicans,1.0,ACTIVE
+Bennedict Mathurin,New Orleans Pelicans,1.0,ACTIVE
+Trey Murphy III,New Orleans Pelicans,1.0,ACTIVE
+Saddiq Bey,New Orleans Pelicans,1.0,ACTIVE
+Tobe Awaka,Chicago Bulls,5.0,ACTIVE
+Jaylin Sellers,Chicago Bulls,5.0,ACTIVE
+Noa Essengue,Chicago Bulls,1.0,ACTIVE
+Josh Giddey,Chicago Bulls,1.0,ACTIVE
+Dailyn Swain,Chicago Bulls,1.0,ACTIVE
+Caleb Wilson,Chicago Bulls,1.0,ACTIVE
+Buddy Hield,Chicago Bulls,1.0,ACTIVE
+Nic Claxton,Chicago Bulls,1.0,ACTIVE
+Leonard Miller,Chicago Bulls,1.0,ACTIVE
+Zach Collins,Chicago Bulls,1.0,ACTIVE
+Matas Buzelis,Chicago Bulls,1.0,ACTIVE
+Jordan Hawkins,Chicago Bulls,1.0,ACTIVE
+Norman Powell,Chicago Bulls,1.0,ACTIVE
+Jalen Smith,Chicago Bulls,1.0,ACTIVE
+Tre Jones,Chicago Bulls,1.0,ACTIVE
+Isaac Okoro,Chicago Bulls,1.0,ACTIVE
+Patrick Williams,Chicago Bulls,1.0,ACTIVE
+Tarik Biberovic,Dallas Mavericks,5.0,ACTIVE
+Max Christie,Dallas Mavericks,5.0,ACTIVE
+Dereck Lively II,Dallas Mavericks,1.0,ACTIVE
+Naji Marshall,Dallas Mavericks,1.0,ACTIVE
+Marcus Sasser,Dallas Mavericks,1.0,ACTIVE
+Jett Howard,Dallas Mavericks,1.0,ACTIVE
+Zaccharie Risacher,Dallas Mavericks,1.0,ACTIVE
+Kyrie Irving,Dallas Mavericks,1.0,ACTIVE
+Morez Johnson Jr.,Dallas Mavericks,1.0,ACTIVE
+Caleb Martin,Dallas Mavericks,1.0,ACTIVE
+Daniel Gafford,Dallas Mavericks,1.0,ACTIVE
+P.J. Washington,Dallas Mavericks,1.0,ACTIVE
+Moussa Cisse,Dallas Mavericks,1.0,ACTIVE
+Cooper Flagg,Dallas Mavericks,1.0,ACTIVE
+Tobi Lawal,Dallas Mavericks,1.0,ACTIVE
+Santi Aldama,Dallas Mavericks,1.0,ACTIVE
+Sergio de Larrea,Dallas Mavericks,1.0,ACTIVE
+Christian Braun,Denver Nuggets,5.0,ACTIVE
+Cam Whitmore,Denver Nuggets,5.0,ACTIVE
+Julian Strawther,Denver Nuggets,1.0,ACTIVE
+Marvin Bagley III,Denver Nuggets,1.0,ACTIVE
+Tyus Jones,Denver Nuggets,1.0,ACTIVE
+Trevon Brazile,Denver Nuggets,1.0,ACTIVE
+Ryan Nembhard,Denver Nuggets,1.0,ACTIVE
+DeMar DeRozan,Denver Nuggets,1.0,ACTIVE
+Alpha Diallo,Denver Nuggets,1.0,ACTIVE
+Bryce Hopkins,Denver Nuggets,1.0,ACTIVE
+DaRon Holmes II,Denver Nuggets,1.0,ACTIVE
+Nikola Jokić,Denver Nuggets,1.0,ACTIVE
+Spencer Jones,Denver Nuggets,1.0,ACTIVE
+Zeke Nnaji,Denver Nuggets,1.0,ACTIVE
+Cameron Johnson,Denver Nuggets,1.0,ACTIVE
+Jamal Murray,Denver Nuggets,1.0,ACTIVE
+Aaron Gordon,Denver Nuggets,1.0,ACTIVE
+Gary Payton II,Golden State Warriors,5.0,ACTIVE
+Yaxel Lendeborg,Golden State Warriors,5.0,ACTIVE
+Brandin Podziemski,Golden State Warriors,1.0,ACTIVE
+Will Richard,Golden State Warriors,1.0,ACTIVE
+Moses Moody,Golden State Warriors,1.0,ACTIVE
+Kristaps Porziņģis,Golden State Warriors,1.0,ACTIVE
+De'Anthony Melton,Golden State Warriors,1.0,ACTIVE
+Jimmy Butler III,Golden State Warriors,1.0,ACTIVE
+Brandon Williams,Golden State Warriors,1.0,ACTIVE
+Gui Santos,Golden State Warriors,1.0,ACTIVE
+LJ Cryer,Golden State Warriors,1.0,ACTIVE
+Al Horford,Golden State Warriors,1.0,ACTIVE
+Draymond Green,Golden State Warriors,1.0,ACTIVE
+Charles Bassey,Golden State Warriors,1.0,ACTIVE
+Stephen Curry,Golden State Warriors,1.0,ACTIVE
+Georges Niang,Golden State Warriors,1.0,ACTIVE
+Malevy Leons,Golden State Warriors,1.0,ACTIVE
+Graham Ike,Golden State Warriors,1.0,ACTIVE
+Quadir Copeland,Houston Rockets,5.0,ACTIVE
+Amen Thompson,Houston Rockets,5.0,ACTIVE
+Bruce Thornton,Houston Rockets,1.0,ACTIVE
+Julian Phillips,Houston Rockets,1.0,ACTIVE
+Fred VanVleet,Houston Rockets,1.0,ACTIVE
+Kevin Durant,Houston Rockets,1.0,ACTIVE
+Jae'Sean Tate,Houston Rockets,1.0,ACTIVE
+Jabari Smith Jr.,Houston Rockets,1.0,ACTIVE
+Steven Adams,Houston Rockets,1.0,ACTIVE
+Reed Sheppard,Houston Rockets,1.0,ACTIVE
+Tari Eason,Houston Rockets,1.0,ACTIVE
+Isaiah Crawford,Houston Rockets,1.0,ACTIVE
+Alperen Sengun,Houston Rockets,1.0,ACTIVE
+Clint Capela,Houston Rockets,1.0,ACTIVE
+Bogdan Bogdanović,Houston Rockets,1.0,ACTIVE
+Oscar Tshiebwe,Houston Rockets,1.0,ACTIVE
+Marcus Smart,Houston Rockets,1.0,ACTIVE
+Keaton Wagler,Los Angeles Clippers,5.0,ACTIVE
+Bradley Beal,Los Angeles Clippers,5.0,ACTIVE
+Kobe Sanders,Los Angeles Clippers,1.0,ACTIVE
+Derrick Jones Jr.,Los Angeles Clippers,1.0,ACTIVE
+Brandon Ingram,Los Angeles Clippers,1.0,ACTIVE
+Kris Dunn,Los Angeles Clippers,1.0,ACTIVE
+Gradey Dick,Los Angeles Clippers,1.0,ACTIVE
+Darius Garland,Los Angeles Clippers,1.0,ACTIVE
+Brook Lopez,Los Angeles Clippers,1.0,ACTIVE
+Nick Martinelli,Los Angeles Clippers,1.0,ACTIVE
+Yanic Konan Niederhäuser,Los Angeles Clippers,1.0,ACTIVE
+Baba Miller,Los Angeles Clippers,1.0,ACTIVE
+Jordan Miller,Los Angeles Clippers,1.0,ACTIVE
+Isaiah Jackson,Los Angeles Clippers,1.0,ACTIVE
+Cam Christie,Los Angeles Clippers,1.0,ACTIVE
+Jalen Pickett,Los Angeles Clippers,1.0,ACTIVE
+Rui Hachimura,Los Angeles Clippers,1.0,ACTIVE
+Max Strus,Los Angeles Clippers,1.0,ACTIVE
+Arthur Kaluma,Los Angeles Lakers,5.0,ACTIVE
+Adou Thiero,Los Angeles Lakers,5.0,ACTIVE
+Jarred Vanderbilt,Los Angeles Lakers,1.0,ACTIVE
+Matisse Thybulle,Los Angeles Lakers,1.0,ACTIVE
+Quentin Grimes,Los Angeles Lakers,1.0,ACTIVE
+Jaden Hardy,Los Angeles Lakers,1.0,ACTIVE
+Bronny James,Los Angeles Lakers,1.0,ACTIVE
+Collin Sexton,Los Angeles Lakers,1.0,ACTIVE
+Ziaire Williams,Los Angeles Lakers,1.0,ACTIVE
+Jake LaRavia,Los Angeles Lakers,1.0,ACTIVE
+Walker Kessler,Los Angeles Lakers,1.0,ACTIVE
+Austin Reaves,Los Angeles Lakers,1.0,ACTIVE
+Chris Mañon,Los Angeles Lakers,1.0,ACTIVE
+AK Okereke,Los Angeles Lakers,1.0,ACTIVE
+Cameron Carr,Los Angeles Lakers,1.0,ACTIVE
+Sandro Mamukelashvili,Los Angeles Lakers,1.0,ACTIVE
+Kevon Looney,Los Angeles Lakers,1.0,ACTIVE
+Luka Dončić,Los Angeles Lakers,1.0,ACTIVE
+Simone Fontecchio,Miami Heat,5.0,ACTIVE
+Davion Mitchell,Miami Heat,5.0,ACTIVE
+Ryan Conwell,Miami Heat,1.0,ACTIVE
+Nikola Jović,Miami Heat,1.0,ACTIVE
+Giannis Antetokounmpo,Miami Heat,1.0,ACTIVE
+Nick Richards,Miami Heat,1.0,ACTIVE
+Pelle Larsson,Miami Heat,1.0,ACTIVE
+Tim Hardaway Jr.,Miami Heat,1.0,ACTIVE
+Klay Thompson,Miami Heat,1.0,ACTIVE
+Dru Smith,Miami Heat,1.0,ACTIVE
+Bam Adebayo,Miami Heat,1.0,ACTIVE
+Myron Gardner,Miami Heat,1.0,ACTIVE
+Keshad Johnson,Miami Heat,1.0,ACTIVE
+Andrew Wiggins,Miami Heat,1.0,ACTIVE
+Tre Donaldson,Miami Heat,1.0,ACTIVE
+Vladislav Goldin,Miami Heat,1.0,ACTIVE
+Bobby Portis Jr.,Miami Heat,1.0,ACTIVE
+Jericho Sims,Milwaukee Bucks,5.0,ACTIVE
+Brayden Burries,Milwaukee Bucks,5.0,ACTIVE
+Myles Turner,Milwaukee Bucks,1.0,ACTIVE
+Gary Trent Jr.,Milwaukee Bucks,1.0,ACTIVE
+Kel'el Ware,Milwaukee Bucks,1.0,ACTIVE
+Tyler Herro,Milwaukee Bucks,1.0,ACTIVE
+Caris LeVert,Milwaukee Bucks,1.0,ACTIVE
+Ryan Rollins,Milwaukee Bucks,1.0,ACTIVE
+Nate Ament,Milwaukee Bucks,1.0,ACTIVE
+Kyle Kuzma,Milwaukee Bucks,1.0,ACTIVE
+Kam Jones,Milwaukee Bucks,1.0,ACTIVE
+AJ Green,Milwaukee Bucks,1.0,ACTIVE
+Ousmane Dieng,Milwaukee Bucks,1.0,ACTIVE
+Bogoljub Marković,Milwaukee Bucks,1.0,ACTIVE
+Jaime Jaquez Jr.,Milwaukee Bucks,1.0,ACTIVE
+Kasparas Jakučionis,Milwaukee Bucks,1.0,ACTIVE
+Cormac Ryan,Milwaukee Bucks,1.0,ACTIVE
+Donte DiVincenzo,Minnesota Timberwolves,5.0,ACTIVE
+LaMelo Ball,Minnesota Timberwolves,5.0,ACTIVE
+Jaden McDaniels,Minnesota Timberwolves,1.0,ACTIVE
+Terrence Shannon Jr,Minnesota Timberwolves,1.0,ACTIVE
+Anthony Edwards,Minnesota Timberwolves,1.0,ACTIVE
+Jaylen Clark,Minnesota Timberwolves,1.0,ACTIVE
+Bones Hyland,Minnesota Timberwolves,1.0,ACTIVE
+Cody Williams,Minnesota Timberwolves,1.0,ACTIVE
+Ayo Dosunmu,Minnesota Timberwolves,1.0,ACTIVE
+Zyon Pullin,Minnesota Timberwolves,1.0,ACTIVE
+Joan Beringer,Minnesota Timberwolves,1.0,ACTIVE
+Jonathan Kuminga,Minnesota Timberwolves,1.0,ACTIVE
+Rudy Gobert,Minnesota Timberwolves,1.0,ACTIVE
+Isaiah Evans,Minnesota Timberwolves,1.0,ACTIVE
+Trey Lyles,Minnesota Timberwolves,1.0,ACTIVE
+Rocco Zikarsky,Minnesota Timberwolves,1.0,ACTIVE
+Josh Minott,Brooklyn Nets,5.0,ACTIVE
+Mikel Brown Jr.,Brooklyn Nets,5.0,ACTIVE
+Keon Ellis,Brooklyn Nets,1.0,ACTIVE
+Danny Wolf,Brooklyn Nets,1.0,ACTIVE
+Drake Powell,Brooklyn Nets,1.0,ACTIVE
+Egor Dëmin,Brooklyn Nets,1.0,ACTIVE
+Joshua Jefferson,Brooklyn Nets,1.0,ACTIVE
+Nolan Traore,Brooklyn Nets,1.0,ACTIVE
+Moritz Wagner,Brooklyn Nets,1.0,ACTIVE
+Terance Mann,Brooklyn Nets,1.0,ACTIVE
+Grant Nelson,Brooklyn Nets,1.0,ACTIVE
+Michael Porter Jr.,Brooklyn Nets,1.0,ACTIVE
+Day'Ron Sharpe,Brooklyn Nets,1.0,ACTIVE
+Noah Clowney,Brooklyn Nets,1.0,ACTIVE
+Julius Randle,Brooklyn Nets,1.0,ACTIVE
+Chaney Johnson,Brooklyn Nets,1.0,ACTIVE
+Tyler Bilodeau,Brooklyn Nets,1.0,ACTIVE
+Ben Saraf,Brooklyn Nets,1.0,ACTIVE
+Jaden Akins,New York Knicks,5.0,ACTIVE
+Andre Drummond,New York Knicks,5.0,ACTIVE
+Jordan Clarkson,New York Knicks,1.0,ACTIVE
+Miles McBride,New York Knicks,1.0,ACTIVE
+Josh Hart,New York Knicks,1.0,ACTIVE
+Pacôme Dadiet,New York Knicks,1.0,ACTIVE
+Jose Alvarado,New York Knicks,1.0,ACTIVE
+OG Anunoby,New York Knicks,1.0,ACTIVE
+Kevin McCullar Jr.,New York Knicks,1.0,ACTIVE
+James Wiseman,New York Knicks,1.0,ACTIVE
+Jalen Brunson,New York Knicks,1.0,ACTIVE
+Tyler Kolek,New York Knicks,1.0,ACTIVE
+Mikal Bridges,New York Knicks,1.0,ACTIVE
+Karl-Anthony Towns,New York Knicks,1.0,ACTIVE
+Landry Shamet,New York Knicks,1.0,ACTIVE
+Mohamed Diawara,New York Knicks,1.0,ACTIVE
+Tyler Nickel,New York Knicks,1.0,ACTIVE
+Anthony Black,Orlando Magic,5.0,ACTIVE
+Jonathan Isaac,Orlando Magic,5.0,ACTIVE
+Jevon Carter,Orlando Magic,1.0,ACTIVE
+Desmond Bane,Orlando Magic,1.0,ACTIVE
+Jalen Suggs,Orlando Magic,1.0,ACTIVE
+Paolo Banchero,Orlando Magic,1.0,ACTIVE
+Jamal Cain,Orlando Magic,1.0,ACTIVE
+Nikola Vučević,Orlando Magic,1.0,ACTIVE
+Jase Richardson,Orlando Magic,1.0,ACTIVE
+Colin Castleton,Orlando Magic,1.0,ACTIVE
+Franz Wagner,Orlando Magic,1.0,ACTIVE
+Tristan da Silva,Orlando Magic,1.0,ACTIVE
+Izaiyah Nelson,Orlando Magic,1.0,ACTIVE
+Alex Morales,Orlando Magic,1.0,ACTIVE
+Wendell Carter Jr.,Orlando Magic,1.0,ACTIVE
+Goga Bitadze,Orlando Magic,1.0,ACTIVE
+Noah Penda,Orlando Magic,1.0,ACTIVE
+Tyrese Haliburton,Indiana Pacers,5.0,ACTIVE
+Obi Toppin,Indiana Pacers,5.0,ACTIVE
+Andrew Nembhard,Indiana Pacers,1.0,ACTIVE
+Braden Smith,Indiana Pacers,1.0,ACTIVE
+Jarace Walker,Indiana Pacers,1.0,ACTIVE
+T.J. McConnell,Indiana Pacers,1.0,ACTIVE
+Kelly Oubre Jr.,Indiana Pacers,1.0,ACTIVE
+Johnny Furphy,Indiana Pacers,1.0,ACTIVE
+Jalen Slawson,Indiana Pacers,1.0,ACTIVE
+Larry Nance Jr.,Indiana Pacers,1.0,ACTIVE
+Aaron Nesmith,Indiana Pacers,1.0,ACTIVE
+Kobe Brown,Indiana Pacers,1.0,ACTIVE
+Ben Sheppard,Indiana Pacers,1.0,ACTIVE
+Quenton Jackson,Indiana Pacers,1.0,ACTIVE
+Jay Huff,Indiana Pacers,1.0,ACTIVE
+Ivica Zubac,Indiana Pacers,1.0,ACTIVE
+Pascal Siakam,Indiana Pacers,1.0,ACTIVE
+Tyrese Maxey,Philadelphia 76ers,5.0,ACTIVE
+Labaron Philon,Philadelphia 76ers,5.0,ACTIVE
+Kentavious Caldwell-Pope,Philadelphia 76ers,1.0,ACTIVE
+Caleb Love,Philadelphia 76ers,1.0,ACTIVE
+Anfernee Simons,Philadelphia 76ers,1.0,ACTIVE
+Jaylen Brown,Philadelphia 76ers,1.0,ACTIVE
+Justin Edwards,Philadelphia 76ers,1.0,ACTIVE
+Rayan Rupert,Philadelphia 76ers,1.0,ACTIVE
+Joel Embiid,Philadelphia 76ers,1.0,ACTIVE
+LeBron James,Philadelphia 76ers,1.0,ACTIVE
+Dominick Barlow,Philadelphia 76ers,1.0,ACTIVE
+Adem Bona,Philadelphia 76ers,1.0,ACTIVE
+Jabari Walker,Philadelphia 76ers,1.0,ACTIVE
+Dean Wade,Philadelphia 76ers,1.0,ACTIVE
+Ariel Hukporti,Philadelphia 76ers,1.0,ACTIVE
+VJ Edgecombe,Philadelphia 76ers,1.0,ACTIVE
+Tacko Fall,Philadelphia 76ers,1.0,ACTIVE
+Ryan Dunn,Phoenix Suns,5.0,ACTIVE
+Dillon Brooks,Phoenix Suns,5.0,ACTIVE
+Jalen Green,Phoenix Suns,1.0,ACTIVE
+Luke Kennard,Phoenix Suns,1.0,ACTIVE
+Khaman Maluach,Phoenix Suns,1.0,ACTIVE
+Oso Ighodaro,Phoenix Suns,1.0,ACTIVE
+Collin Gillespie,Phoenix Suns,1.0,ACTIVE
+Devin Booker,Phoenix Suns,1.0,ACTIVE
+Mark Williams,Phoenix Suns,1.0,ACTIVE
+Jamaree Bouyea,Phoenix Suns,1.0,ACTIVE
+Drew Timme,Phoenix Suns,1.0,ACTIVE
+Koa Peat,Phoenix Suns,1.0,ACTIVE
+Rasheer Fleming,Phoenix Suns,1.0,ACTIVE
+Miles Bridges,Phoenix Suns,1.0,ACTIVE
+Jordan Goodwin,Phoenix Suns,1.0,ACTIVE
+Duop Reath,Phoenix Suns,1.0,ACTIVE
+Pat Spencer,Phoenix Suns,1.0,ACTIVE
+Jayson Kent,Portland Trail Blazers,5.0,ACTIVE
+Damian Lillard,Portland Trail Blazers,5.0,ACTIVE
+Scoot Henderson,Portland Trail Blazers,1.0,ACTIVE
+Ja Morant,Portland Trail Blazers,1.0,ACTIVE
+Chris Youngblood,Portland Trail Blazers,1.0,ACTIVE
+Jrue Holiday,Portland Trail Blazers,1.0,ACTIVE
+Deni Avdija,Portland Trail Blazers,1.0,ACTIVE
+John Tonje,Portland Trail Blazers,1.0,ACTIVE
+Micah Potter,Portland Trail Blazers,1.0,ACTIVE
+Branden Carlson,Portland Trail Blazers,1.0,ACTIVE
+Yang Hansen,Portland Trail Blazers,1.0,ACTIVE
+Shaedon Sharpe,Portland Trail Blazers,1.0,ACTIVE
+Donovan Clingan,Portland Trail Blazers,1.0,ACTIVE
+Vít Krejčí,Portland Trail Blazers,1.0,ACTIVE
+Toumani Camara,Portland Trail Blazers,1.0,ACTIVE
+Robert Williams III,Portland Trail Blazers,1.0,ACTIVE
+Sidy Cissoko,Portland Trail Blazers,1.0,ACTIVE
+Malik Monk,Sacramento Kings,5.0,ACTIVE
+Darius Acuff Jr.,Sacramento Kings,5.0,ACTIVE
+Zach LaVine,Sacramento Kings,1.0,ACTIVE
+Precious Achiuwa,Sacramento Kings,1.0,ACTIVE
+Nique Clifford,Sacramento Kings,1.0,ACTIVE
+Domantas Sabonis,Sacramento Kings,1.0,ACTIVE
+Keegan Murray,Sacramento Kings,1.0,ACTIVE
+De'Andre Hunter,Sacramento Kings,1.0,ACTIVE
+Leaky Black,Sacramento Kings,1.0,ACTIVE
+Jonathan Mogbo,Sacramento Kings,1.0,ACTIVE
+Ben Simmons,Sacramento Kings,1.0,ACTIVE
+Daeqwon Plowden,Sacramento Kings,1.0,ACTIVE
+Dylan Cardwell,Sacramento Kings,1.0,ACTIVE
+Alex Karaban,Sacramento Kings,1.0,ACTIVE
+Emanuel Sharp,Sacramento Kings,1.0,ACTIVE
+Maxime Raynaud,Sacramento Kings,1.0,ACTIVE
+Jordan McLaughlin,San Antonio Spurs,5.0,ACTIVE
+Victor Wembanyama,San Antonio Spurs,5.0,ACTIVE
+Dylan Harper,San Antonio Spurs,1.0,ACTIVE
+Keldon Johnson,San Antonio Spurs,1.0,ACTIVE
+De'Aaron Fox,San Antonio Spurs,1.0,ACTIVE
+Stephon Castle,San Antonio Spurs,1.0,ACTIVE
+Luke Kornet,San Antonio Spurs,1.0,ACTIVE
+Tarris Reed Jr.,San Antonio Spurs,1.0,ACTIVE
+Carter Bryant,San Antonio Spurs,1.0,ACTIVE
+Maliq Brown,San Antonio Spurs,1.0,ACTIVE
+Ja'Kobi Gillespie,San Antonio Spurs,1.0,ACTIVE
+Jayden Quaintance,San Antonio Spurs,1.0,ACTIVE
+Tobias Harris,San Antonio Spurs,1.0,ACTIVE
+Devin Vassell,San Antonio Spurs,1.0,ACTIVE
+David Jones Garcia,San Antonio Spurs,1.0,ACTIVE
+Julian Champagnie,San Antonio Spurs,1.0,ACTIVE
+Harrison Barnes,San Antonio Spurs,1.0,ACTIVE
+Josh Dix,Oklahoma City Thunder,5.0,ACTIVE
+Shai Gilgeous-Alexander,Oklahoma City Thunder,5.0,ACTIVE
+Jared McCain,Oklahoma City Thunder,1.0,ACTIVE
+Jaylin Williams,Oklahoma City Thunder,1.0,ACTIVE
+Chet Holmgren,Oklahoma City Thunder,1.0,ACTIVE
+Jalen Williams,Oklahoma City Thunder,1.0,ACTIVE
+Alex Caruso,Oklahoma City Thunder,1.0,ACTIVE
+Thomas Sorber,Oklahoma City Thunder,1.0,ACTIVE
+Otega Oweh,Oklahoma City Thunder,1.0,ACTIVE
+Bennett Stirtz,Oklahoma City Thunder,1.0,ACTIVE
+Aday Mara,Oklahoma City Thunder,1.0,ACTIVE
+Cason Wallace,Oklahoma City Thunder,1.0,ACTIVE
+Brooks Barnhizer,Oklahoma City Thunder,1.0,ACTIVE
+Ajay Mitchell,Oklahoma City Thunder,1.0,ACTIVE
+Kenrich Williams,Oklahoma City Thunder,1.0,ACTIVE
+Nikola Topić,Oklahoma City Thunder,1.0,ACTIVE
+Isaiah Hartenstein,Oklahoma City Thunder,1.0,ACTIVE
+Nate Bittle,Toronto Raptors,5.0,ACTIVE
+Jamal Shead,Toronto Raptors,5.0,ACTIVE
+Kawhi Leonard,Toronto Raptors,1.0,ACTIVE
+Scottie Barnes,Toronto Raptors,1.0,ACTIVE
+Immanuel Quickley,Toronto Raptors,1.0,ACTIVE
+Jaden Bradley,Toronto Raptors,1.0,ACTIVE
+RJ Barrett,Toronto Raptors,1.0,ACTIVE
+Kyle Anderson,Toronto Raptors,1.0,ACTIVE
+Ja'Kobe Walter,Toronto Raptors,1.0,ACTIVE
+Malachi Smith,Toronto Raptors,1.0,ACTIVE
+Jakob Poeltl,Toronto Raptors,1.0,ACTIVE
+Allen Graves,Toronto Raptors,1.0,ACTIVE
+Collin Murray-Boyles,Toronto Raptors,1.0,ACTIVE
+Trayce Jackson-Davis,Toronto Raptors,1.0,ACTIVE
+Alijah Martin,Toronto Raptors,1.0,ACTIVE
+Jamison Battle,Toronto Raptors,1.0,ACTIVE
+Harrison Ingram,Utah Jazz,5.0,ACTIVE
+Kyle Filipowski,Utah Jazz,5.0,ACTIVE
+Keyonte George,Utah Jazz,1.0,ACTIVE
+Josh Green,Utah Jazz,1.0,ACTIVE
+Isaiah Collier,Utah Jazz,1.0,ACTIVE
+Svi Mykhailiuk,Utah Jazz,1.0,ACTIVE
+Jaxson Hayes,Utah Jazz,1.0,ACTIVE
+Tony Bradley,Utah Jazz,1.0,ACTIVE
+Trey Alexander,Utah Jazz,1.0,ACTIVE
+Ace Bailey,Utah Jazz,1.0,ACTIVE
+Jaren Jackson Jr.,Utah Jazz,1.0,ACTIVE
+Josh Okogie,Utah Jazz,1.0,ACTIVE
+Darryn Peterson,Utah Jazz,1.0,ACTIVE
+Lauri Markkanen,Utah Jazz,1.0,ACTIVE
+Blake Hinson,Utah Jazz,1.0,ACTIVE
+Brice Sensabaugh,Utah Jazz,1.0,ACTIVE
+Jusuf Nurkić,Utah Jazz,1.0,ACTIVE
+Mo Bamba,Utah Jazz,1.0,ACTIVE
+Jahmai Mashack,Memphis Grizzlies,5.0,ACTIVE
+Carson Cooper,Memphis Grizzlies,5.0,ACTIVE
+Jaylen Wells,Memphis Grizzlies,1.0,ACTIVE
+Scotty Pippen Jr.,Memphis Grizzlies,1.0,ACTIVE
+Ty Jerome,Memphis Grizzlies,1.0,ACTIVE
+Jerami Grant,Memphis Grizzlies,1.0,ACTIVE
+Javon Small,Memphis Grizzlies,1.0,ACTIVE
+Zach Edey,Memphis Grizzlies,1.0,ACTIVE
+Kris Murray,Memphis Grizzlies,1.0,ACTIVE
+Olivier-Maxence Prosper,Memphis Grizzlies,1.0,ACTIVE
+Taylor Hendricks,Memphis Grizzlies,1.0,ACTIVE
+Cedric Coward,Memphis Grizzlies,1.0,ACTIVE
+Cam Spencer,Memphis Grizzlies,1.0,ACTIVE
+Cameron Boozer,Memphis Grizzlies,1.0,ACTIVE
+Isaiah Stewart,Memphis Grizzlies,1.0,ACTIVE
+Karim Lopez,Memphis Grizzlies,1.0,ACTIVE
+Quinten Post,Memphis Grizzlies,1.0,ACTIVE
+GG Jackson,Memphis Grizzlies,1.0,ACTIVE
+Bilal Coulibaly,Washington Wizards,5.0,ACTIVE
+Tristan Vukcevic,Washington Wizards,5.0,ACTIVE
+Tre Mann,Washington Wizards,1.0,ACTIVE
+Trae Young,Washington Wizards,1.0,ACTIVE
+AJ Dybantsa,Washington Wizards,1.0,ACTIVE
+Jamir Watkins,Washington Wizards,1.0,ACTIVE
+Bub Carrington,Washington Wizards,1.0,ACTIVE
+Deandre Ayton,Washington Wizards,1.0,ACTIVE
+Justin Champagnie,Washington Wizards,1.0,ACTIVE
+Tre Johnson,Washington Wizards,1.0,ACTIVE
+Anthony Gill,Washington Wizards,1.0,ACTIVE
+Kyshawn George,Washington Wizards,1.0,ACTIVE
+Alex Sarr,Washington Wizards,1.0,ACTIVE
+Khris Middleton,Washington Wizards,1.0,ACTIVE
+Anthony Davis,Washington Wizards,1.0,ACTIVE
+Reece Beekman,Washington Wizards,1.0,ACTIVE
+Will Riley,Washington Wizards,1.0,ACTIVE
+Felix Okpara,Washington Wizards,1.0,ACTIVE
+Ugonna Onyenso,Detroit Pistons,5.0,ACTIVE
+Jalen Duren,Detroit Pistons,5.0,ACTIVE
+Cade Cunningham,Detroit Pistons,1.0,ACTIVE
+Ronald Holland II,Detroit Pistons,1.0,ACTIVE
+Paul Reed,Detroit Pistons,1.0,ACTIVE
+Chaz Lanier,Detroit Pistons,1.0,ACTIVE
+Ausar Thompson,Detroit Pistons,1.0,ACTIVE
+Taurean Prince,Detroit Pistons,1.0,ACTIVE
+Isaac Jones,Detroit Pistons,1.0,ACTIVE
+Isaiah Joe,Detroit Pistons,1.0,ACTIVE
+John Collins,Detroit Pistons,1.0,ACTIVE
+Ebuka Okorie,Detroit Pistons,1.0,ACTIVE
+Daniss Jenkins,Detroit Pistons,1.0,ACTIVE
+Kevin Huerter,Detroit Pistons,1.0,ACTIVE
+Javonte Green,Detroit Pistons,1.0,ACTIVE
+Tolu Smith,Detroit Pistons,1.0,ACTIVE
+Duncan Robinson,Detroit Pistons,1.0,ACTIVE
+Elijah Harkless,Detroit Pistons,1.0,ACTIVE
+Michael Ajayi,Charlotte Hornets,5.0,ACTIVE
+Kylan Boswell,Charlotte Hornets,5.0,ACTIVE
+Royce O'Neale,Charlotte Hornets,3.2,ACTIVE
+Grant Williams,Charlotte Hornets,3.2,ACTIVE
+Coby White,Charlotte Hornets,3.2,ACTIVE
+Sion James,Charlotte Hornets,1.8,ACTIVE
+Christian Anderson,Charlotte Hornets,1.8,ACTIVE
+Kon Knueppel,Charlotte Hornets,1.8,ACTIVE
+Grayson Allen,Charlotte Hornets,1.8,ACTIVE
+Naz Reid,Charlotte Hornets,1.0,ACTIVE
+Ryan Kalkbrenner,Charlotte Hornets,1.0,ACTIVE
+Moussa Diabaté,Charlotte Hornets,1.0,ACTIVE
+PJ Hall,Charlotte Hornets,1.0,ACTIVE
+Dennis Schröder,Charlotte Hornets,1.0,ACTIVE
+Hannes Steinbach,Charlotte Hornets,1.0,ACTIVE
+Brandon Miller,Charlotte Hornets,1.0,ACTIVE
+Tidjane Salaün,Charlotte Hornets,1.0,ACTIVE
+Liam McNeeley,Charlotte Hornets,1.0,ACTIVE

@@ -2,25 +2,34 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import os
 
 st.set_page_config(page_title="NBA Prediction & Props Engine", page_icon="🏀", layout="centered")
 st.title("🏀 NBA Prediction & Player Props Engine")
 st.write("Simulate matchups 10,000 times and evaluate player prop projection thresholds.")
 
-DATA_URL = "https://githubusercontent.com"
-PLAYER_URL = "https://githubusercontent.com"
+# FIX: We define local file fallbacks to make sure the engine loads even if URLs mismatch
+DATA_FILE = "nba_model_data.csv"
+PLAYER_FILE = "nba_players.csv"
 
 @st.cache_data
 def load_app_data():
     try:
-        return pd.read_csv(DATA_URL), pd.read_csv(PLAYER_URL)
-    except Exception:
+        # Check if the files exist locally in the main repository path
+        if os.path.exists(DATA_FILE) and os.path.exists(PLAYER_FILE):
+            return pd.read_csv(DATA_FILE), pd.read_csv(PLAYER_FILE)
+        else:
+            # Universal cloud URL backup path
+            url_data = "https://githubusercontent.com"
+            url_players = "https://githubusercontent.com"
+            return pd.read_csv(url_data), pd.read_csv(url_players)
+    except Exception as e:
         return None, None
 
 clean_model_df, player_df = load_app_data()
 
 if clean_model_df is None or player_df is None:
-    st.error("Missing core database tracking files in repository.")
+    st.error("Missing core database tracking files in repository. Please verify your CSV names.")
     st.stop()
 
 # 1. Dropdown Selection Layout
@@ -94,7 +103,6 @@ MODEL MARKET PROJECTIONS
             weight = p_row['POINT_WEIGHT'].iloc[-1]
             status = p_row['STATUS'].iloc[-1]
             
-            # Map default baseline prop splits matching scale configurations
             # Base values derive from player historical baseline usage rates
             base_pts = weight * 4.4
             base_reb = weight * 1.2
@@ -109,14 +117,13 @@ MODEL MARKET PROJECTIONS
                 status_msg = "🚨 INACTIVE / RULED OUT"
             else:
                 proj_pts = base_pts * m_factor
-                proj_reb = base_reb * (1 / m_factor) # Inverse tracking for bigs vs weak interiors
+                proj_reb = base_reb * (1 / m_factor) 
                 proj_ast = base_ast * m_factor
                 status_msg = "✅ ACTIVE / ELIGIBLE"
                 
             st.markdown(f"### 🎯 Player Prop Projections: {selected_player}")
             st.write(f"Status Constraint: **{status_msg}**")
             
-            # Display metrics breakdown sheet
             st.markdown(f"""
 
             | Prop Market | Expected Simulated Line Output | Actionable Metric Edge Guide |
@@ -132,5 +139,4 @@ MODEL MARKET PROJECTIONS
         fig.add_vline(x=0, line_dash="dash", line_color="white")
         fig.add_vline(x=raw_spread, line_color="yellow", annotation_text=f"Spread ({raw_spread:.1f})")
         st.plotly_chart(fig, use_container_width=True)
-
 

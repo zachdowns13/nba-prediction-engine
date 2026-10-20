@@ -44,7 +44,7 @@ enable_props = st.checkbox("Activate Individual Player Prop Analyzer", value=Tru
 
 selected_player = "No Star Players Indexed for Matchup"
 if enable_props:
-    st.markdown("### 🎯 Player Prop Projection Hub")
+    st.markdown("### 🎯 Player Prop Prediction Hub")
     valid_players = player_df[player_df['TEAM_NAME'].isin([home_team, away_team])]['PLAYER_NAME'].tolist()
     selected_player = st.selectbox(
         "Select Player to Project", 
@@ -93,79 +93,60 @@ PROJECTED FINAL SCORE
 MODEL MARKET PROJECTIONS
  🔹 Projected Spread: {spread_string}
  🔹 Projected Total Points: {projected_total:.1f}
---------------------------------------------------
-SIMULATED WIN PROBABILITIES
- 🏠 {home_team} Wins: {home_win_pct:.1f}%
- ✈️ {away_team} Wins: {away_win_pct:.1f}%
 ==================================================
         """, language="text")
 
         # =====================================================================
-        # UPGRADED 7-CATEGORY PROPS MODULE WITH TRIPLE CONDITIONAL LOGIC
+        # EXACT DECIMAL MATCHING VALUE ENGINE
         # =====================================================================
         if enable_props and selected_player != "No Star Players Indexed for Matchup":
             p_row = player_df[player_df['PLAYER_NAME'] == selected_player].iloc[-1]
             p_team = p_row["TEAM_NAME"]
             
-            # Matchup alterations against opponent metrics
             opp_def = h_def if p_team == away_team else a_def
             m_factor = opp_def / 114.5 
             
-            # Core Baseline Check Fallbacks
-            pts_val = p_row["pts"] if "pts" in p_row else 15.0
-            reb_val = p_row["reb"] if "reb" in p_row else 5.0
-            ast_val = p_row["ast"] if "ast" in p_row else 3.0
-            stl_val = p_row["stl"] if "stl" in p_row else 1.0
-            blk_val = p_row["blk"] if "blk" in p_row else 0.5
-            base_3pm = p_row.get("pm3", 1.8) if pd.notna(p_row.get("pm3", np.nan)) else 1.8
-            base_tov = p_row.get("tov", 2.2) if pd.notna(p_row.get("tov", np.nan)) else 2.2
+            # Pull exact float numbers straight from the spreadsheet columns
+            live_pts = float(p_row["pts"]) if "pts" in p_row else 15.5
+            live_reb = float(p_row["reb"]) if "reb" in p_row else 5.5
+            live_ast = float(p_row["ast"]) if "ast" in p_row else 3.5
+            live_stl = float(p_row["stl"]) if "stl" in p_row else 1.5
+            live_blk = float(p_row["blk"]) if "blk" in p_row else 0.5
+            live_3pm = float(p_row["pm3"]) if "pm3" in p_row else 1.5
+            live_tov = float(p_row["tov"]) if "tov" in p_row else 2.5
 
             # Dynamic Projections Math
-            proj_pts = pts_val * m_factor
-            proj_reb = reb_val * (1 / m_factor)
-            proj_ast = ast_val * m_factor
-            proj_stl = stl_val * m_factor
-            proj_blk = blk_val * (1 / m_factor)
-            proj_3pm = base_3pm * m_factor  
-            proj_tov = base_tov * m_factor  
+            proj_pts = live_pts * m_factor
+            proj_reb = live_reb * (1 / m_factor)
+            proj_ast = live_ast * m_factor
+            proj_stl = live_stl * m_factor
+            proj_blk = live_blk * (1 / m_factor)
+            proj_3pm = live_3pm * m_factor  
+            proj_tov = live_tov * m_factor  
                 
             st.markdown(f"### 🎯 Player Prop Projections: {selected_player} ({p_team})")
             
-            # Establish comparative targets rounded to matching single precision floats
-            live_pts, live_reb, live_ast = round(pts_val, 1), round(reb_val, 1), round(ast_val, 1)
-            live_3pm, live_tov = round(base_3pm, 1), round(base_tov, 1)
-            live_stl, live_blk = round(stl_val, 1), round(blk_val, 1)
-            
-            # Helper logic block to assign safe conditional tags
+            # High-precision trading edge logic tags
             def get_edge_string(projected, line):
-                p_round, l_round = round(projected, 1), round(line, 1)
-                if p_round > l_round:
+                if projected > (line + 0.2):
                     return "VALUE OVER 🟢"
-                elif p_round < l_round:
+                elif projected < (line - 0.2):
                     return "VALUE UNDER 🔴"
                 else:
                     return "NO EDGE 🟡"
 
-            pts_edge = get_edge_string(proj_pts, live_pts)
-            reb_edge = get_edge_string(proj_reb, live_reb)
-            ast_edge = get_edge_string(proj_ast, live_ast)
-            pm3_edge = get_edge_string(proj_3pm, live_3pm)
-            tov_edge = get_edge_string(proj_tov, live_tov)
-            stl_edge = get_edge_string(proj_stl, live_stl)
-            blk_edge = get_edge_string(proj_blk, live_blk)
-            
             # Render structured Multi-Attribute Breakdown Matrix Table
             st.markdown(f"""
 
-| Prop Market Category | 📈 Model Projected Line | 🏛️ Estimated Market Baseline | 🎯 Actionable Edge Guidance |
+| Prop Market Category | 📈 Model Projected Line | 🏛️ Live Sportsbook Line Baseline | 🎯 Trading Actionable Edge Guidance |
 | :--- | :--- | :--- | :--- |
-| **Points (PTS)** | **{proj_pts:.1f} PTS** | {live_pts:.1f} PTS | {pts_edge} |
-| **Rebounds (REB)** | **{proj_reb:.1f} REB** | {live_reb:.1f} REB | {reb_edge} |
-| **Assists (AST)** | **{proj_ast:.1f} AST** | {live_ast:.1f} AST | {ast_edge} |
-| **3-Pointers Made (3PM)** | **{proj_3pm:.1f} 3PM** | {live_3pm:.1f} 3PM | {pm3_edge} |
-| **Turnovers (TOV)** | **{proj_tov:.1f} TOV** | {live_tov:.1f} TOV | {tov_edge} |
-| **Steals (STL)** | **{proj_stl:.1f} STL** | {live_stl:.1f} STL | {stl_edge} |
-| **Blocks (BLK)** | **{proj_blk:.1f} BLK** | {live_blk:.1f} BLK | {blk_edge} |
+| **Points (PTS)** | **{proj_pts:.1f} PTS** | {live_pts:.1f} PTS | {get_edge_string(proj_pts, live_pts)} |
+| **Rebounds (REB)** | **{proj_reb:.1f} REB** | {live_reb:.1f} REB | {get_edge_string(proj_reb, live_reb)} |
+| **Assists (AST)** | **{proj_ast:.1f} AST** | {live_ast:.1f} AST | {get_edge_string(proj_ast, live_ast)} |
+| **3-Pointers Made (3PM)** | **{proj_3pm:.1f} 3PM** | {live_3pm:.1f} 3PM | {get_edge_string(proj_3pm, live_3pm)} |
+| **Turnovers (TOV)** | **{proj_tov:.1f} TOV** | {live_tov:.1f} TOV | {get_edge_string(proj_tov, live_tov)} |
+| **Steals (STL)** | **{proj_stl:.1f} STL** | {live_stl:.1f} STL | {get_edge_string(proj_stl, live_stl)} |
+| **Blocks (BLK)** | **{proj_blk:.1f} BLK** | {live_blk:.1f} BLK | {get_edge_string(proj_blk, live_blk)} |
             """)
         
         margins = sim_home_scores - sim_away_scores
@@ -173,4 +154,3 @@ SIMULATED WIN PROBABILITIES
         fig.add_vline(x=0, line_dash="dash", line_color="white")
         fig.add_vline(x=raw_spread, line_color="yellow", annotation_text=f"Spread ({raw_spread:.1f})")
         st.plotly_chart(fig, use_container_width=True)
-

@@ -594,92 +594,129 @@ if st.button("🔥 Simulate Game", type="primary", key=f"game_{gid}"):
     )
 
 
-# =====================================================================
-# FIRST BASKET SIMULATOR
-# =====================================================================
 
-st.markdown("---")
-st.header("🎯 First Basket Simulator")
-st.caption(
-    "Simulate the first scoring event, including two-pointers, "
-    "three-pointers, and made free throws."
-)
+# =====================================================================
+# AUTOMATIC FIRST BASKET SIMULATOR
+# Uses actual ESPN roster names; no player sliders or manual lineups.
+# =====================================================================
 
 FIRST_BASKET_SIMS = 20_000
 
 
-def parse_first_basket_players(text):
-    """Read one player per line, optionally followed by | weight."""
+@st.cache_data(ttl=1800, show_spinner=False)
+def load_team_roster(team_id):
+    """Fetch real player names from ESPN for one team."""
+    data = get_json(f"{BASE}/teams/{team_id}/roster")
     players = []
-    weights = []
 
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
+    def extract(node):
+        if isinstance(node, dict):
+            if node.get("displayName") and (
+                node.get("position") or node.get("jersey") is not None
+            ):
+                players.append({
+                    "name": node["displayName"],
+                    "position": (
+                        node.get("position", {}).get("abbreviation", "")
+                        if isinstance(node.get("position"), dict)
+                        else str(node.get("position") or "")
+                    ),
+                    "jersey": node.get("jersey", ""),
+                })
 
-        parts = line.rsplit("|", 1)
+            for value in node.values():
+                if isinstance(value, (dict, list)):
+                    extract(value)
 
-        if len(parts) == 2:
-            name = parts[0].strip()
-            try:
-                weight = float(parts[1].strip())
-            except ValueError:
-                continue
-        else:
-            name = line
-            weight = 1.0
+        elif isinstance(node, list):
+            for item in node:
+                extract(item)
 
-        if name and np.isfinite(weight) and weight > 0:
-            players.append(name)
-            weights.append(weight)
+    extract(data.get("athletes", data))
 
-    return players, weights
+    unique = {}
+    for player in players:
+        unique[player["name"]] = player
+
+    return list(unique.values())
 
 
-def simulate_first_basket(
-    home_players,
-    home_weights,
-    away_players,
-    away_weights,
-    home_tip_prob,
-    home_score_prob,
-    away_score_prob,
-    home_three_prob,
-    away_three_prob,
-    home_ft_share,
-    away_ft_share,
+@st.cache_data(ttl=1800, show_spinner=False)
+def load_team_directory():
+    """Map team names to ESPN team IDs."""
+    data = get_json(f"{BASE}/teams", {"limit": 100})
+    directory = {}
+
+    for item in data.get("sports", []):
+        for league in item.get("leagues", []):
+            for team in league.get("teams", []):
+                team = team.get("team", team)
+                name = team.get("displayName")
+                team_id = team.get("id")
+                if name and team_id:
+                    directory[name] = str(team_id)
+
+    return directory
+
+
+def simulate_first_basket_auto(
+    home_roster,
+    away_roster,
     sims=FIRST_BASKET_SIMS,
 ):
     """
-    Simplified opening-possession simulation.
+    Simulates first scoring events using actual roster names.
 
-    A scoring event is assigned to a player using that team's player
-    weights. The first scoring event can be a 2PT, 3PT, or FT.
-
-    This is not a play-by-play engine and does not use live player stats.
+    Player selection is a transparent baseline estimate, not a
+    player-stat-based forecast. No live first-basket statistics are
+    assumed to exist in the roster feed.
     """
+    if not home_roster or not away_roster:
+        raise ValueError("A team roster is empty.")
+
     rng = np.random.default_rng()
 
-    home_weights = np.asarray(home_weights, dtype=float)
-    away_weights = np.asarray(away_weights, dtype=float)
+    # Automatic baseline assumptions; users do not adjust these.
+    home_tip_probability = 0.52
+    home_possession_score_probability = 0.28
+    away_possession_score_probability = 0.27
 
-    home_weights /= home_weights.sum()
-    away_weights /= away_weights.sum()
+    # Simple position-based heuristic, with a neutral fallback.
+    def player_weights(roster):
+        weights = []
 
-    possession_home = rng.random(sims) < home_tip_prob
+        for player in roster:
+            pos = str(player.get("position", "")).upper()
 
+            # A modest heuristic only; this is not measured scoring data.
+            if pos in ("C", "PF"):
+                weight = 1.25
+            elif pos in ("SG", "SF"):
+                weight = 1.15
+            elif pos in ("PG",):
+                weight = 1.0
+            else:
+                weight = 1.0
+
+            weights.append(weight)
+
+        weights = np.asarray(weights, dtype=float)
+        return weights / weights.sum()
+
+    home_weights = player_weights(home_roster)
+    away_weights = player_weights(away_roster)
+
+    home_names = [p["name"] for p in home_roster]
+    away_names = [p["name"] for p in away_roster]
+
+    possession_home = rng.random(sims) < home_tip_probability
     first_team = np.full(sims, -1, dtype=int)
     first_player = np.full(sims, "", dtype=object)
     first_type = np.full(sims, "", dtype=object)
     first_points = np.zeros(sims, dtype=int)
 
-    home_names = np.asarray(home_players, dtype=object)
-    away_names = np.asarray(away_players, dtype=object)
-
     for _ in range(40):
         active = first_team == -1
-
         if not active.any():
             break
 
@@ -687,101 +724,71 @@ def simulate_first_basket(
         away_ids = np.flatnonzero(active & ~possession_home)
 
         home_scored = (
-            rng.random(len(home_ids)) < home_score_prob
+            rng.random(len(home_ids))
+            < home_possession_score_probability
         )
         away_scored = (
-            rng.random(len(away_ids)) < away_score_prob
+            rng.random(len(away_ids))
+            < away_possession_score_probability
         )
 
-        scoring_home = home_ids[home_scored]
-        scoring_away = away_ids[away_scored]
+        home_score_ids = home_ids[home_scored]
+        away_score_ids = away_ids[away_scored]
 
-        def record_scores(
-            ids, team_id, names, weights, three_prob, ft_share
-        ):
-            if len(ids) == 0:
+        def record(ids, team_id, names, weights):
+            if not len(ids):
                 return
 
             first_team[ids] = team_id
+            chosen = rng.choice(len(names), size=len(ids), p=weights)
+            first_player[ids] = np.asarray(names, dtype=object)[chosen]
 
-            player_ids = rng.choice(
-                len(names), size=len(ids), p=weights
-            )
-            first_player[ids] = names[player_ids]
-
-            # Remaining scoring events are two-pointers.
-            ft_share = min(max(ft_share, 0.0), 1.0)
-            three_prob = min(max(three_prob, 0.0), 1.0)
-
-            probs = [
-                (1 - ft_share) * (1 - three_prob),
-                (1 - ft_share) * three_prob,
-                ft_share,
-            ]
-
+            # Simplified event mix, including free throws.
             shot = rng.choice(
                 ["2PT", "3PT", "FT"],
                 size=len(ids),
-                p=probs,
+                p=[0.60, 0.32, 0.08],
             )
 
             first_type[ids] = shot
             first_points[ids] = np.select(
-                [
-                    shot == "2PT",
-                    shot == "3PT",
-                    shot == "FT",
-                ],
+                [shot == "2PT", shot == "3PT", shot == "FT"],
                 [2, 3, 1],
             )
 
-        record_scores(
-            scoring_home,
-            0,
-            home_names,
-            home_weights,
-            home_three_prob,
-            home_ft_share,
-        )
-        record_scores(
-            scoring_away,
-            1,
-            away_names,
-            away_weights,
-            away_three_prob,
-            away_ft_share,
-        )
+        record(home_score_ids, 0, home_names, home_weights)
+        record(away_score_ids, 1, away_names, away_weights)
 
-        # Simplified alternating possessions after each possession.
+        # Alternate possessions for unfinished simulations.
         possession_home[active] = ~possession_home[active]
 
     completed = first_team != -1
-    completed_count = int(completed.sum())
+    n = int(completed.sum())
 
-    if completed_count == 0:
+    if n == 0:
         return None
 
-    player_rows = []
+    rows = []
 
-    for team_id, team_name, players in [
-        (0, home_team, home_players),
-        (1, away_team, away_players),
+    for team_id, team_name, names in [
+        (0, home_team, home_names),
+        (1, away_team, away_names),
     ]:
-        for player in players:
+        for player in names:
             count = int(np.sum(
                 completed
                 & (first_team == team_id)
                 & (first_player == player)
             ))
 
-            player_rows.append({
+            rows.append({
                 "Player": player,
                 "Team": team_name,
-                "First basket count": count,
-                "Probability": count / completed_count,
+                "Simulated first scores": count,
+                "Probability": count / n,
             })
 
-    player_df = pd.DataFrame(player_rows).sort_values(
+    player_df = pd.DataFrame(rows).sort_values(
         "Probability", ascending=False
     ).reset_index(drop=True)
 
@@ -797,199 +804,99 @@ def simulate_first_basket(
     ])
 
     type_rows = []
-
-    for shot_type in ["2PT", "3PT", "FT"]:
-        count = int(np.sum(
-            completed & (first_type == shot_type)
-        ))
-
+    for event in ["2PT", "3PT", "FT"]:
         type_rows.append({
-            "First scoring event": shot_type,
-            "Probability": count / completed_count,
+            "First scoring event": event,
+            "Probability": float(np.mean(first_type[completed] == event)),
         })
 
     return {
         "players": player_df,
         "teams": team_df,
         "types": pd.DataFrame(type_rows),
-        "completed": completed_count,
-        "no_score": sims - completed_count,
+        "completed": n,
+        "no_score": sims - n,
         "first_points": first_points[completed],
     }
 
 
-with st.expander("⚙️ First basket settings", expanded=True):
-    st.markdown(
-        "Enter expected starters or other eligible players, one per line. "
-        "Optional format: `Player Name | 3`. A weight of 3 gives that "
-        "player three times the selection weight of a player weighted 1 "
-        "on the same team."
-    )
-
-    hcol, acol = st.columns(2)
-
-    with hcol:
-        st.markdown(f"**🏠 {home_team}**")
-        home_lineup_text = st.text_area(
-            "Home players",
-            key=f"fb_home_{gid}",
-            placeholder=(
-                "Player A | 3\nPlayer B | 2\nPlayer C | 1.5\n"
-                "Player D | 1\nPlayer E | 1"
-            ),
-            height=160,
-        )
-
-    with acol:
-        st.markdown(f"**✈️ {away_team}**")
-        away_lineup_text = st.text_area(
-            "Away players",
-            key=f"fb_away_{gid}",
-            placeholder=(
-                "Player F | 3\nPlayer G | 2\nPlayer H | 1.5\n"
-                "Player I | 1\nPlayer J | 1"
-            ),
-            height=160,
-        )
-
-    st.markdown("**Opening possession assumptions**")
-
-    c1, c2, c3 = st.columns(3)
-
-    home_tip_prob = c1.slider(
-        f"{home_team} tip-off win chance (%)",
-        30, 70, 52,
-        key=f"fb_tip_{gid}",
-    ) / 100
-
-    home_score_prob = c2.slider(
-        f"{home_team} possession scoring chance (%)",
-        10, 60, 28,
-        key=f"fb_hscore_{gid}",
-    ) / 100
-
-    away_score_prob = c3.slider(
-        f"{away_team} possession scoring chance (%)",
-        10, 60, 27,
-        key=f"fb_asc_{gid}",
-    ) / 100
-
-    st.markdown("**Scoring-event assumptions**")
-
-    c4, c5, c6 = st.columns(3)
-
-    home_three_prob = c4.slider(
-        f"{home_team} three-point share (%)",
-        0, 70, 35,
-        key=f"fb_hthree_{gid}",
-    ) / 100
-
-    away_three_prob = c5.slider(
-        f"{away_team} three-point share (%)",
-        0, 70, 35,
-        key=f"fb_athree_{gid}",
-    ) / 100
-
-    home_ft_share = c6.slider(
-        "Free throws as share of scoring events (%)",
-        0, 30, 8,
-        key=f"fb_ft_{gid}",
-    ) / 100
-
-    away_ft_share = home_ft_share
-
+st.markdown("---")
+st.header("🎯 First Basket Simulator")
+st.caption(
+    "Automatically loads player names for the selected matchup "
+    "and simulates the first scoring event, including free throws."
+)
 
 if st.button(
-    "🎯 Simulate First Basket",
+    "Run First Basket Simulation",
     type="primary",
-    key=f"fb_run_{gid}",
+    key=f"auto_first_basket_{gid}",
 ):
-    home_players, home_weights = parse_first_basket_players(
-        home_lineup_text
-    )
-    away_players, away_weights = parse_first_basket_players(
-        away_lineup_text
-    )
+    try:
+        with st.spinner("Loading NBA rosters and simulating opening possessions..."):
+            directory = load_team_directory()
 
-    if not home_players or not away_players:
-        st.error(
-            "Enter at least one valid player for each team. "
-            "Use a positive weight, for example: Player Name | 2"
-        )
-    elif home_team == away_team:
-        st.error("Select two different teams.")
-    else:
-        result = simulate_first_basket(
-            home_players=home_players,
-            home_weights=home_weights,
-            away_players=away_players,
-            away_weights=away_weights,
-            home_tip_prob=home_tip_prob,
-            home_score_prob=home_score_prob,
-            away_score_prob=away_score_prob,
-            home_three_prob=home_three_prob,
-            away_three_prob=away_three_prob,
-            home_ft_share=home_ft_share,
-            away_ft_share=away_ft_share,
-        )
+            home_id = directory.get(home_team)
+            away_id = directory.get(away_team)
+
+            if not home_id or not away_id:
+                raise ValueError(
+                    "Could not match one or both teams to ESPN roster IDs."
+                )
+
+            home_roster = load_team_roster(home_id)
+            away_roster = load_team_roster(away_id)
+
+            if home_team == away_team:
+                raise ValueError("Select two different teams.")
+
+            result = simulate_first_basket_auto(
+                home_roster,
+                away_roster,
+            )
 
         if result is None:
-            st.warning(
-                "No scoring event was recorded. Try higher possession "
-                "scoring probabilities or rerun the simulation."
-            )
+            st.warning("No scoring events were recorded. Try again.")
         else:
-            st.subheader(
-                f"First basket forecast: {away_team} @ {home_team}"
-            )
             st.caption(
                 f"{FIRST_BASKET_SIMS:,} simulations · "
-                f"{result['completed']:,} with a recorded first score"
+                f"{result['completed']:,} simulations with a first score"
             )
 
             top = result["players"].iloc[0]
             team_probs = result["teams"].set_index("Team")["Probability"]
 
-            m1, m2, m3 = st.columns(3)
-
-            m1.metric(
-                "Top simulated first scorer",
+            c1, c2, c3 = st.columns(3)
+            c1.metric(
+                "Top simulated scorer",
                 top["Player"],
-                f"{top['Probability']:.2%} probability",
+                f"{top['Probability']:.2%}",
             )
-            m2.metric(
+            c2.metric(
                 f"{home_team} scores first",
                 f"{team_probs[home_team]:.1%}",
             )
-            m3.metric(
+            c3.metric(
                 f"{away_team} scores first",
                 f"{team_probs[away_team]:.1%}",
             )
 
-            st.markdown("#### 🏆 Player rankings")
-
+            st.subheader("First basket player rankings")
             players_display = result["players"].copy()
             players_display["Probability"] = (
-                players_display["Probability"].map(
-                    lambda p: f"{p:.2%}"
-                )
+                players_display["Probability"].map(lambda p: f"{p:.2%}")
             )
-
             st.dataframe(
                 players_display,
                 hide_index=True,
                 use_container_width=True,
             )
 
-            st.markdown("#### 🏀 First scoring event breakdown")
-
+            st.subheader("First scoring event")
             types_display = result["types"].copy()
             types_display["Probability"] = (
-                types_display["Probability"].map(
-                    lambda p: f"{p:.2%}"
-                )
+                types_display["Probability"].map(lambda p: f"{p:.2%}")
             )
-
             st.dataframe(
                 types_display,
                 hide_index=True,
@@ -997,26 +904,25 @@ if st.button(
             )
 
             st.metric(
-                "Average points on the first scoring event",
+                "Average points on first scoring event",
                 f"{np.mean(result['first_points']):.2f}",
             )
 
             st.caption(
-                f"No score recorded within 40 simulated possessions: "
-                f"{result['no_score']:,}. Those runs are excluded from "
-                "the first-scorer percentages."
+                f"No score within the 40-possession limit: "
+                f"{result['no_score']:,} simulations. These are excluded "
+                "from first-scorer probabilities."
             )
 
-            st.info(
-                "This is an assumption-based Monte Carlo model. Player "
-                "weights, tip-off probability, and scoring assumptions "
-                "are editable inputs, not verified live player statistics. "
-                "The simulation simplifies rebounds, turnovers, fouls, "
-                "free-throw sequences, and actual play-by-play."
+            st.warning(
+                "The player names come from ESPN's roster feed, but the "
+                "scoring probabilities are still baseline estimates. "
+                "This version does not confirm starters or use individual "
+                "first-basket statistics, shot rates, or actual tip-off data."
             )
 
-st.markdown("---")
-st.caption(
-    "For informational and entertainment purposes. Model estimates "
-    "are not guarantees of game results or betting outcomes."
-)
+    except Exception as exc:
+        st.error(f"First basket simulation failed: {exc}")
+        st.caption(
+            "Check your internet connection and ESPN roster availability."
+        )

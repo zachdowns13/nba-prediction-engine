@@ -1,0 +1,451 @@
+PLAYER_NAME,TEAM_NAME,pts,reb,ast,stl,blk,pm3,tov
+Atlanta Hawks Rotation Player 1,Atlanta Hawks,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Atlanta Hawks Rotation Player 2,Atlanta Hawks,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Atlanta Hawks Rotation Player 3,Atlanta Hawks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Atlanta Hawks Rotation Player 4,Atlanta Hawks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Atlanta Hawks Rotation Player 5,Atlanta Hawks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Atlanta Hawks Rotation Player 6,Atlanta Hawks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Atlanta Hawks Rotation Player 7,Atlanta Hawks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Atlanta Hawks Rotation Player 8,Atlanta Hawks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Atlanta Hawks Rotation Player 9,Atlanta Hawks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Atlanta Hawks Rotation Player 10,Atlanta Hawks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Atlanta Hawks Rotation Player 11,Atlanta Hawks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Atlanta Hawks Rotation Player 12,Atlanta Hawks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Atlanta Hawks Rotation Player 13,Atlanta Hawks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Atlanta Hawks Rotation Player 14,Atlanta Hawks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Atlanta Hawks Rotation Player 15,Atlanta Hawks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Boston Celtics Rotation Player 1,Boston Celtics,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Boston Celtics Rotation Player 2,Boston Celtics,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Boston Celtics Rotation Player 3,Boston Celtics,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Boston Celtics Rotation Player 4,Boston Celtics,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Boston Celtics Rotation Player 5,Boston Celtics,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Boston Celtics Rotation Player 6,Boston Celtics,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Boston Celtics Rotation Player 7,Boston Celtics,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Boston Celtics Rotation Player 8,Boston Celtics,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Boston Celtics Rotation Player 9,Boston Celtics,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Boston Celtics Rotation Player 10,Boston Celtics,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Boston Celtics Rotation Player 11,Boston Celtics,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Boston Celtics Rotation Player 12,Boston Celtics,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Boston Celtics Rotation Player 13,Boston Celtics,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Boston Celtics Rotation Player 14,Boston Celtics,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Boston Celtics Rotation Player 15,Boston Celtics,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Cleveland Cavaliers Rotation Player 1,Cleveland Cavaliers,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Cleveland Cavaliers Rotation Player 2,Cleveland Cavaliers,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Cleveland Cavaliers Rotation Player 3,Cleveland Cavaliers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Cleveland Cavaliers Rotation Player 4,Cleveland Cavaliers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Cleveland Cavaliers Rotation Player 5,Cleveland Cavaliers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Cleveland Cavaliers Rotation Player 6,Cleveland Cavaliers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Cleveland Cavaliers Rotation Player 7,Cleveland Cavaliers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Cleveland Cavaliers Rotation Player 8,Cleveland Cavaliers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Cleveland Cavaliers Rotation Player 9,Cleveland Cavaliers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Cleveland Cavaliers Rotation Player 10,Cleveland Cavaliers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Cleveland Cavaliers Rotation Player 11,Cleveland Cavaliers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Cleveland Cavaliers Rotation Player 12,Cleveland Cavaliers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Cleveland Cavaliers Rotation Player 13,Cleveland Cavaliers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Cleveland Cavaliers Rotation Player 14,Cleveland Cavaliers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Cleveland Cavaliers Rotation Player 15,Cleveland Cavaliers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New Orleans Pelicans Rotation Player 1,New Orleans Pelicans,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+New Orleans Pelicans Rotation Player 2,New Orleans Pelicans,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+New Orleans Pelicans Rotation Player 3,New Orleans Pelicans,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New Orleans Pelicans Rotation Player 4,New Orleans Pelicans,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New Orleans Pelicans Rotation Player 5,New Orleans Pelicans,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New Orleans Pelicans Rotation Player 6,New Orleans Pelicans,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New Orleans Pelicans Rotation Player 7,New Orleans Pelicans,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New Orleans Pelicans Rotation Player 8,New Orleans Pelicans,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New Orleans Pelicans Rotation Player 9,New Orleans Pelicans,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New Orleans Pelicans Rotation Player 10,New Orleans Pelicans,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New Orleans Pelicans Rotation Player 11,New Orleans Pelicans,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New Orleans Pelicans Rotation Player 12,New Orleans Pelicans,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New Orleans Pelicans Rotation Player 13,New Orleans Pelicans,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New Orleans Pelicans Rotation Player 14,New Orleans Pelicans,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New Orleans Pelicans Rotation Player 15,New Orleans Pelicans,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Chicago Bulls Rotation Player 1,Chicago Bulls,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Chicago Bulls Rotation Player 2,Chicago Bulls,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Chicago Bulls Rotation Player 3,Chicago Bulls,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Chicago Bulls Rotation Player 4,Chicago Bulls,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Chicago Bulls Rotation Player 5,Chicago Bulls,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Chicago Bulls Rotation Player 6,Chicago Bulls,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Chicago Bulls Rotation Player 7,Chicago Bulls,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Chicago Bulls Rotation Player 8,Chicago Bulls,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Chicago Bulls Rotation Player 9,Chicago Bulls,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Chicago Bulls Rotation Player 10,Chicago Bulls,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Chicago Bulls Rotation Player 11,Chicago Bulls,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Chicago Bulls Rotation Player 12,Chicago Bulls,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Chicago Bulls Rotation Player 13,Chicago Bulls,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Chicago Bulls Rotation Player 14,Chicago Bulls,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Chicago Bulls Rotation Player 15,Chicago Bulls,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Dallas Mavericks Rotation Player 1,Dallas Mavericks,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Dallas Mavericks Rotation Player 2,Dallas Mavericks,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Dallas Mavericks Rotation Player 3,Dallas Mavericks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Dallas Mavericks Rotation Player 4,Dallas Mavericks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Dallas Mavericks Rotation Player 5,Dallas Mavericks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Dallas Mavericks Rotation Player 6,Dallas Mavericks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Dallas Mavericks Rotation Player 7,Dallas Mavericks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Dallas Mavericks Rotation Player 8,Dallas Mavericks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Dallas Mavericks Rotation Player 9,Dallas Mavericks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Dallas Mavericks Rotation Player 10,Dallas Mavericks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Dallas Mavericks Rotation Player 11,Dallas Mavericks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Dallas Mavericks Rotation Player 12,Dallas Mavericks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Dallas Mavericks Rotation Player 13,Dallas Mavericks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Dallas Mavericks Rotation Player 14,Dallas Mavericks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Dallas Mavericks Rotation Player 15,Dallas Mavericks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Denver Nuggets Rotation Player 1,Denver Nuggets,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Denver Nuggets Rotation Player 2,Denver Nuggets,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Denver Nuggets Rotation Player 3,Denver Nuggets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Denver Nuggets Rotation Player 4,Denver Nuggets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Denver Nuggets Rotation Player 5,Denver Nuggets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Denver Nuggets Rotation Player 6,Denver Nuggets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Denver Nuggets Rotation Player 7,Denver Nuggets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Denver Nuggets Rotation Player 8,Denver Nuggets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Denver Nuggets Rotation Player 9,Denver Nuggets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Denver Nuggets Rotation Player 10,Denver Nuggets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Denver Nuggets Rotation Player 11,Denver Nuggets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Denver Nuggets Rotation Player 12,Denver Nuggets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Denver Nuggets Rotation Player 13,Denver Nuggets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Denver Nuggets Rotation Player 14,Denver Nuggets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Denver Nuggets Rotation Player 15,Denver Nuggets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Golden State Warriors Rotation Player 1,Golden State Warriors,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Golden State Warriors Rotation Player 2,Golden State Warriors,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Golden State Warriors Rotation Player 3,Golden State Warriors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Golden State Warriors Rotation Player 4,Golden State Warriors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Golden State Warriors Rotation Player 5,Golden State Warriors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Golden State Warriors Rotation Player 6,Golden State Warriors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Golden State Warriors Rotation Player 7,Golden State Warriors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Golden State Warriors Rotation Player 8,Golden State Warriors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Golden State Warriors Rotation Player 9,Golden State Warriors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Golden State Warriors Rotation Player 10,Golden State Warriors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Golden State Warriors Rotation Player 11,Golden State Warriors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Golden State Warriors Rotation Player 12,Golden State Warriors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Golden State Warriors Rotation Player 13,Golden State Warriors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Golden State Warriors Rotation Player 14,Golden State Warriors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Golden State Warriors Rotation Player 15,Golden State Warriors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Houston Rockets Rotation Player 1,Houston Rockets,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Houston Rockets Rotation Player 2,Houston Rockets,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Houston Rockets Rotation Player 3,Houston Rockets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Houston Rockets Rotation Player 4,Houston Rockets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Houston Rockets Rotation Player 5,Houston Rockets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Houston Rockets Rotation Player 6,Houston Rockets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Houston Rockets Rotation Player 7,Houston Rockets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Houston Rockets Rotation Player 8,Houston Rockets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Houston Rockets Rotation Player 9,Houston Rockets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Houston Rockets Rotation Player 10,Houston Rockets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Houston Rockets Rotation Player 11,Houston Rockets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Houston Rockets Rotation Player 12,Houston Rockets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Houston Rockets Rotation Player 13,Houston Rockets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Houston Rockets Rotation Player 14,Houston Rockets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Houston Rockets Rotation Player 15,Houston Rockets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Clippers Rotation Player 1,Los Angeles Clippers,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Los Angeles Clippers Rotation Player 2,Los Angeles Clippers,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Los Angeles Clippers Rotation Player 3,Los Angeles Clippers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Clippers Rotation Player 4,Los Angeles Clippers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Clippers Rotation Player 5,Los Angeles Clippers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Clippers Rotation Player 6,Los Angeles Clippers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Clippers Rotation Player 7,Los Angeles Clippers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Clippers Rotation Player 8,Los Angeles Clippers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Clippers Rotation Player 9,Los Angeles Clippers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Clippers Rotation Player 10,Los Angeles Clippers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Clippers Rotation Player 11,Los Angeles Clippers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Clippers Rotation Player 12,Los Angeles Clippers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Clippers Rotation Player 13,Los Angeles Clippers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Clippers Rotation Player 14,Los Angeles Clippers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Clippers Rotation Player 15,Los Angeles Clippers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Lakers Rotation Player 1,Los Angeles Lakers,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Los Angeles Lakers Rotation Player 2,Los Angeles Lakers,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Los Angeles Lakers Rotation Player 3,Los Angeles Lakers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Lakers Rotation Player 4,Los Angeles Lakers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Lakers Rotation Player 5,Los Angeles Lakers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Lakers Rotation Player 6,Los Angeles Lakers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Lakers Rotation Player 7,Los Angeles Lakers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Lakers Rotation Player 8,Los Angeles Lakers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Lakers Rotation Player 9,Los Angeles Lakers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Lakers Rotation Player 10,Los Angeles Lakers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Lakers Rotation Player 11,Los Angeles Lakers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Lakers Rotation Player 12,Los Angeles Lakers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Lakers Rotation Player 13,Los Angeles Lakers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Lakers Rotation Player 14,Los Angeles Lakers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Los Angeles Lakers Rotation Player 15,Los Angeles Lakers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Miami Heat Rotation Player 1,Miami Heat,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Miami Heat Rotation Player 2,Miami Heat,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Miami Heat Rotation Player 3,Miami Heat,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Miami Heat Rotation Player 4,Miami Heat,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Miami Heat Rotation Player 5,Miami Heat,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Miami Heat Rotation Player 6,Miami Heat,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Miami Heat Rotation Player 7,Miami Heat,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Miami Heat Rotation Player 8,Miami Heat,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Miami Heat Rotation Player 9,Miami Heat,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Miami Heat Rotation Player 10,Miami Heat,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Miami Heat Rotation Player 11,Miami Heat,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Miami Heat Rotation Player 12,Miami Heat,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Miami Heat Rotation Player 13,Miami Heat,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Miami Heat Rotation Player 14,Miami Heat,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Miami Heat Rotation Player 15,Miami Heat,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Milwaukee Bucks Rotation Player 1,Milwaukee Bucks,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Milwaukee Bucks Rotation Player 2,Milwaukee Bucks,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Milwaukee Bucks Rotation Player 3,Milwaukee Bucks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Milwaukee Bucks Rotation Player 4,Milwaukee Bucks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Milwaukee Bucks Rotation Player 5,Milwaukee Bucks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Milwaukee Bucks Rotation Player 6,Milwaukee Bucks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Milwaukee Bucks Rotation Player 7,Milwaukee Bucks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Milwaukee Bucks Rotation Player 8,Milwaukee Bucks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Milwaukee Bucks Rotation Player 9,Milwaukee Bucks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Milwaukee Bucks Rotation Player 10,Milwaukee Bucks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Milwaukee Bucks Rotation Player 11,Milwaukee Bucks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Milwaukee Bucks Rotation Player 12,Milwaukee Bucks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Milwaukee Bucks Rotation Player 13,Milwaukee Bucks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Milwaukee Bucks Rotation Player 14,Milwaukee Bucks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Milwaukee Bucks Rotation Player 15,Milwaukee Bucks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Minnesota Timberwolves Rotation Player 1,Minnesota Timberwolves,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Minnesota Timberwolves Rotation Player 2,Minnesota Timberwolves,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Minnesota Timberwolves Rotation Player 3,Minnesota Timberwolves,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Minnesota Timberwolves Rotation Player 4,Minnesota Timberwolves,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Minnesota Timberwolves Rotation Player 5,Minnesota Timberwolves,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Minnesota Timberwolves Rotation Player 6,Minnesota Timberwolves,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Minnesota Timberwolves Rotation Player 7,Minnesota Timberwolves,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Minnesota Timberwolves Rotation Player 8,Minnesota Timberwolves,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Minnesota Timberwolves Rotation Player 9,Minnesota Timberwolves,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Minnesota Timberwolves Rotation Player 10,Minnesota Timberwolves,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Minnesota Timberwolves Rotation Player 11,Minnesota Timberwolves,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Minnesota Timberwolves Rotation Player 12,Minnesota Timberwolves,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Minnesota Timberwolves Rotation Player 13,Minnesota Timberwolves,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Minnesota Timberwolves Rotation Player 14,Minnesota Timberwolves,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Minnesota Timberwolves Rotation Player 15,Minnesota Timberwolves,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Brooklyn Nets Rotation Player 1,Brooklyn Nets,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Brooklyn Nets Rotation Player 2,Brooklyn Nets,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Brooklyn Nets Rotation Player 3,Brooklyn Nets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Brooklyn Nets Rotation Player 4,Brooklyn Nets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Brooklyn Nets Rotation Player 5,Brooklyn Nets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Brooklyn Nets Rotation Player 6,Brooklyn Nets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Brooklyn Nets Rotation Player 7,Brooklyn Nets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Brooklyn Nets Rotation Player 8,Brooklyn Nets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Brooklyn Nets Rotation Player 9,Brooklyn Nets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Brooklyn Nets Rotation Player 10,Brooklyn Nets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Brooklyn Nets Rotation Player 11,Brooklyn Nets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Brooklyn Nets Rotation Player 12,Brooklyn Nets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Brooklyn Nets Rotation Player 13,Brooklyn Nets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Brooklyn Nets Rotation Player 14,Brooklyn Nets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Brooklyn Nets Rotation Player 15,Brooklyn Nets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New York Knicks Rotation Player 1,New York Knicks,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+New York Knicks Rotation Player 2,New York Knicks,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+New York Knicks Rotation Player 3,New York Knicks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New York Knicks Rotation Player 4,New York Knicks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New York Knicks Rotation Player 5,New York Knicks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New York Knicks Rotation Player 6,New York Knicks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New York Knicks Rotation Player 7,New York Knicks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New York Knicks Rotation Player 8,New York Knicks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New York Knicks Rotation Player 9,New York Knicks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New York Knicks Rotation Player 10,New York Knicks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New York Knicks Rotation Player 11,New York Knicks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New York Knicks Rotation Player 12,New York Knicks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New York Knicks Rotation Player 13,New York Knicks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New York Knicks Rotation Player 14,New York Knicks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+New York Knicks Rotation Player 15,New York Knicks,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Orlando Magic Rotation Player 1,Orlando Magic,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Orlando Magic Rotation Player 2,Orlando Magic,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Orlando Magic Rotation Player 3,Orlando Magic,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Orlando Magic Rotation Player 4,Orlando Magic,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Orlando Magic Rotation Player 5,Orlando Magic,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Orlando Magic Rotation Player 6,Orlando Magic,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Orlando Magic Rotation Player 7,Orlando Magic,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Orlando Magic Rotation Player 8,Orlando Magic,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Orlando Magic Rotation Player 9,Orlando Magic,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Orlando Magic Rotation Player 10,Orlando Magic,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Orlando Magic Rotation Player 11,Orlando Magic,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Orlando Magic Rotation Player 12,Orlando Magic,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Orlando Magic Rotation Player 13,Orlando Magic,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Orlando Magic Rotation Player 14,Orlando Magic,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Orlando Magic Rotation Player 15,Orlando Magic,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Indiana Pacers Rotation Player 1,Indiana Pacers,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Indiana Pacers Rotation Player 2,Indiana Pacers,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Indiana Pacers Rotation Player 3,Indiana Pacers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Indiana Pacers Rotation Player 4,Indiana Pacers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Indiana Pacers Rotation Player 5,Indiana Pacers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Indiana Pacers Rotation Player 6,Indiana Pacers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Indiana Pacers Rotation Player 7,Indiana Pacers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Indiana Pacers Rotation Player 8,Indiana Pacers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Indiana Pacers Rotation Player 9,Indiana Pacers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Indiana Pacers Rotation Player 10,Indiana Pacers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Indiana Pacers Rotation Player 11,Indiana Pacers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Indiana Pacers Rotation Player 12,Indiana Pacers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Indiana Pacers Rotation Player 13,Indiana Pacers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Indiana Pacers Rotation Player 14,Indiana Pacers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Indiana Pacers Rotation Player 15,Indiana Pacers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Philadelphia 76ers Rotation Player 1,Philadelphia 76ers,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Philadelphia 76ers Rotation Player 2,Philadelphia 76ers,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Philadelphia 76ers Rotation Player 3,Philadelphia 76ers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Philadelphia 76ers Rotation Player 4,Philadelphia 76ers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Philadelphia 76ers Rotation Player 5,Philadelphia 76ers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Philadelphia 76ers Rotation Player 6,Philadelphia 76ers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Philadelphia 76ers Rotation Player 7,Philadelphia 76ers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Philadelphia 76ers Rotation Player 8,Philadelphia 76ers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Philadelphia 76ers Rotation Player 9,Philadelphia 76ers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Philadelphia 76ers Rotation Player 10,Philadelphia 76ers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Philadelphia 76ers Rotation Player 11,Philadelphia 76ers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Philadelphia 76ers Rotation Player 12,Philadelphia 76ers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Philadelphia 76ers Rotation Player 13,Philadelphia 76ers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Philadelphia 76ers Rotation Player 14,Philadelphia 76ers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Philadelphia 76ers Rotation Player 15,Philadelphia 76ers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Phoenix Suns Rotation Player 1,Phoenix Suns,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Phoenix Suns Rotation Player 2,Phoenix Suns,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Phoenix Suns Rotation Player 3,Phoenix Suns,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Phoenix Suns Rotation Player 4,Phoenix Suns,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Phoenix Suns Rotation Player 5,Phoenix Suns,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Phoenix Suns Rotation Player 6,Phoenix Suns,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Phoenix Suns Rotation Player 7,Phoenix Suns,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Phoenix Suns Rotation Player 8,Phoenix Suns,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Phoenix Suns Rotation Player 9,Phoenix Suns,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Phoenix Suns Rotation Player 10,Phoenix Suns,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Phoenix Suns Rotation Player 11,Phoenix Suns,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Phoenix Suns Rotation Player 12,Phoenix Suns,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Phoenix Suns Rotation Player 13,Phoenix Suns,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Phoenix Suns Rotation Player 14,Phoenix Suns,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Phoenix Suns Rotation Player 15,Phoenix Suns,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Portland Trail Blazers Rotation Player 1,Portland Trail Blazers,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Portland Trail Blazers Rotation Player 2,Portland Trail Blazers,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Portland Trail Blazers Rotation Player 3,Portland Trail Blazers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Portland Trail Blazers Rotation Player 4,Portland Trail Blazers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Portland Trail Blazers Rotation Player 5,Portland Trail Blazers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Portland Trail Blazers Rotation Player 6,Portland Trail Blazers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Portland Trail Blazers Rotation Player 7,Portland Trail Blazers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Portland Trail Blazers Rotation Player 8,Portland Trail Blazers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Portland Trail Blazers Rotation Player 9,Portland Trail Blazers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Portland Trail Blazers Rotation Player 10,Portland Trail Blazers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Portland Trail Blazers Rotation Player 11,Portland Trail Blazers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Portland Trail Blazers Rotation Player 12,Portland Trail Blazers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Portland Trail Blazers Rotation Player 13,Portland Trail Blazers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Portland Trail Blazers Rotation Player 14,Portland Trail Blazers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Portland Trail Blazers Rotation Player 15,Portland Trail Blazers,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Sacramento Kings Rotation Player 1,Sacramento Kings,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Sacramento Kings Rotation Player 2,Sacramento Kings,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Sacramento Kings Rotation Player 3,Sacramento Kings,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Sacramento Kings Rotation Player 4,Sacramento Kings,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Sacramento Kings Rotation Player 5,Sacramento Kings,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Sacramento Kings Rotation Player 6,Sacramento Kings,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Sacramento Kings Rotation Player 7,Sacramento Kings,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Sacramento Kings Rotation Player 8,Sacramento Kings,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Sacramento Kings Rotation Player 9,Sacramento Kings,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Sacramento Kings Rotation Player 10,Sacramento Kings,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Sacramento Kings Rotation Player 11,Sacramento Kings,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Sacramento Kings Rotation Player 12,Sacramento Kings,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Sacramento Kings Rotation Player 13,Sacramento Kings,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Sacramento Kings Rotation Player 14,Sacramento Kings,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Sacramento Kings Rotation Player 15,Sacramento Kings,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+San Antonio Spurs Rotation Player 1,San Antonio Spurs,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+San Antonio Spurs Rotation Player 2,San Antonio Spurs,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+San Antonio Spurs Rotation Player 3,San Antonio Spurs,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+San Antonio Spurs Rotation Player 4,San Antonio Spurs,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+San Antonio Spurs Rotation Player 5,San Antonio Spurs,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+San Antonio Spurs Rotation Player 6,San Antonio Spurs,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+San Antonio Spurs Rotation Player 7,San Antonio Spurs,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+San Antonio Spurs Rotation Player 8,San Antonio Spurs,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+San Antonio Spurs Rotation Player 9,San Antonio Spurs,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+San Antonio Spurs Rotation Player 10,San Antonio Spurs,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+San Antonio Spurs Rotation Player 11,San Antonio Spurs,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+San Antonio Spurs Rotation Player 12,San Antonio Spurs,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+San Antonio Spurs Rotation Player 13,San Antonio Spurs,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+San Antonio Spurs Rotation Player 14,San Antonio Spurs,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+San Antonio Spurs Rotation Player 15,San Antonio Spurs,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Oklahoma City Thunder Rotation Player 1,Oklahoma City Thunder,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Oklahoma City Thunder Rotation Player 2,Oklahoma City Thunder,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Oklahoma City Thunder Rotation Player 3,Oklahoma City Thunder,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Oklahoma City Thunder Rotation Player 4,Oklahoma City Thunder,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Oklahoma City Thunder Rotation Player 5,Oklahoma City Thunder,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Oklahoma City Thunder Rotation Player 6,Oklahoma City Thunder,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Oklahoma City Thunder Rotation Player 7,Oklahoma City Thunder,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Oklahoma City Thunder Rotation Player 8,Oklahoma City Thunder,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Oklahoma City Thunder Rotation Player 9,Oklahoma City Thunder,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Oklahoma City Thunder Rotation Player 10,Oklahoma City Thunder,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Oklahoma City Thunder Rotation Player 11,Oklahoma City Thunder,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Oklahoma City Thunder Rotation Player 12,Oklahoma City Thunder,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Oklahoma City Thunder Rotation Player 13,Oklahoma City Thunder,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Oklahoma City Thunder Rotation Player 14,Oklahoma City Thunder,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Oklahoma City Thunder Rotation Player 15,Oklahoma City Thunder,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Toronto Raptors Rotation Player 1,Toronto Raptors,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Toronto Raptors Rotation Player 2,Toronto Raptors,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Toronto Raptors Rotation Player 3,Toronto Raptors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Toronto Raptors Rotation Player 4,Toronto Raptors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Toronto Raptors Rotation Player 5,Toronto Raptors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Toronto Raptors Rotation Player 6,Toronto Raptors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Toronto Raptors Rotation Player 7,Toronto Raptors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Toronto Raptors Rotation Player 8,Toronto Raptors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Toronto Raptors Rotation Player 9,Toronto Raptors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Toronto Raptors Rotation Player 10,Toronto Raptors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Toronto Raptors Rotation Player 11,Toronto Raptors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Toronto Raptors Rotation Player 12,Toronto Raptors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Toronto Raptors Rotation Player 13,Toronto Raptors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Toronto Raptors Rotation Player 14,Toronto Raptors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Toronto Raptors Rotation Player 15,Toronto Raptors,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Utah Jazz Rotation Player 1,Utah Jazz,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Utah Jazz Rotation Player 2,Utah Jazz,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Utah Jazz Rotation Player 3,Utah Jazz,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Utah Jazz Rotation Player 4,Utah Jazz,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Utah Jazz Rotation Player 5,Utah Jazz,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Utah Jazz Rotation Player 6,Utah Jazz,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Utah Jazz Rotation Player 7,Utah Jazz,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Utah Jazz Rotation Player 8,Utah Jazz,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Utah Jazz Rotation Player 9,Utah Jazz,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Utah Jazz Rotation Player 10,Utah Jazz,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Utah Jazz Rotation Player 11,Utah Jazz,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Utah Jazz Rotation Player 12,Utah Jazz,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Utah Jazz Rotation Player 13,Utah Jazz,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Utah Jazz Rotation Player 14,Utah Jazz,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Utah Jazz Rotation Player 15,Utah Jazz,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Memphis Grizzlies Rotation Player 1,Memphis Grizzlies,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Memphis Grizzlies Rotation Player 2,Memphis Grizzlies,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Memphis Grizzlies Rotation Player 3,Memphis Grizzlies,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Memphis Grizzlies Rotation Player 4,Memphis Grizzlies,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Memphis Grizzlies Rotation Player 5,Memphis Grizzlies,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Memphis Grizzlies Rotation Player 6,Memphis Grizzlies,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Memphis Grizzlies Rotation Player 7,Memphis Grizzlies,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Memphis Grizzlies Rotation Player 8,Memphis Grizzlies,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Memphis Grizzlies Rotation Player 9,Memphis Grizzlies,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Memphis Grizzlies Rotation Player 10,Memphis Grizzlies,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Memphis Grizzlies Rotation Player 11,Memphis Grizzlies,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Memphis Grizzlies Rotation Player 12,Memphis Grizzlies,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Memphis Grizzlies Rotation Player 13,Memphis Grizzlies,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Memphis Grizzlies Rotation Player 14,Memphis Grizzlies,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Memphis Grizzlies Rotation Player 15,Memphis Grizzlies,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Washington Wizards Rotation Player 1,Washington Wizards,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Washington Wizards Rotation Player 2,Washington Wizards,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Washington Wizards Rotation Player 3,Washington Wizards,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Washington Wizards Rotation Player 4,Washington Wizards,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Washington Wizards Rotation Player 5,Washington Wizards,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Washington Wizards Rotation Player 6,Washington Wizards,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Washington Wizards Rotation Player 7,Washington Wizards,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Washington Wizards Rotation Player 8,Washington Wizards,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Washington Wizards Rotation Player 9,Washington Wizards,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Washington Wizards Rotation Player 10,Washington Wizards,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Washington Wizards Rotation Player 11,Washington Wizards,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Washington Wizards Rotation Player 12,Washington Wizards,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Washington Wizards Rotation Player 13,Washington Wizards,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Washington Wizards Rotation Player 14,Washington Wizards,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Washington Wizards Rotation Player 15,Washington Wizards,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Detroit Pistons Rotation Player 1,Detroit Pistons,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Detroit Pistons Rotation Player 2,Detroit Pistons,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Detroit Pistons Rotation Player 3,Detroit Pistons,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Detroit Pistons Rotation Player 4,Detroit Pistons,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Detroit Pistons Rotation Player 5,Detroit Pistons,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Detroit Pistons Rotation Player 6,Detroit Pistons,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Detroit Pistons Rotation Player 7,Detroit Pistons,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Detroit Pistons Rotation Player 8,Detroit Pistons,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Detroit Pistons Rotation Player 9,Detroit Pistons,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Detroit Pistons Rotation Player 10,Detroit Pistons,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Detroit Pistons Rotation Player 11,Detroit Pistons,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Detroit Pistons Rotation Player 12,Detroit Pistons,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Detroit Pistons Rotation Player 13,Detroit Pistons,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Detroit Pistons Rotation Player 14,Detroit Pistons,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Detroit Pistons Rotation Player 15,Detroit Pistons,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Charlotte Hornets Rotation Player 1,Charlotte Hornets,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Charlotte Hornets Rotation Player 2,Charlotte Hornets,24.5,6.5,5.5,1.5,1.5,2.5,2.5
+Charlotte Hornets Rotation Player 3,Charlotte Hornets,14.5,5.5,3.5,1.0,0.5,1.5,1.5
+Charlotte Hornets Rotation Player 4,Charlotte Hornets,14.5,5.5,3.5,1.0,0.5,1.5,1.5
+Charlotte Hornets Rotation Player 5,Charlotte Hornets,14.5,5.5,3.5,1.0,0.5,1.5,1.5
+Charlotte Hornets Rotation Player 6,Charlotte Hornets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Charlotte Hornets Rotation Player 7,Charlotte Hornets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Charlotte Hornets Rotation Player 8,Charlotte Hornets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Charlotte Hornets Rotation Player 9,Charlotte Hornets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Charlotte Hornets Rotation Player 10,Charlotte Hornets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Charlotte Hornets Rotation Player 11,Charlotte Hornets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Charlotte Hornets Rotation Player 12,Charlotte Hornets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Charlotte Hornets Rotation Player 13,Charlotte Hornets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Charlotte Hornets Rotation Player 14,Charlotte Hornets,9.5,3.5,1.5,0.5,0.5,1.5,1.5
+Charlotte Hornets Rotation Player 15,Charlotte Hornets,9.5,3.5,1.5,0.5,0.5,1.5,1.5

@@ -1,0 +1,33 @@
+PLAYER_NAME,TEAM_NAME,POINT_WEIGHT,STATUS
+Jalen Brunson,New York Knicks,5.4,ACTIVE
+OG Anunoby,New York Knicks,3.5,ACTIVE
+Karl-Anthony Towns,New York Knicks,4.6,ACTIVE
+Josh Hart,New York Knicks,2.5,ACTIVE
+Mikal Bridges,New York Knicks,3.0,ACTIVE
+Miles McBride,New York Knicks,1.8,ACTIVE
+Cameron Payne,New York Knicks,1.2,ACTIVE
+Precious Achiuwa,New York Knicks,1.5,ACTIVE
+Joel Embiid,Philadelphia 76ers,5.8,OUT
+Paul George,Philadelphia 76ers,4.5,OUT
+Tyrese Maxey,Philadelphia 76ers,5.0,ACTIVE
+Kelly Oubre Jr.,Philadelphia 76ers,2.4,ACTIVE
+Caleb Martin,Philadelphia 76ers,2.0,ACTIVE
+Andre Drummond,Philadelphia 76ers,2.2,ACTIVE
+Kyle Lowry,Philadelphia 76ers,1.5,ACTIVE
+Eric Gordon,Philadelphia 76ers,1.4,ACTIVE
+Jayson Tatum,Boston Celtics,5.8,ACTIVE
+Jaylen Brown,Boston Celtics,4.8,ACTIVE
+Derrick White,Boston Celtics,3.4,ACTIVE
+Kristaps Porzingis,Boston Celtics,3.8,OUT
+Jrue Holiday,Boston Celtics,2.8,ACTIVE
+Al Horford,Boston Celtics,2.0,ACTIVE
+Payton Pritchard,Boston Celtics,1.8,ACTIVE
+Sam Hauser,Boston Celtics,1.5,ACTIVE
+Cade Cunningham,Detroit Pistons,4.5,ACTIVE
+Tobias Harris,Detroit Pistons,2.5,ACTIVE
+Jaden Ivey,Detroit Pistons,2.2,ACTIVE
+Jalen Duren,Detroit Pistons,2.8,ACTIVE
+Isaiah Stewart,Detroit Pistons,1.8,ACTIVE
+Malik Beasley,Detroit Pistons,1.5,ACTIVE
+Tim Hardaway Jr.,Detroit Pistons,1.4,ACTIVE
+Ron Holland II,Detroit Pistons,1.2,ACTIVE

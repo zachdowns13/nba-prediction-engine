@@ -6,20 +6,18 @@ import os
 
 st.set_page_config(page_title="NBA Prediction & Props Engine", page_icon="🏀", layout="centered")
 st.title("🏀 NBA Prediction & Player Props Engine")
-st.write("Simulate matchups 10,000 times and evaluate player prop projection thresholds.")
+st.write("Simulate matchups 10,000 times and evaluate player prop prediction thresholds.")
 
-# FIX: We define local file fallbacks to make sure the engine loads even if URLs mismatch
+# File Configurations
 DATA_FILE = "nba_model_data.csv"
 PLAYER_FILE = "nba_players.csv"
 
 @st.cache_data
 def load_app_data():
     try:
-        # Check if the files exist locally in the main repository path
         if os.path.exists(DATA_FILE) and os.path.exists(PLAYER_FILE):
             return pd.read_csv(DATA_FILE), pd.read_csv(PLAYER_FILE)
         else:
-            # Universal cloud URL backup path
             url_data = "https://githubusercontent.com"
             url_players = "https://githubusercontent.com"
             return pd.read_csv(url_data), pd.read_csv(url_players)
@@ -103,14 +101,19 @@ MODEL MARKET PROJECTIONS
             weight = p_row['POINT_WEIGHT'].iloc[-1]
             status = p_row['STATUS'].iloc[-1]
             
-            # Base values derive from player historical baseline usage rates
-            base_pts = weight * 4.4
-            base_reb = weight * 1.2
-            base_ast = weight * 0.9
+            # FIXED REAL-WORLD METRICS BRACKETS
+            if weight >= 5.0:    # Elite Franchise Stars (Cade, Tatum, Brunson)
+                base_pts, base_reb, base_ast = 24.5, 5.2, 6.4
+            elif weight >= 3.2:  # Primary Starters / High-Usage Scorers
+                base_pts, base_reb, base_ast = 15.2, 4.1, 2.8
+            elif weight >= 1.8:  # Key Rotational Bench Depth Pieces
+                base_pts, base_reb, base_ast = 9.4, 3.2, 1.5
+            else:                # Standard Deep Reserves
+                base_pts, base_reb, base_ast = 4.2, 1.5, 0.8
             
-            # Apply matchup efficiency distortions based on opponent strengths
+            # Matchup alterations against opponent defensive efficiency
             opp_def = h_def if target_team == away_team else a_def
-            m_factor = opp_def / 114.5 # Normalizes vs standard league average defense baseline
+            m_factor = opp_def / 114.5 
             
             if status == "OUT":
                 proj_pts, proj_reb, proj_ast = 0.0, 0.0, 0.0
@@ -126,11 +129,11 @@ MODEL MARKET PROJECTIONS
             
             st.markdown(f"""
 
-            | Prop Market | Expected Simulated Line Output | Actionable Metric Edge Guide |
-            | :--- | :--- | :--- |
-            | **Points (PTS)** | **{proj_pts:.1f} PTS** | Compare against sportsbook lines to locate Value Overs/Unders. |
-            | **Rebounds (REB)** | **{proj_reb:.1f} REB** | Adjusted for opponent rebounding and interior lane efficiency splits. |
-            | **Assists (AST)** | **{proj_ast:.1f} AST** | Scaled to overall simulated team offensive field goal pacing thresholds. |
+| Prop Market | Expected Simulated Line Output | Actionable Metric Edge Guide |
+| :--- | :--- | :--- |
+| **Points (PTS)** | **{proj_pts:.1f} PTS** | Compare against sportsbook lines to locate Value Overs/Unders. |
+| **Rebounds (REB)** | **{proj_reb:.1f} REB** | Adjusted for opponent rebounding and interior lane efficiency splits. |
+| **Assists (AST)** | **{proj_ast:.1f} AST** | Scaled to overall simulated team offensive field goal pacing thresholds. |
             """)
         
         # Visual distribution chart logic
@@ -139,4 +142,3 @@ MODEL MARKET PROJECTIONS
         fig.add_vline(x=0, line_dash="dash", line_color="white")
         fig.add_vline(x=raw_spread, line_color="yellow", annotation_text=f"Spread ({raw_spread:.1f})")
         st.plotly_chart(fig, use_container_width=True)
-

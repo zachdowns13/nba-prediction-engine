@@ -43,7 +43,7 @@ st.markdown("### 🎯 Player Prop Projection Hub")
 target_team = st.selectbox("Choose Target Player Team", [home_team, away_team])
 available_players = player_df[player_df['TEAM_NAME'] == target_team]['PLAYER_NAME'].tolist()
 
-selected_player = st.selectbox("Select Player to Project", sorted(available_players) if available_players else ["No Players Found"])
+selected_player = st.selectbox("Select Player to Project", sorted(list(set(available_players))) if available_players else ["No Players Found"])
 
 # 3. Calculation & Simulation Engine
 if st.button("🚀 Run 10,000 Game & Prop Simulations"):
@@ -101,12 +101,12 @@ MODEL MARKET PROJECTIONS
             weight = p_row['POINT_WEIGHT'].iloc[-1]
             status = p_row['STATUS'].iloc[-1]
             
-            # FIXED REAL-WORLD METRICS BRACKETS
-            if weight >= 5.0:    # Elite Franchise Stars (Cade, Tatum, Brunson)
+            # ADJUSTED STAR WEIGHT BRACKET TO CAPTURE 4.5 SCORES
+            if weight >= 4.0:    # Franchise Stars (Cade, Tatum, Brunson, Maxey)
                 base_pts, base_reb, base_ast = 24.5, 5.2, 6.4
-            elif weight >= 3.2:  # Primary Starters / High-Usage Scorers
+            elif weight >= 2.8:  # Primary Starters / High-Usage Scorers
                 base_pts, base_reb, base_ast = 15.2, 4.1, 2.8
-            elif weight >= 1.8:  # Key Rotational Bench Depth Pieces
+            elif weight >= 1.5:  # Key Rotational Bench Depth Pieces
                 base_pts, base_reb, base_ast = 9.4, 3.2, 1.5
             else:                # Standard Deep Reserves
                 base_pts, base_reb, base_ast = 4.2, 1.5, 0.8
@@ -142,3 +142,4 @@ MODEL MARKET PROJECTIONS
         fig.add_vline(x=0, line_dash="dash", line_color="white")
         fig.add_vline(x=raw_spread, line_color="yellow", annotation_text=f"Spread ({raw_spread:.1f})")
         st.plotly_chart(fig, use_container_width=True)
+

@@ -317,7 +317,7 @@ if st.button("🔥 Simulate Game", type="primary"):
         return {"Market": market, "Side": side, "Line": line_txt,
                 "Model %": f"{model_p * 100:.1f}%", "Model odds": fair_american(model_p),
                 "Sportsbook odds": f"{book_odds:+d}", "Book % (no-vig)": f"{book_p * 100:.1f}%",
-                "Edge": f"{edge * 100:+.1f}", "EV/$100": f"{ev100(model_p, push, book_odds):+.1f}",
+                "Edge": f"{edge * 100:+.1f}", "EV/$100": f"{ev100(model_p, push, book_odds):.1f}",
                 "Model leans": lean(edge), "_edge": edge}
 
     push_s, push_t = 1 - ch - ca, 1 - ov - un
@@ -339,12 +339,18 @@ if st.button("🔥 Simulate Game", type="primary"):
     best = max(rows, key=lambda r: r["_edge"])
     if best["_edge"] >= LEAN_MIN:
         label = f"{best['Side']} {best['Line']}".strip()
-        st.success(f"### ✅ Best edge: {best['Market']} — {label}\n"
-                   f"Model: {best['Model %']}  |  Sportsbook: {best['Book % (no-vig)']}  |  Edge: {best['Edge']} pts")
+        st.success(f"### ✅ Best value: {best['Market']} — {label}\n"
+                   f"The model gives this a **{best['Model %']}** chance. The sportsbook's odds only imply **{best['Book % (no-vig)']}**.")
     else:
-        st.info("### No edge found\nThe model agrees with the sportsbook on all three markets.")
+        st.info("### No clear value\nThe model and the sportsbook roughly agree on all three markets.")
 
     # ---- One card per market: Model says / Sportsbook says / Edge ----
+    def explain(v):
+        ev = float(v["EV/$100"])
+        return (f"The sportsbook's odds imply this hits **{v['Book % (no-vig)']}** of the time. "
+                f"The model says **{v['Model %']}**.\n\n"
+                f"If the model is right, a \\$100 bet on this wins about **\\${ev:.0f}** on average.")
+
     def card(title, model_txt, book_txt, pair):
         a, b = pair
         v = a if a["_edge"] >= b["_edge"] else b
@@ -354,14 +360,14 @@ if st.button("🔥 Simulate Game", type="primary"):
             st.markdown(model_txt)
             st.markdown("**🏦 SPORTSBOOK SAYS**")
             st.markdown(book_txt)
-            st.markdown("**💰 EDGE**")
+            st.markdown("**💰 IS THERE VALUE?**")
             vlabel = f"{v['Side']} {v['Line']}".strip()
             if v["_edge"] >= LEAN_STRONG:
-                st.success(f"🟢 Strong edge: **{vlabel}**\n\nEdge: **+{v['_edge'] * 100:.1f} pts**\n\nExpected profit: **${v['EV/$100']} per $100 bet**")
+                st.success(f"🟢 **Strong value: {vlabel}**\n\n{explain(v)}")
             elif v["_edge"] >= LEAN_MIN:
-                st.warning(f"🟡 Small edge: **{vlabel}**\n\nEdge: **+{v['_edge'] * 100:.1f} pts**\n\nExpected profit: **${v['EV/$100']} per $100 bet**")
+                st.warning(f"🟡 **Slight value: {vlabel}**\n\n{explain(v)}")
             else:
-                st.markdown("⚪ No edge — model and book agree")
+                st.markdown("⚪ **No value** — the model and sportsbook agree")
 
     def fav_name(ml_h, ml_a):
         return home_team if ml_h < ml_a else away_team
@@ -410,6 +416,7 @@ if st.button("🔥 Simulate Game", type="primary"):
 
     with st.expander("See full numbers"):
         st.dataframe(pd.DataFrame(rows).drop(columns="_edge"), hide_index=True)
-        st.caption("Book % has the vig removed. Edge = model % minus book %, in percentage points. "
+        st.caption("Book % is what the sportsbook's odds imply (with their fee removed). Edge = model % minus book %. "
+                   "EV/$100 = average profit per $100 bet if the model is right. "
                    "A big edge usually means the model is missing something (an injury, stale ratings) "
                    "rather than a real opportunity.")

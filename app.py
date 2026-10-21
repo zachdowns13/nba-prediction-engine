@@ -1989,7 +1989,7 @@ def results_tab():
 # =====================================================================
 # MY BETS  (what you actually bet, and how it turned out)
 # =====================================================================
-BET_BOOKS = ["PrizePicks", "Underdog", "Kalshi", "Chalkboard", "Sleeper", "DraftKings", "Novig"]
+BET_BOOKS = ["Kalshi", "Underdog", "PrizePicks", "DraftKings", "Sleeper", "Novig", "Chalkboard"]
 BET_LOG_PATH = "bets_log.csv"
 BET_COLS = ["id", "date", "book", "type", "desc", "legs", "stake", "payout", "result", "returned", "profit", "settled_at"]
 _BET_TXT = ("id", "date", "book", "type", "desc", "result", "settled_at")
@@ -2082,6 +2082,18 @@ def settle_bet(bet_id, returned):
     save_bets(df)
 
 
+def update_bet(bet_id, **ch):
+    df = load_bets()
+    for i in df.index[df["id"] == bet_id]:
+        for c, v in ch.items():
+            df.at[i, c] = v
+        res, stake, pay = df.at[i, "result"], float(df.at[i, "stake"]), float(df.at[i, "payout"])
+        if res in ("W", "L", "P"):                              # keep a settled bet consistent with the new numbers
+            ret = pay if res == "W" else (0.0 if res == "L" else stake)
+            df.at[i, "returned"], df.at[i, "profit"] = ret, ret - stake
+    save_bets(df)
+
+
 def reopen_bet(bet_id):
     df = load_bets()
     for i in df.index[df["id"] == bet_id]:
@@ -2130,10 +2142,10 @@ LEG_STATS = ["Points", "Rebounds", "Assists", "3-pointers made", "Points + rebou
 TEAM_BETS = ["Moneyline (to win)", "Spread", "Game total over", "Game total under"]
 
 
-def num_box(label, key, where=None, placeholder="0", default=0.0):
+def num_box(label, key, where=None, placeholder="0", default=0.0, init=""):
     # A plain text box (empty until you type) that returns a number, so there is no 0.0 to delete first.
     where = where or st
-    raw = where.text_input(label, placeholder=placeholder, key=key).strip().replace("$", "").replace(",", "")
+    raw = where.text_input(label, value=init, placeholder=placeholder, key=key).strip().replace("$", "").replace(",", "")
     if raw in ("", "-", "+", "."):
         return default
     try:
@@ -2258,23 +2270,46 @@ def bets_input_view():
                     st.rerun()
 
     if len(df):
-        with st.expander("Fix or delete a bet"):
+        with st.expander("✏️ Edit or delete a bet"):
             labels = {f"{_nice_date(r['date'])} · {r['book']} · {r['desc'][:50]} · ${r['stake']:,.0f}": r["id"] for _, r in df.sort_values("date", ascending=False).iterrows()}
             pick = st.selectbox("Choose a bet", list(labels), key="bet_fix_pick")
             bid = labels[pick]
             row = df[df["id"] == bid].iloc[0]
-            f1, f2 = st.columns(2)
-            amt = f1.number_input("It paid out ($, total back to you)", min_value=0.0, value=float(row["returned"]) if pd.notna(row["returned"]) else 0.0,
-                                  step=1.0, key=f"bet_fix_amt_{bid}")
+            kk = lambda name: f"bef_{bid}_{name}"
+            st.markdown("**Change the details**")
+            h1, h2, h3 = st.columns(3)
+            try:
+                d0 = dt.date.fromisoformat(row["date"])
+            except Exception:
+                d0 = dt.date.today()
+            new_date = h1.date_input("Date", d0, key=kk("date"))
+            books = BET_BOOKS + ["Other"]
+            new_book = h2.selectbox("Book", books, index=books.index(row["book"]) if row["book"] in books else len(books) - 1, key=kk("book"))
+            new_type = h3.radio("Type", ["Straight", "Parlay"], index=1 if row["type"] == "Parlay" else 0, horizontal=True, key=kk("type"))
+            new_desc = st.text_input("The bet", value=row["desc"], key=kk("desc"))
+            h4, h5, h6 = st.columns(3)
+            new_stake = num_box("Amount you put in ($)", kk("stake"), h4, init=f"{row['stake']:g}")
+            new_pay = num_box("Payout if it wins ($)", kk("pay"), h5, init=f"{row['payout']:g}")
+            new_legs = int(h6.number_input("Legs", min_value=1, max_value=20, value=max(1, int(row["legs"]) if pd.notna(row["legs"]) else 1), key=kk("legs")))
+            if st.button("💾 Save changes", key=kk("save"), type="primary"):
+                if not new_desc.strip() or new_stake <= 0 or new_pay <= new_stake:
+                    st.error("Needs a description, a stake, and a payout bigger than the stake.")
+                else:
+                    update_bet(bid, date=new_date.isoformat(), book=new_book, type=new_type, desc=new_desc.strip(),
+                               stake=float(new_stake), payout=float(new_pay), legs=1 if new_type == "Straight" else max(2, new_legs))
+                    st.success("Bet updated.")
+                    st.rerun()
+            st.markdown("**Settle or remove**")
+            amt = num_box("It paid out ($, total back to you)", kk("amt"), st, init=f"{row['returned']:g}" if pd.notna(row["returned"]) else "")
             st.caption("Use this for a cash-out or a partial payout. 0 counts as a loss, your stake back counts as a push, more than your stake as a win.")
             g1, g2, g3 = st.columns(3)
-            if g1.button("Save this payout", key=f"bet_fix_save_{bid}"):
+            if g1.button("Save this payout", key=kk("psave")):
                 settle_bet(bid, amt)
                 st.rerun()
-            if g2.button("Mark as waiting again", key=f"bet_fix_open_{bid}"):
+            if g2.button("Mark as waiting again", key=kk("open")):
                 reopen_bet(bid)
                 st.rerun()
-            if g3.button("Delete this bet", key=f"bet_fix_del_{bid}"):
+            if g3.button("Delete this bet", key=kk("del")):
                 delete_bet(bid)
                 st.rerun()
 
@@ -2299,17 +2334,19 @@ def bets_input_view():
             st.success("Bets erased.")
 
 
-def bets_results_view():
-    df = load_bets()
-    if df.empty:
-        st.info("No bets yet. Add one in the **My bets** subtab and your results will show up here.")
-        return
-    done = df[df["result"].isin(["W", "L", "P"])].copy()
-    open_ = df[df["result"] == ""]
+def _week_label(d):
+    try:
+        x = dt.date.fromisoformat(d)
+        return "Week of " + (x - dt.timedelta(days=x.weekday())).strftime("%b %d").replace(" 0", " ")
+    except Exception:
+        return d
+
+
+def bets_stats_block(done, open_, key):
+    # Stats for any slice of bets: summary tiles, daily / weekly views, straight vs parlay.
     if done.empty:
-        st.info(f"No settled bets yet. {len(open_)} open (${open_['stake'].sum():,.2f} at risk). Mark them Won, Lost or Push in the **My bets** subtab.")
+        st.caption(f"No settled bets here yet. {len(open_)} open (${open_['stake'].sum():,.0f} at risk)." if len(open_) else "No bets here yet.")
         return
-    done["odds"] = [bet_odds(a, b) for a, b in zip(done["stake"], done["payout"])]
     s = pick_stats(done)
     html('<div class="nb-tiles">'
          + stat_tile("Profit", _signed_money(s["profit"]), f"on ${done['stake'].sum():,.0f} bet", _tone(s["profit"]))
@@ -2317,19 +2354,49 @@ def bets_results_view():
          + stat_tile("Win rate", f"{s['win'] * 100:.0f}%" if s["win"] is not None else "-", "wins out of wins + losses")
          + stat_tile("Biggest win", _signed_money(float(done["profit"].max())), "single bet")
          + '</div>')
-    if 0 < s["n"] < 30:
-        st.caption(f"Early days: only {s['n']} settled bets so far, so these numbers can swing a lot.")
     form_strip(done.sort_values(["date", "settled_at"])["result"])
-
-    st.markdown('<div class="nb-sec">By book</div>', unsafe_allow_html=True)
-    breakdown_html([(b, done[done["book"] == b]) for b in BET_BOOKS + ["Other"]])
+    st.markdown('<div class="nb-sec">Over time</div>', unsafe_allow_html=True)
+    view = st.radio("Group by", ["Daily", "Weekly"], horizontal=True, key=f"{key}_grp", label_visibility="collapsed")
+    if view == "Daily":
+        day_list(done)
+    else:
+        wk = done.assign(_w=done["date"].map(_week_label))
+        order = sorted(wk["_w"].unique(), key=lambda w: wk[wk["_w"] == w]["date"].min(), reverse=True)
+        breakdown_html([(w, wk[wk["_w"] == w]) for w in order])
     st.markdown('<div class="nb-sec">Straight vs parlay</div>', unsafe_allow_html=True)
     breakdown_html([("Straight bets", done[done["type"] == "Straight"]), ("Parlays", done[done["type"] == "Parlay"])])
-    st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
-    day_list(done)
     if done["date"].nunique() > 1:
         st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
         profit_chart(done)
+
+
+def bets_results_view():
+    df = load_bets()
+    if df.empty:
+        st.info("No bets yet. Add one in the **My bets** subtab and your results will show up here.")
+        return
+    today = dt.date.today()
+    period = st.radio("Time period", ["All time", "Today", "Last 7 days", "Last 30 days"], horizontal=True, key="bet_period")
+    if period != "All time":
+        days = {"Today": 0, "Last 7 days": 6, "Last 30 days": 29}[period]
+        df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
+    done = df[df["result"].isin(["W", "L", "P"])].copy()
+    open_ = df[df["result"] == ""]
+    if done.empty:
+        st.info(f"No settled bets in this period. {len(open_)} open (${open_['stake'].sum():,.2f} at risk). Mark them Won, Lost or Push in the **My bets** subtab.")
+    else:
+        done["odds"] = [bet_odds(a, b) for a, b in zip(done["stake"], done["payout"])]
+        if 0 < len(done) < 30:
+            st.caption(f"Early days: only {len(done)} settled bets here so far, so these numbers can swing a lot.")
+        st.markdown('<div class="nb-sec">By book</div>', unsafe_allow_html=True)
+        breakdown_html([(b, done[done["book"] == b]) for b in BET_BOOKS + ["Other"]])
+        used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
+        tabs = st.tabs(["All books"] + used)
+        with tabs[0]:
+            bets_stats_block(done, open_, "bs_all")
+        for t, b in zip(tabs[1:], used):
+            with t:
+                bets_stats_block(done[done["book"] == b], open_[open_["book"] == b], f"bs_{b}")
 
     st.markdown('<div class="nb-sec">All my bets</div>', unsafe_allow_html=True)
     flt = st.selectbox("Show", ["All", "Open", "Wins", "Losses", "Pushes", "Straight", "Parlays"], key="bet_filter", label_visibility="collapsed")

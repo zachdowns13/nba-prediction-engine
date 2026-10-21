@@ -2073,13 +2073,22 @@ def book_chip(book, size=22):
             f'overflow:hidden;background:{col};color:{fg};font-size:{size * 0.42:.0f}px;font-weight:800;text-align:center;vertical-align:middle">{mark}{img}</span>')
 
 
-BET_SORTS = ["Closest to hitting", "Newest", "Oldest", "Biggest stake", "Biggest profit", "Biggest loss", "Book A-Z"]
+BOOK_SORT = "Book (most bets first)"
+BET_SORTS = ["Closest to hitting", "Newest", "Oldest", "Biggest stake", "Biggest profit", "Biggest loss", BOOK_SORT, "Book A-Z"]
 
 
 def filter_sort_bets(df, key, books_label="Books"):
-    c1, c2 = st.columns([3, 1])
-    picked = c1.multiselect(books_label, BET_BOOKS + ["Other"], key=f"{key}_books", placeholder="All books")
-    how = c2.selectbox("Sort by", BET_SORTS, index=0 if key == "bo" else 1, key=f"{key}_sort")
+    counts = df["book"].value_counts()
+    present = [b for b in BET_BOOKS + ["Other"] if counts.get(b, 0) > 0]
+    kb = f"{key}_books"
+    if isinstance(st.session_state.get(kb), list):
+        st.session_state[kb] = [b for b in st.session_state[kb] if b in present]
+    # Book buttons you tap on and off (no dropdown to open or close). None selected = all books.
+    try:
+        picked = list(st.pills(books_label, present, selection_mode="multi", key=kb, label_visibility="collapsed") or [])
+    except AttributeError:
+        picked = st.multiselect(books_label, present, key=kb, placeholder="All books")
+    how = st.selectbox("Sort by", BET_SORTS, index=0 if key == "bo" else 1, key=f"{key}_sort")
     if picked:
         df = df[df["book"].isin(picked)]
     d = df.assign(_p=df["profit"].fillna(0.0))
@@ -2094,6 +2103,9 @@ def filter_sort_bets(df, key, books_label="Books"):
     elif how == "Closest to hitting":
         sc = [leg_score(r) for _, r in d.iterrows()]
         d = d.assign(_s=sc).sort_values(["_s", "date"], ascending=[True, True]).drop(columns="_s")
+    elif how == BOOK_SORT:
+        rank = {b: i for i, b in enumerate(sorted(present, key=lambda b: (-int(counts[b]), BET_BOOKS.index(b) if b in BET_BOOKS else 99)))}
+        d = d.assign(_r=d["book"].map(rank).fillna(99)).sort_values(["_r", "date"], ascending=[True, False]).drop(columns="_r")
     elif how == "Book A-Z":
         d = d.sort_values(["book", "date"], ascending=[True, False])
     else:
@@ -2447,13 +2459,30 @@ def bets_open_view():
         else:
             open_ = filter_sort_bets(open_all, "bo")
             st.caption(f"${open_all['stake'].sum():,.2f} at risk overall" + (f" · showing {len(open_)} of {len(open_all)}" if len(open_) != len(open_all) else "") + ". Tap a button when the bet settles.")
+            st.session_state.setdefault("legs_open", True)
+            st.session_state.setdefault("legs_ver", 0)
+            if any(len(split_legs(x)) > 1 for x in open_["desc"]):
+                z1, z2, _sp = st.columns([1, 1, 4])
+                if z1.button("▾ Expand all parlays", key="legs_expand_all"):
+                    st.session_state["legs_open"], st.session_state["legs_ver"] = True, st.session_state["legs_ver"] + 1
+                    st.rerun()
+                if z2.button("▸ Collapse all parlays", key="legs_collapse_all"):
+                    st.session_state["legs_open"], st.session_state["legs_ver"] = False, st.session_state["legs_ver"] + 1
+                    st.rerun()
+            by_book = st.session_state.get("bo_sort") == BOOK_SORT
+            last_book = None
             for _, r in open_.iterrows():
+                if by_book and r["book"] != last_book:
+                    last_book = r["book"]
+                    grp = open_[open_["book"] == last_book]
+                    html(f'<div style="margin:14px 0 4px">{book_chip(last_book, 22)}<b style="vertical-align:middle">{H(last_book)}</b>'
+                         f'<span class="nb-muted" style="vertical-align:middle"> · {len(grp)} bet{"s" if len(grp) != 1 else ""} · ${grp["stake"].sum():,.0f} at risk</span></div>')
                 with st.container(border=True):
                     legs = split_legs(r["desc"])
                     pick_rows_html([bet_item(r, controls=True)])
                     if len(legs) > 1:
                         _ls0 = leg_states(r)
-                        with st.expander(f"Legs · {_ls0.count('H')} of {len(legs)} hit", expanded=True):
+                        with st.expander(f"Legs · {_ls0.count('H')} of {len(legs)} hit" + "\u200b" * st.session_state["legs_ver"], expanded=st.session_state["legs_open"]):
                                 ls = leg_states(r)
                                 for i, leg in enumerate(legs):
                                     q = st.columns([3, 1.3])

@@ -1731,6 +1731,10 @@ def game_results_view():
     graded = log[log["result"].isin(["W", "L", "P"])].copy()
     for c in ("odds", "model_p", "book_p", "edge", "profit"):
         graded[c] = pd.to_numeric(graded[c])
+    _day = results_day()
+    if _day and not log.empty:
+        log = log[log["date"].astype(str).str[:10] == _day]
+        graded = graded[graded["date"].astype(str).str[:10] == _day]
 
     if log.empty:
         st.info("Nothing saved yet. Open the **Full slate** tab and press **Run full slate** before games start. "
@@ -1919,8 +1923,12 @@ def props_results_view():
         if n_new:
             save_props(df)
             st.success(f"Graded {n_new} new props.")
+    full = df
+    _day = results_day()
+    if _day:
+        df = df[df["date"].astype(str).str[:10] == _day]
     if df.empty:
-        st.info("Nothing saved yet. Open the **Player props** tab, check a prop, and press **Save** to start tracking it here.")
+        st.info("Nothing saved for this day." if _day else "Nothing saved yet. Open the **Player props** tab, check a prop, and press **Save** to start tracking it here.")
     else:
         done = df[df["result"].isin(["W", "L", "P"])]
         waiting = int((df["result"] == "").sum())
@@ -1957,6 +1965,7 @@ def props_results_view():
             if len(shown) > 60:
                 st.caption(f"Showing the latest 60 of {len(shown)}. Download the props file below for the full list.")
 
+    df = full
     with st.expander("My saved props, backup and restore"):
         st.caption("On Streamlit Cloud the saved file can be erased when the app restarts or is redeployed, so download a backup now and "
                    "then and upload it here to restore. Anyone who opens this site can see and change the log.")
@@ -1978,7 +1987,16 @@ def props_results_view():
             st.success("Props erased.")
 
 
+def results_day():
+    # The day to filter results to, or None for everything.
+    return st.session_state["sel_date"].isoformat() if st.session_state.get("res_only_day") else None
+
+
 def results_tab():
+    c1, c2 = st.columns([1, 3])
+    date_picker("results", c1)
+    c2.markdown("<div style='height:1.9rem'></div>", unsafe_allow_html=True)
+    c2.checkbox("Only show this day", key="res_only_day")
     t_games, t_props = st.tabs(["🏀 Games", "🎯 Player props"])
     with t_games:
         game_results_view()
@@ -2250,7 +2268,7 @@ def leg_builder(key):
 
 
 def bets_input_view():
-    st.caption("Log every bet you place, then mark it Won, Lost or Push when it settles. Your results show up in the **Results** tab here.")
+    st.caption("Log every bet you place, then mark it Won, Lost or Push when it settles. Track them in the **Open bets** tab, and see your results in the **Results** tab.")
     n = st.session_state.setdefault("bet_form_n", 0)
     k = lambda name: f"bet_{n}_{name}"
     if st.session_state.get("bet_msg"):
@@ -2299,48 +2317,79 @@ def bets_input_view():
 
     df = load_bets()
     open_all = df[df["result"] == ""]
-    st.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>', unsafe_allow_html=True)
+    if len(open_all):
+        st.caption(f"You have {len(open_all)} open bet{'s' if len(open_all) != 1 else ''} (${open_all['stake'].sum():,.2f} at risk). See the **Open bets** tab.")
+
+    with st.expander("My bets backup and restore"):
+        st.caption("On Streamlit Cloud the saved file can be erased when the app restarts or is redeployed, so download a backup now and then and "
+                   "upload it here to restore. Anyone who opens this site can see and change your bets.")
+        st.download_button("⬇️ Download my bets (CSV)", df.to_csv(index=False), file_name="bets_log.csv", mime="text/csv")
+        up = st.file_uploader("Restore from a saved bets file (CSV)", type="csv", key="bets_up")
+        if up is not None and st.button("Merge uploaded bets"):
+            try:
+                other = clean_bets(pd.read_csv(up, dtype=str))
+                merged = pd.concat([df, other], ignore_index=True)
+                merged["_g"] = merged["result"] != ""
+                merged = merged.sort_values("_g", ascending=False).drop_duplicates("id").drop(columns="_g")
+                save_bets(clean_bets(merged))
+                st.success(f"Bets restored: {len(merged)} saved.")
+            except Exception as e:
+                st.error(f"Could not read that file: {e}")
+        confirm = st.checkbox("I'm sure I want to erase all my bets", key="bets_erase_ok")
+        if st.button("🗑️ Erase all my bets") and confirm:
+            save_bets(clean_bets(pd.DataFrame(columns=BET_COLS)))
+            st.success("Bets erased.")
+
+
+def bets_open_view():
+    df = load_bets()
+    open_all = df[df["result"] == ""]
     open_ = open_all
-    if open_all.empty:
-        st.caption("No open bets. Add one above.")
-    else:
-        open_ = filter_sort_bets(open_all, "bo")
-        st.caption(f"${open_all['stake'].sum():,.2f} at risk overall" + (f" · showing {len(open_)} of {len(open_all)}" if len(open_) != len(open_all) else "") + ". Tap a button when the bet settles.")
-        for _, r in open_.iterrows():
-            with st.container(border=True):
-                legs = split_legs(r["desc"])
-                pick_rows_html([bet_item(r, controls=True)])
-                if len(legs) > 1:
-                    ls = leg_states(r)
-                    for i, leg in enumerate(legs):
-                        q = st.columns([7, 1, 1, 1])
-                        q[0].markdown(f"{_leg_icon(ls[i])} {leg}")
-                        if q[1].button("✅", key=f"lh_{r['id']}_{i}", help="This leg hit"):
-                            set_leg(r["id"], i, "H")
-                            st.rerun()
-                        if q[2].button("❌", key=f"lm_{r['id']}_{i}", help="This leg missed"):
-                            set_leg(r["id"], i, "M")
-                            st.rerun()
-                        if q[3].button("↩️", key=f"lr_{r['id']}_{i}", help="Back to waiting"):
-                            set_leg(r["id"], i, "-")
-                            st.rerun()
-                    if "M" in ls:
-                        st.caption("A leg missed. If your book still pays on partial hits, use Edit, otherwise mark the slip Lost.")
-                    elif ls.count("H") == len(ls):
-                        st.caption("Every leg hit. Tap Won to collect.")
-                b1, b2, b3, b4 = st.columns(4)
-                if b1.button("✅ Won", key=f"bw_{r['id']}"):
-                    settle_bet(r["id"], r["payout"])
-                    st.rerun()
-                if b2.button("❌ Lost", key=f"bl_{r['id']}"):
-                    settle_bet(r["id"], 0.0)
-                    st.rerun()
-                if b3.button("➖ Push", key=f"bp_{r['id']}"):
-                    settle_bet(r["id"], r["stake"])
-                    st.rerun()
-                if b4.button("🗑️ Delete", key=f"bd_{r['id']}"):
-                    delete_bet(r["id"])
-                    st.rerun()
+    with st.expander(f"Open bets ({len(open_all)})", expanded=True):
+        if open_all.empty:
+            st.caption("No open bets. Add one in the **Add a bet** tab.")
+        else:
+            open_ = filter_sort_bets(open_all, "bo")
+            st.caption(f"${open_all['stake'].sum():,.2f} at risk overall" + (f" · showing {len(open_)} of {len(open_all)}" if len(open_) != len(open_all) else "") + ". Tap a button when the bet settles.")
+            for _, r in open_.iterrows():
+                with st.container(border=True):
+                    legs = split_legs(r["desc"])
+                    pick_rows_html([bet_item(r, controls=True)])
+                    if len(legs) > 1:
+                        ls = leg_states(r)
+                        for i, leg in enumerate(legs):
+                            q = st.columns([3, 1.3])
+                            q[0].markdown(f"{_leg_icon(ls[i])} {leg}")
+                            try:
+                                pick_ = q[1].segmented_control("Leg result", ["✅", "❌"], default={"H": "✅", "M": "❌"}.get(ls[i]),
+                                                               key=f"seg_{r['id']}_{i}_{ls[i]}", label_visibility="collapsed")
+                                new_ = {"✅": "H", "❌": "M"}.get(pick_, "-")
+                                if new_ != ls[i]:
+                                    set_leg(r["id"], i, new_)
+                                    st.rerun()
+                            except AttributeError:                                   # older Streamlit: plain buttons
+                                z = q[1].columns(3)
+                                for col_, lab_, val_ in zip(z, ["✅", "❌", "↩️"], ["H", "M", "-"]):
+                                    if col_.button(lab_, key=f"lg_{r['id']}_{i}_{val_}"):
+                                        set_leg(r["id"], i, val_)
+                                        st.rerun()
+                        if "M" in ls:
+                            st.caption("A leg missed. If your book still pays on partial hits, use Edit, otherwise mark the slip Lost.")
+                        elif ls.count("H") == len(ls):
+                            st.caption("Every leg hit. Tap Won to collect.")
+                    b1, b2, b3, b4 = st.columns(4)
+                    if b1.button("✅ Won", key=f"bw_{r['id']}"):
+                        settle_bet(r["id"], r["payout"])
+                        st.rerun()
+                    if b2.button("❌ Lost", key=f"bl_{r['id']}"):
+                        settle_bet(r["id"], 0.0)
+                        st.rerun()
+                    if b3.button("➖ Push", key=f"bp_{r['id']}"):
+                        settle_bet(r["id"], r["stake"])
+                        st.rerun()
+                    if b4.button("🗑️ Delete", key=f"bd_{r['id']}"):
+                        delete_bet(r["id"])
+                        st.rerun()
 
     if len(df):
         with st.expander("✏️ Edit or delete a bet"):
@@ -2386,26 +2435,6 @@ def bets_input_view():
                 delete_bet(bid)
                 st.rerun()
 
-    with st.expander("My bets backup and restore"):
-        st.caption("On Streamlit Cloud the saved file can be erased when the app restarts or is redeployed, so download a backup now and then and "
-                   "upload it here to restore. Anyone who opens this site can see and change your bets.")
-        st.download_button("⬇️ Download my bets (CSV)", df.to_csv(index=False), file_name="bets_log.csv", mime="text/csv")
-        up = st.file_uploader("Restore from a saved bets file (CSV)", type="csv", key="bets_up")
-        if up is not None and st.button("Merge uploaded bets"):
-            try:
-                other = clean_bets(pd.read_csv(up, dtype=str))
-                merged = pd.concat([df, other], ignore_index=True)
-                merged["_g"] = merged["result"] != ""
-                merged = merged.sort_values("_g", ascending=False).drop_duplicates("id").drop(columns="_g")
-                save_bets(clean_bets(merged))
-                st.success(f"Bets restored: {len(merged)} saved.")
-            except Exception as e:
-                st.error(f"Could not read that file: {e}")
-        confirm = st.checkbox("I'm sure I want to erase all my bets", key="bets_erase_ok")
-        if st.button("🗑️ Erase all my bets") and confirm:
-            save_bets(clean_bets(pd.DataFrame(columns=BET_COLS)))
-            st.success("Bets erased.")
-
 
 def _week_label(d):
     try:
@@ -2446,7 +2475,7 @@ def bets_stats_block(done, open_, key):
 def bets_results_view():
     df = load_bets()
     if df.empty:
-        st.info("No bets yet. Add one in the **My bets** subtab and your results will show up here.")
+        st.info("No bets yet. Add one in the **Add a bet** tab and your results will show up here.")
         return
     today = dt.date.today()
     period = st.radio("Time period", ["All time", "Today", "Last 7 days", "Last 30 days"], horizontal=True, key="bet_period")
@@ -2456,7 +2485,7 @@ def bets_results_view():
     done = df[df["result"].isin(["W", "L", "P"])].copy()
     open_ = df[df["result"] == ""]
     if done.empty:
-        st.info(f"No settled bets in this period. {len(open_)} open (${open_['stake'].sum():,.2f} at risk). Mark them Won, Lost or Push in the **My bets** subtab.")
+        st.info(f"No settled bets in this period. {len(open_)} open (${open_['stake'].sum():,.2f} at risk). Mark them Won, Lost or Push in the **Open bets** tab.")
     else:
         done["odds"] = [bet_odds(a, b) for a, b in zip(done["stake"], done["payout"])]
         if 0 < len(done) < 30:
@@ -2481,13 +2510,15 @@ def bets_results_view():
     else:
         pick_rows_html([bet_item(r) for _, r in sel.head(60).iterrows()])
         if len(sel) > 60:
-            st.caption(f"Showing the latest 60 of {len(sel)}. Download your bets from the My bets subtab for the full list.")
+            st.caption(f"Showing the latest 60 of {len(sel)}. Download your bets from the Add a bet tab for the full list.")
 
 
 def bets_tab():
-    t_in, t_res = st.tabs(["🧾 My bets", "📈 Results"])
+    t_in, t_open, t_res = st.tabs(["➕ Add a bet", "⏳ Open bets", "📈 Results"])
     with t_in:
         bets_input_view()
+    with t_open:
+        bets_open_view()
     with t_res:
         bets_results_view()
 
@@ -2801,7 +2832,8 @@ def msgs_for_api(msgs, prompt):
 # =====================================================================
 # THE PAGE
 # =====================================================================
-date = st.date_input("Game date", dt.date.today())
+st.session_state.setdefault("sel_date", dt.date.today())
+date = st.session_state["sel_date"]          # changed from the date box inside each tab
 M = fit_model(date.isoformat())
 if M is None:
     st.error("Could not download enough game history from ESPN to build team ratings. Try again in a minute.")
@@ -2831,30 +2863,90 @@ with hero:
          f'<span class="pill">🔄 Lines and injuries refresh from ESPN automatically</span></div>')
 
 labels = [f"{g['away']} @ {g['home']}" for g in games] + ["✏️ Manual matchup"]
-choice = st.selectbox("Select game", labels)
-if not games and live_ok:
-    st.info("No games found for this date (the season may not have started). Pick another date or use the manual matchup.")
+choice = st.session_state.get("sel_game")
+if choice not in labels:
+    choice = labels[0]
+st.session_state["sel_game"] = choice
+teams = sorted(M["idx"].keys())
+home_team = st.session_state.get("sel_home") if st.session_state.get("sel_home") in teams else teams[0]
+away_team = st.session_state.get("sel_away") if st.session_state.get("sel_away") in teams else teams[min(1, len(teams) - 1)]
+st.session_state["sel_home"], st.session_state["sel_away"] = home_team, away_team
 
 blank = {"provider": "manual", "total": None, "home_spread": None, "home_ml": None, "away_ml": None,
          "home_spread_odds": -110, "away_spread_odds": -110, "over_odds": -110, "under_odds": -110}
 if choice == "✏️ Manual matchup":
-    teams = sorted(M["idx"].keys())
-    c1, c2 = st.columns(2)
-    home_team = c1.selectbox("Home team", teams, index=0)
-    away_team = c2.selectbox("Away team", teams, index=min(1, len(teams) - 1))
     g = {"id": "manual", "home": home_team, "away": away_team, "home_id": None, "away_id": None, "state": "pre"}
     odds = dict(blank)
 else:
     g = games[labels.index(choice)]
     odds = dict(g["odds"])
-    if g["state"] != "pre":
-        st.warning("This game has started or finished, so ESPN may no longer show pregame lines.")
 gid = g["id"]
 
-st.caption("The game selector above applies to the Game odds, Player props and First basket tabs. Full slate and Results cover the whole date.")
+
+def _sync(prefix, name, src):
+    # Keeps the date / game boxes in every tab showing the same thing.
+    val = st.session_state[src]
+    st.session_state[name] = val
+    for k_ in list(st.session_state.keys()):
+        if isinstance(k_, str) and k_.startswith(prefix) and k_ != src:
+            st.session_state[k_] = val
+
+
+def date_picker(tab, where=None, label="Date"):
+    key = f"dp_{tab}"
+    st.session_state[key] = st.session_state["sel_date"]
+    return (where or st).date_input(label, key=key, on_change=_sync, args=("dp_", "sel_date", key))
+
+
+def game_picker(tab):
+    # Date + game selector, shown only in the tabs that work on one game.
+    c1, c2 = st.columns([1, 3])
+    date_picker(tab, c1)
+    kg = f"gp_{tab}"
+    st.session_state[kg] = st.session_state["sel_game"]
+    c2.selectbox("Game", labels, key=kg, on_change=_sync, args=("gp_", "sel_game", kg))
+    if st.session_state["sel_game"] == "✏️ Manual matchup":
+        m1, m2 = st.columns(2)
+        kh, ka = f"hp_{tab}", f"ap_{tab}"
+        st.session_state[kh], st.session_state[ka] = st.session_state["sel_home"], st.session_state["sel_away"]
+        m1.selectbox("Home team", teams, key=kh, on_change=_sync, args=("hp_", "sel_home", kh))
+        m2.selectbox("Away team", teams, key=ka, on_change=_sync, args=("ap_", "sel_away", ka))
+    elif g["state"] != "pre":
+        st.warning("This game has started or finished, so ESPN may no longer show pregame lines.")
+    if not games and live_ok:
+        st.info("No games found for this date (the season may not have started). Pick another date or use the manual matchup.")
+
+
 tab_game, tab_slate, tab_props, tab_fb, tab_results, tab_bets, tab_chat = st.tabs(["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "💬 AI chat"])
 
+def dropdown_toggle_fix():
+    # Lets you click a dropdown's arrow again to close it (Streamlit only closes it when you click elsewhere).
+    try:
+        import streamlit.components.v1 as components
+        components.html("""<script>
+        const d = window.parent.document;
+        if (!d.__arrowFix) {
+          d.__arrowFix = true;
+          d.addEventListener('mousedown', function (e) {
+            const box = e.target.closest && e.target.closest('[data-baseweb="select"]');
+            if (!box || !e.target.closest('svg')) return;
+            const inp = box.querySelector('input');
+            if (inp && inp.getAttribute('aria-expanded') === 'true') {
+              e.preventDefault(); e.stopPropagation();
+              inp.blur();
+              if (d.activeElement && d.activeElement.blur) d.activeElement.blur();
+            }
+          }, true);
+        }
+        </script>""", height=0)
+    except Exception:
+        pass
+
+
+dropdown_toggle_fix()
+
 with tab_game:
+    game_picker("game")
     if None in (odds["home_ml"], odds["away_ml"], odds["home_spread"], odds["total"]):
         with st.expander("Some sportsbook lines are missing. Enter them manually", expanded=True):
             a, b, c = st.columns(3)
@@ -2897,12 +2989,15 @@ with tab_game:
         render_result(st.session_state[f"res_{gid}"])
 
 with tab_slate:
+    date_picker("slate")
     slate_tab(M, date, games, injuries, b2b_teams)
 
 with tab_props:
+    game_picker("props")
     props_tab(M, g, odds, injuries, date, b2b_teams)
 
 with tab_fb:
+    game_picker("fb")
     first_basket_tab(M, g, injuries, date)
 
 with tab_results:

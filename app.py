@@ -89,7 +89,6 @@ def implied(o): return 100 / (o + 100) if o > 0 else abs(o) / (abs(o) + 100)
 def ev100(pw, pp, o): return 100 * (pw * (dec(o) - 1) - (1 - pw - pp))
 def short(t): return t.split()[-1]
 def pct(p): return f"{p * 100:.1f}%"
-def opct(o): return pct(implied(o))                 # a sportsbook price shown as a percentage
 def md_money(x): return f"\\${x:,.0f}"          # backslash stops Streamlit treating $ as math
 
 
@@ -398,17 +397,17 @@ def market_card(res, market):
         best = a if a["edge"] >= b["edge"] else b
         if market == "Moneyline":
             fav = a if a["book_odds"] < b["book_odds"] else b
-            model = f"**{short(top['side'])}** have **{pct(top['model_p'])}** odds to win."
-            book = f"**{short(fav['side'])}** are favored.\n\nThe sportsbook gives them **{pct(fav['book_p'])}** to win."
+            model = f"**{short(top['side'])}** have **{pct(top['model_p'])}** odds to win.\n\nFair odds: {fair_american(top['model_p'])}"
+            book = f"**{short(fav['side'])}** are favored at **{fav['book_odds']:+d}**.\n\nThat implies **{pct(fav['book_p'])}** to win."
             name = f"{short(best['side'])} moneyline"
         elif market == "Spread":
             model = (f"**{short(top['side'])} {top['line']}** have **{pct(top['model_p'])}** odds to cover.\n\n"
                      f"Model projects: {by_txt(g['home'], g['away'], res['med_m'])}")
-            book = (f"{short(a['side'])} {a['line']}: **{pct(a['book_p'])}** to cover\n\n{short(b['side'])} {b['line']}: **{pct(b['book_p'])}** to cover")
+            book = (f"{short(a['side'])} {a['line']} at {a['book_odds']:+d}\n\n{short(b['side'])} {b['line']} at {b['book_odds']:+d}")
             name = f"{short(best['side'])} {best['line']}"
         else:
             model = f"**{top['side']} {top['line']}** has **{pct(top['model_p'])}** odds to hit.\n\nModel projects: {res['med_t']:.0f} total points"
-            book = f"The total is set at **{top['line']}**.\n\nOver: **{pct(a['book_p'])}**\n\nUnder: **{pct(b['book_p'])}**"
+            book = f"The total is set at **{top['line']}**.\n\nOver at {a['book_odds']:+d}\n\nUnder at {b['book_odds']:+d}"
             name = f"{best['side']} {best['line']}"
         st.markdown("**🤖 MODEL SAYS**")
         st.markdown(model)
@@ -676,22 +675,23 @@ def first_basket_tab(M, g, injuries, now):
         T, book = res["T"], res["odds"]
         top = T.iloc[0]
         st.markdown(f"### Across {SIMS:,} simulated openings, **{top['Player']}** is the most likely first scorer at "
-                    f"**{pct(top['prob'])}** .")
+                    f"**{pct(top['prob'])}** (fair odds {fair_american(top['prob'])}).")
         st.markdown(f"**{short(home)}** score the first basket **{pct(res['home_first'])}** of the time and "
                     f"**{short(away)}** **{pct(1 - res['home_first'])}**. The team that wins the tip scores first "
                     f"**{pct(res['tip_first'])}** of the time (this comes from the model's assumptions, not checked against real games).")
         out = []
         for r in T.itertuples():
-            row = {"Player": r.Player, "Team": r.Team, "Chance to score first": pct(r.prob)}
+            row = {"Player": r.Player, "Team": r.Team, "Chance to score first": pct(r.prob), "Fair odds": fair_american(r.prob)}
             o = book.get(r.Player.lower())
             if o is not None:
                 ev = ev100(r.prob, 0, o)
+                row["Your odds"] = f"{o:+d}"
                 row["Book implies"] = pct(implied(o))
                 row["Profit per $100 if model is right"] = f"${ev:,.0f}" if ev >= 0 else f"-${-ev:,.0f}"
                 row["Worth it?"] = "🟢 Yes" if ev > 0 else "No"
             out.append(row)
         st.dataframe(pd.DataFrame(out), hide_index=True)
-        st.caption("First-basket prices carry a large built-in sportsbook fee, so the model's chance has to beat the book's by a wide margin "
+        st.caption("First-basket prices carry a large built-in sportsbook fee, so a price has to beat the fair odds by a wide margin "
                    "to be worth taking. These are model estimates, not guarantees.")
 
 
@@ -793,6 +793,12 @@ def sim_prop(proj, stats, n=20000):
     return tot
 
 
+def pct_to_american(p):
+    # Turns the chance a price implies (0 to 1) back into American odds, for payout math.
+    p = min(max(p, 0.01), 0.99)
+    return -100 * p / (1 - p) if p >= 0.5 else 100 * (1 - p) / p
+
+
 def prop_probs(draws, line):
     return float(np.mean(draws > line)), float(np.mean(draws == line)), float(np.mean(draws < line))
 
@@ -855,8 +861,11 @@ def props_tab(M, g, odds, injuries, date, b2b):
     proj_val = player_total(info["p"], stats)
     c3, c4, c5 = st.columns(3)
     line = c3.number_input("Sportsbook line", value=float(np.floor(proj_val) + 0.5), step=0.5, min_value=0.0, key=f"pp_line_{g['id']}_{pick}_{stat}")
-    o_over = c4.number_input("Over odds (as your book shows)", value=-110, step=5, key=f"pp_oo_{g['id']}_{pick}_{stat}")
-    o_under = c5.number_input("Under odds (as your book shows)", value=-110, step=5, key=f"pp_ou_{g['id']}_{pick}_{stat}")
+    pc_over = c4.number_input("Sportsbook odds: over (%)", value=52.4, step=0.5, min_value=1.0, max_value=99.0, key=f"pp_po_{g['id']}_{pick}_{stat}")
+    pc_under = c5.number_input("Sportsbook odds: under (%)", value=52.4, step=0.5, min_value=1.0, max_value=99.0, key=f"pp_pu_{g['id']}_{pick}_{stat}")
+    st.caption("Enter the chance your sportsbook's price implies for each side (a standard -110 price is 52.4%). "
+               "The model removes the sportsbook's built-in fee before comparing.")
+    o_over, o_under = pct_to_american(pc_over / 100), pct_to_american(pc_under / 100)
     st_txt = next((r["Status"] for r in rows if r["Player"] == name and r["Team"] == short(team)), "")
     if st_txt:
         st.warning(f"ESPN lists {name} as **{st_txt}**. This projection assumes he plays, so check his status before betting.")
@@ -1120,11 +1129,11 @@ def saved_games_table(log):
                 row[mk] = ""
                 continue
             pick = gm[gm["is_pick"]].iloc[0]
-            txt = f"{pick_label(pick)} ({opct(pick['odds'])}) {sym(pick['result'])}"
+            txt = f"{pick_label(pick)} ({int(pick['odds']):+d}) {sym(pick['result'])}"
             val = gm[gm["flagged"] & ~gm["is_pick"]]
             if len(val):
                 v = val.iloc[0]
-                txt += f"  |  💰 {pick_label(v)} ({opct(v['odds'])}) {sym(v['result'])}"
+                txt += f"  |  💰 {pick_label(v)} ({int(v['odds']):+d}) {sym(v['result'])}"
             elif bool(pick["flagged"]):
                 txt = "💰 " + txt
             row[mk] = txt
@@ -1147,6 +1156,7 @@ def picks_table(df):
     for _, r in df.sort_values(["date", "game", "market"], ascending=[False, True, True]).iterrows():
         res = {"W": "✅ Win", "L": "❌ Loss", "P": "➖ Push"}.get(r["result"], "⏳ Pending")
         out.append({"Date": r["date"], "Game": r["game"], "Market": r["market"], "Pick": pick_label(r),
+                    "Odds": f"{int(r['odds']):+d}" if pd.notna(r["odds"]) else "",
                     "Model chance": pct(r["model_p"]), "Sportsbook implies": pct(r["book_p"]),
                     "Edge (pts)": f"{r['edge'] * 100:+.1f}", "Result": res,
                     "Profit ($100 bet)": (f"${r['profit']:,.0f}" if r["profit"] >= 0 else f"-${-r['profit']:,.0f}") if pd.notna(r["profit"]) else ""})
@@ -1543,7 +1553,7 @@ def slate_tab(M, date, games, injuries, b2b):
     else:
         st.dataframe(pd.DataFrame([{
             "Game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "Market": r["market"], "Pick": pick_name(r),
-            "Model chance": pct(r["model_p"]), "Sportsbook implies": pct(r["book_p"]),
+            "Odds": f"{r['book_odds']:+d}", "Model chance": pct(r["model_p"]), "Sportsbook implies": pct(r["book_p"]),
             "Edge (pts)": f"{r['edge'] * 100:+.1f}", "Profit per $100 if model is right": f"${r['ev']:,.0f}",
             "Value": strength(r["edge"])} for res, r in flagged]), hide_index=True)
         st.caption("Sorted by edge. Large edges are worth double-checking against the latest injury news and confirmed lineups.")
@@ -1604,7 +1614,7 @@ def build_chat_context(date, games, injuries):
                 lines.append(f"    book: {short(g['home'])} spread {o.get('home_spread')}, total {o.get('total')}, ML home {o.get('home_ml')} / away {o.get('away_ml')}")
             for r in res["rows"]:
                 lab = f"{r['market']} {r['side']} {r['line']}".strip()
-                lines.append(f"    {lab}: model {r['model_p'] * 100:.1f}% vs book {r['book_p'] * 100:.1f}% (edge {r['edge'] * 100:+.1f} pts, price implies {opct(r['book_odds'])})")
+                lines.append(f"    {lab}: model {r['model_p'] * 100:.1f}% vs book {r['book_p'] * 100:.1f}% (edge {r['edge'] * 100:+.1f} pts, odds {r['book_odds']:+d})")
     elif games:
         lines.append("Today's games (slate not run yet, so there are no model numbers): " + "; ".join(f"{g['away']} @ {g['home']}" for g in games))
     else:
@@ -1800,8 +1810,8 @@ with tab_game:
     if None in (odds["home_ml"], odds["away_ml"], odds["home_spread"], odds["total"]):
         with st.expander("Some sportsbook lines are missing. Enter them manually", expanded=True):
             a, b, c = st.columns(3)
-            odds["home_ml"] = a.number_input(f"{g['home']} moneyline (as your book shows)", value=odds["home_ml"] or -110, step=5, key=f"hml{gid}")
-            odds["away_ml"] = a.number_input(f"{g['away']} moneyline (as your book shows)", value=odds["away_ml"] or -110, step=5, key=f"aml{gid}")
+            odds["home_ml"] = a.number_input(f"{g['home']} moneyline", value=odds["home_ml"] or -110, step=5, key=f"hml{gid}")
+            odds["away_ml"] = a.number_input(f"{g['away']} moneyline", value=odds["away_ml"] or -110, step=5, key=f"aml{gid}")
             odds["home_spread"] = b.number_input(f"{g['home']} spread", value=float(odds["home_spread"] or 0.0), step=0.5, key=f"sp{gid}")
             odds["total"] = c.number_input("Total", value=float(odds["total"] or 224.5), step=0.5, key=f"tot{gid}")
 

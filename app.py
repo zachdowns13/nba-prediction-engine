@@ -2263,7 +2263,6 @@ def all_nba_names():
 
 
 LEG_KINDS = ["Player prop", "Team bet", "First basket", "Type it myself"]
-FIRST_BETS = ["Player first basket", "Team scores first", "Team wins opening tip"]
 LEG_STATS = ["Points", "Rebounds", "Assists", "3-pointers made",
              "Points + rebounds + assists", "Points + rebounds", "Points + assists", "Rebounds + assists",
              "Steals", "Blocks",
@@ -2347,25 +2346,8 @@ def leg_builder(key):
             return ""
         return f"{who} {side.lower()} {line:g} {stat.lower().replace('3-pointers', '3s')}"
     if kind == "First basket":
-        f1, f2 = st.columns([2.4, 3])
-        what = f1.selectbox("First basket bet", FIRST_BETS, key=f"{key}_fb")
-        if what.startswith("Player"):
-            who = norm_name(_search_select("Player", players, f"{key}_fbwho", f2), players)
-            return f"{who} first basket" if who else ""
-        team = norm_name(_search_select("Team", teams, f"{key}_fbteam", f2), teams)
-        guess = None
-        for gm in globals().get("games", []) or []:
-            if team == gm["home"]:
-                guess = gm["away"]
-            elif team == gm["away"]:
-                guess = gm["home"]
-        opts = [t for t in teams if t != team]
-        opp = norm_name(_search_select("Opponent (who they play)", opts, f"{key}_fbopp_{team}", None,
-                                       opts.index(guess) if guess in opts else None), opts) if team else None
-        vs = f" vs {opp}" if opp else ""
-        if not team:
-            return ""
-        return f"{team} {'wins opening tip' if 'tip' in what else 'scores first'}{vs}"
+        who = norm_name(_search_select("Player", players, f"{key}_fbwho"), players)
+        return f"{who} first basket" if who else ""
     c1, c2, c3 = st.columns([3, 2.4, 2.6])
     team = norm_name(_search_select("Team", teams, f"{key}_team", c1), teams)
     what = c2.selectbox("Bet", TEAM_BETS, key=f"{key}_what")

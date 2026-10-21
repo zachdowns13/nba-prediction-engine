@@ -800,6 +800,28 @@ def grade_log(log):
     return log, n_new
 
 
+def pick_label(r):
+    side = str(r["side"])
+    if r["market"] == "Moneyline":
+        return f"{short(side)} moneyline"
+    if r["market"] == "Total":
+        return f"{side} {r['line']}"
+    return f"{short(side)} {r['line']}"
+
+
+def picks_table(df):
+    # A readable list of picks: what was picked, at what odds, and how it turned out.
+    out = []
+    for _, r in df.sort_values(["date", "game", "market"], ascending=[False, True, True]).iterrows():
+        res = {"W": "✅ Win", "L": "❌ Loss", "P": "➖ Push"}.get(r["result"], "⏳ Pending")
+        out.append({"Date": r["date"], "Game": r["game"], "Market": r["market"], "Pick": pick_label(r),
+                    "Odds": f"{int(r['odds']):+d}" if pd.notna(r["odds"]) else "",
+                    "Model chance": pct(r["model_p"]), "Sportsbook implies": pct(r["book_p"]),
+                    "Edge (pts)": f"{r['edge'] * 100:+.1f}", "Result": res,
+                    "Profit ($100 bet)": (f"${r['profit']:,.0f}" if r["profit"] >= 0 else f"-${-r['profit']:,.0f}") if pd.notna(r["profit"]) else ""})
+    return pd.DataFrame(out)
+
+
 def add_pick_flag(df):
     # "Model's pick" = the side of each market (per game) the model gives the higher chance.
     df = df.copy()
@@ -878,6 +900,11 @@ def results_tab():
             st.markdown("**Day by day**")
             st.dataframe(pd.DataFrame(day_rows), hide_index=True)
 
+        model_picks = log[log["is_pick"]]
+        with st.expander(f"📋 See every model pick ({len(model_picks)})"):
+            st.caption("The side the model liked in each moneyline, spread and total, with the result once the game is final.")
+            st.dataframe(picks_table(model_picks), hide_index=True)
+
         flagged = graded[graded["flagged"]]
         st.markdown("### 💰 Flagged value picks (the ones the app marked as value)")
         if flagged.empty:
@@ -901,6 +928,13 @@ def results_tab():
                 if rows:
                     st.markdown(f"**{label}**")
                     st.dataframe(pd.DataFrame(rows).T)
+
+        flagged_all = log[log["flagged"]]
+        with st.expander(f"📋 See each flagged value pick ({len(flagged_all)})"):
+            if flagged_all.empty:
+                st.caption("No value picks have been flagged yet.")
+            else:
+                st.dataframe(picks_table(flagged_all), hide_index=True)
 
         nonpush = graded[graded["result"].isin(["W", "L"])].copy()
         st.markdown("### 🎯 Is the model more accurate than the sportsbook?")

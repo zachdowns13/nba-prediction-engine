@@ -1991,8 +1991,8 @@ def results_tab():
 # =====================================================================
 BET_BOOKS = ["Kalshi", "Underdog", "PrizePicks", "DraftKings", "Sleeper", "Novig", "Chalkboard"]
 BET_LOG_PATH = "bets_log.csv"
-BET_COLS = ["id", "date", "book", "type", "desc", "legs", "stake", "payout", "result", "returned", "profit", "settled_at"]
-_BET_TXT = ("id", "date", "book", "type", "desc", "result", "settled_at")
+BET_COLS = ["id", "date", "book", "type", "desc", "legs", "stake", "payout", "result", "returned", "profit", "settled_at", "leg_status"]
+_BET_TXT = ("id", "date", "book", "type", "desc", "result", "settled_at", "leg_status")
 _BET_NUM = ("legs", "stake", "payout", "returned", "profit")
 
 
@@ -2000,20 +2000,27 @@ BOOK_STYLE = {"PrizePicks": ("#7B2FF7", "PP"), "Underdog": ("#F5C518", "UD"), "K
               "Sleeper": ("#1F6FEB", "SL"), "DraftKings": ("#53B02C", "DK"), "Novig": ("#E5484D", "NV"), "Other": ("#6B7280", "?")}
 
 
-def book_chip(book):
+BOOK_SITE = {"PrizePicks": "prizepicks.com", "Underdog": "underdogfantasy.com", "Kalshi": "kalshi.com", "Chalkboard": "chalkboard.io",
+             "Sleeper": "sleeper.com", "DraftKings": "draftkings.com", "Novig": "novig.us"}
+
+
+def book_chip(book, size=22):
+    # The book's own logo (loaded from its website's icon in your browser). The colored initials sit underneath as a fallback.
     col, mark = BOOK_STYLE.get(book, BOOK_STYLE["Other"])
     fg = "#111" if col == "#F5C518" else "#fff"
-    return (f'<span style="display:inline-block;min-width:26px;padding:1px 6px;margin-right:8px;border-radius:6px;background:{col};color:{fg};'
-            f'font-size:11px;font-weight:800;text-align:center;letter-spacing:.3px;vertical-align:middle">{mark}</span>')
+    img = (f'<img src="https://www.google.com/s2/favicons?domain={BOOK_SITE[book]}&sz=64" alt="" '
+           f'style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;background:#fff;border-radius:6px">') if book in BOOK_SITE else ""
+    return (f'<span style="display:inline-block;position:relative;width:{size}px;height:{size}px;line-height:{size}px;margin-right:8px;border-radius:6px;'
+            f'overflow:hidden;background:{col};color:{fg};font-size:{size * 0.42:.0f}px;font-weight:800;text-align:center;vertical-align:middle">{mark}{img}</span>')
 
 
-BET_SORTS = ["Newest", "Oldest", "Biggest stake", "Biggest profit", "Biggest loss", "Book A-Z"]
+BET_SORTS = ["Closest to hitting", "Newest", "Oldest", "Biggest stake", "Biggest profit", "Biggest loss", "Book A-Z"]
 
 
 def filter_sort_bets(df, key, books_label="Books"):
     c1, c2 = st.columns([3, 1])
     picked = c1.multiselect(books_label, BET_BOOKS + ["Other"], key=f"{key}_books", placeholder="All books")
-    how = c2.selectbox("Sort by", BET_SORTS, key=f"{key}_sort")
+    how = c2.selectbox("Sort by", BET_SORTS, index=0 if key == "bo" else 1, key=f"{key}_sort")
     if picked:
         df = df[df["book"].isin(picked)]
     d = df.assign(_p=df["profit"].fillna(0.0))
@@ -2025,6 +2032,9 @@ def filter_sort_bets(df, key, books_label="Books"):
         d = d.sort_values("_p", ascending=False)
     elif how == "Biggest loss":
         d = d.sort_values("_p")
+    elif how == "Closest to hitting":
+        sc = [leg_score(r) for _, r in d.iterrows()]
+        d = d.assign(_s=sc).sort_values(["_s", "date"], ascending=[True, True]).drop(columns="_s")
     elif how == "Book A-Z":
         d = d.sort_values(["book", "date"], ascending=[True, False])
     else:
@@ -2085,6 +2095,8 @@ def settle_bet(bet_id, returned):
 def update_bet(bet_id, **ch):
     df = load_bets()
     for i in df.index[df["id"] == bet_id]:
+        if "desc" in ch and ch["desc"] != df.at[i, "desc"]:
+            df.at[i, "leg_status"] = ""                         # legs changed, so old check marks no longer apply
         for c, v in ch.items():
             df.at[i, c] = v
         res, stake, pay = df.at[i, "result"], float(df.at[i, "stake"]), float(df.at[i, "payout"])
@@ -2111,14 +2123,47 @@ def split_legs(desc):
     return [p for p in re.split(r" \+ (?!rebounds|assists|points)", desc or "") if p.strip()] or ["(no description)"]
 
 
-def bet_item(r):
-    # One row for the pick_rows_html list.
+def leg_states(r):
+    n = len(split_legs(r["desc"]))
+    st_ = [x if x in ("H", "M") else "-" for x in str(r.get("leg_status", "") or "").split(",") if x != ""][:n]
+    return st_ + ["-"] * (n - len(st_))
+
+
+def leg_score(r):
+    # Lower = closer to hitting. A slip with a missed leg sinks to the bottom.
+    ls = leg_states(r)
+    if "M" in ls:
+        return 10 + ls.count("M")
+    return (len(ls) - ls.count("H")) / len(ls) - ls.count("H") * 0.001
+
+
+def set_leg(bet_id, idx, val):
+    df = load_bets()
+    for i in df.index[df["id"] == bet_id]:
+        ls = leg_states(df.loc[i])
+        ls[idx] = val
+        df.at[i, "leg_status"] = ",".join(ls)
+    save_bets(df)
+
+
+def _leg_icon(x):
+    return {"H": "✅", "M": "❌"}.get(x, "⬜")
+
+
+def bet_item(r, controls=False):
+    # One row for the pick_rows_html list. With controls=True the legs are left out (they get their own check-off rows).
     kind = "Parlay" + (f" ({int(r['legs'])} legs)" if r["legs"] and r["legs"] >= 2 else "") if r["type"] == "Parlay" else "Straight"
     legs = split_legs(r["desc"])
-    chip = book_chip(r["book"])
-    return {"chip": "" if len(legs) > 1 else chip, "title": r["desc"] or "(no description)",
-            "title_html": "".join(f'<div style="font-weight:600;margin-top:2px">{chip if i == 0 else ""}{H(l)}</div>' for i, l in enumerate(legs))
-            if len(legs) > 1 else H(legs[0]), "sub": f"{r['book']} · {kind} · {_nice_date(r['date'])} · ${r['stake']:,.2f} to win ${r['payout'] - r['stake']:,.2f}",
+    ls = leg_states(r)
+    head = f'<div style="margin-bottom:4px">{book_chip(r["book"], 26)}<span class="nb-muted" style="vertical-align:middle">{H(r["book"])}</span></div>'
+    if controls and len(legs) > 1:
+        body = f'<div style="font-weight:600">{"Parlay"} · {ls.count("H")} of {len(legs)} legs hit' + (f' · {ls.count("M")} missed' if "M" in ls else "") + "</div>"
+    elif len(legs) > 1:
+        body = "".join(f'<div style="font-weight:600;margin-top:2px">{_leg_icon(x) + " " if r["result"] == "" else ""}{H(l)}</div>' for l, x in zip(legs, ls))
+    else:
+        body = f'<div style="font-weight:700">{H(legs[0])}</div>'
+    return {"chip": "", "title": r["desc"] or "(no description)", "title_html": head + body,
+            "sub": f"{kind} · {_nice_date(r['date'])} · ${r['stake']:,.2f} to win ${r['payout'] - r['stake']:,.2f}",
             "odds": f"${r['stake']:,.0f} → ${r['payout']:,.0f}", "result": r["result"], "profit": r["profit"]}
 
 
@@ -2247,7 +2292,7 @@ def bets_input_view():
             else:
                 add_bet({"id": uuid.uuid4().hex[:8], "date": placed.isoformat(), "book": book, "type": btype, "desc": str(desc).strip(),
                          "legs": int(legs), "stake": float(stake), "payout": float(payout), "result": "", "returned": np.nan,
-                         "profit": np.nan, "settled_at": ""})
+                         "profit": np.nan, "settled_at": "", "leg_status": ""})
                 st.session_state["bet_form_n"] = n + 1                  # clears the form
                 st.session_state["bet_msg"] = f"Saved: {str(desc).strip()} ({book}, ${stake:,.2f} to win ${payout - stake:,.2f})."
                 st.rerun()
@@ -2263,7 +2308,26 @@ def bets_input_view():
         st.caption(f"${open_all['stake'].sum():,.2f} at risk overall" + (f" · showing {len(open_)} of {len(open_all)}" if len(open_) != len(open_all) else "") + ". Tap a button when the bet settles.")
         for _, r in open_.iterrows():
             with st.container(border=True):
-                pick_rows_html([bet_item(r)])
+                legs = split_legs(r["desc"])
+                pick_rows_html([bet_item(r, controls=True)])
+                if len(legs) > 1:
+                    ls = leg_states(r)
+                    for i, leg in enumerate(legs):
+                        q = st.columns([7, 1, 1, 1])
+                        q[0].markdown(f"{_leg_icon(ls[i])} {leg}")
+                        if q[1].button("✅", key=f"lh_{r['id']}_{i}", help="This leg hit"):
+                            set_leg(r["id"], i, "H")
+                            st.rerun()
+                        if q[2].button("❌", key=f"lm_{r['id']}_{i}", help="This leg missed"):
+                            set_leg(r["id"], i, "M")
+                            st.rerun()
+                        if q[3].button("↩️", key=f"lr_{r['id']}_{i}", help="Back to waiting"):
+                            set_leg(r["id"], i, "-")
+                            st.rerun()
+                    if "M" in ls:
+                        st.caption("A leg missed. If your book still pays on partial hits, use Edit, otherwise mark the slip Lost.")
+                    elif ls.count("H") == len(ls):
+                        st.caption("Every leg hit. Tap Won to collect.")
                 b1, b2, b3, b4 = st.columns(4)
                 if b1.button("✅ Won", key=f"bw_{r['id']}"):
                     settle_bet(r["id"], r["payout"])

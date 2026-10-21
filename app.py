@@ -89,6 +89,7 @@ def implied(o): return 100 / (o + 100) if o > 0 else abs(o) / (abs(o) + 100)
 def ev100(pw, pp, o): return 100 * (pw * (dec(o) - 1) - (1 - pw - pp))
 def short(t): return t.split()[-1]
 def pct(p): return f"{p * 100:.1f}%"
+def opct(o): return pct(implied(o))                 # a sportsbook price shown as a percentage
 def md_money(x): return f"\\${x:,.0f}"          # backslash stops Streamlit treating $ as math
 
 
@@ -397,17 +398,17 @@ def market_card(res, market):
         best = a if a["edge"] >= b["edge"] else b
         if market == "Moneyline":
             fav = a if a["book_odds"] < b["book_odds"] else b
-            model = f"**{short(top['side'])}** have **{pct(top['model_p'])}** odds to win.\n\nFair odds: {fair_american(top['model_p'])}"
-            book = f"**{short(fav['side'])}** are favored at **{fav['book_odds']:+d}**.\n\nThat implies **{pct(fav['book_p'])}** to win."
+            model = f"**{short(top['side'])}** have **{pct(top['model_p'])}** odds to win."
+            book = f"**{short(fav['side'])}** are favored.\n\nThe sportsbook gives them **{pct(fav['book_p'])}** to win."
             name = f"{short(best['side'])} moneyline"
         elif market == "Spread":
             model = (f"**{short(top['side'])} {top['line']}** have **{pct(top['model_p'])}** odds to cover.\n\n"
                      f"Model projects: {by_txt(g['home'], g['away'], res['med_m'])}")
-            book = (f"{short(a['side'])} {a['line']} at {a['book_odds']:+d}\n\n{short(b['side'])} {b['line']} at {b['book_odds']:+d}")
+            book = (f"{short(a['side'])} {a['line']}: **{pct(a['book_p'])}** to cover\n\n{short(b['side'])} {b['line']}: **{pct(b['book_p'])}** to cover")
             name = f"{short(best['side'])} {best['line']}"
         else:
             model = f"**{top['side']} {top['line']}** has **{pct(top['model_p'])}** odds to hit.\n\nModel projects: {res['med_t']:.0f} total points"
-            book = f"The total is set at **{top['line']}**.\n\nOver at {a['book_odds']:+d}\n\nUnder at {b['book_odds']:+d}"
+            book = f"The total is set at **{top['line']}**.\n\nOver: **{pct(a['book_p'])}**\n\nUnder: **{pct(b['book_p'])}**"
             name = f"{best['side']} {best['line']}"
         st.markdown("**🤖 MODEL SAYS**")
         st.markdown(model)
@@ -675,23 +676,22 @@ def first_basket_tab(M, g, injuries, now):
         T, book = res["T"], res["odds"]
         top = T.iloc[0]
         st.markdown(f"### Across {SIMS:,} simulated openings, **{top['Player']}** is the most likely first scorer at "
-                    f"**{pct(top['prob'])}** (fair odds {fair_american(top['prob'])}).")
+                    f"**{pct(top['prob'])}** .")
         st.markdown(f"**{short(home)}** score the first basket **{pct(res['home_first'])}** of the time and "
                     f"**{short(away)}** **{pct(1 - res['home_first'])}**. The team that wins the tip scores first "
                     f"**{pct(res['tip_first'])}** of the time (this comes from the model's assumptions, not checked against real games).")
         out = []
         for r in T.itertuples():
-            row = {"Player": r.Player, "Team": r.Team, "Chance to score first": pct(r.prob), "Fair odds": fair_american(r.prob)}
+            row = {"Player": r.Player, "Team": r.Team, "Chance to score first": pct(r.prob)}
             o = book.get(r.Player.lower())
             if o is not None:
                 ev = ev100(r.prob, 0, o)
-                row["Your odds"] = f"{o:+d}"
                 row["Book implies"] = pct(implied(o))
                 row["Profit per $100 if model is right"] = f"${ev:,.0f}" if ev >= 0 else f"-${-ev:,.0f}"
                 row["Worth it?"] = "🟢 Yes" if ev > 0 else "No"
             out.append(row)
         st.dataframe(pd.DataFrame(out), hide_index=True)
-        st.caption("First-basket prices carry a large built-in sportsbook fee, so a price has to beat the fair odds by a wide margin "
+        st.caption("First-basket prices carry a large built-in sportsbook fee, so the model's chance has to beat the book's by a wide margin "
                    "to be worth taking. These are model estimates, not guarantees.")
 
 
@@ -855,8 +855,8 @@ def props_tab(M, g, odds, injuries, date, b2b):
     proj_val = player_total(info["p"], stats)
     c3, c4, c5 = st.columns(3)
     line = c3.number_input("Sportsbook line", value=float(np.floor(proj_val) + 0.5), step=0.5, min_value=0.0, key=f"pp_line_{g['id']}_{pick}_{stat}")
-    o_over = c4.number_input("Over odds", value=-110, step=5, key=f"pp_oo_{g['id']}_{pick}_{stat}")
-    o_under = c5.number_input("Under odds", value=-110, step=5, key=f"pp_ou_{g['id']}_{pick}_{stat}")
+    o_over = c4.number_input("Over odds (as your book shows)", value=-110, step=5, key=f"pp_oo_{g['id']}_{pick}_{stat}")
+    o_under = c5.number_input("Under odds (as your book shows)", value=-110, step=5, key=f"pp_ou_{g['id']}_{pick}_{stat}")
     st_txt = next((r["Status"] for r in rows if r["Player"] == name and r["Team"] == short(team)), "")
     if st_txt:
         st.warning(f"ESPN lists {name} as **{st_txt}**. This projection assumes he plays, so check his status before betting.")
@@ -877,6 +877,14 @@ def props_tab(M, g, odds, injuries, date, b2b):
         st.info(f"🟡 Slight value on the {side}: the model gives it {pct(mp)} vs the book's {pct(bp)}.")
     else:
         st.warning("⚪ No clear value on either side at these odds.")
+    if g["id"] == "manual":
+        st.caption("Props can't be saved for a manual matchup, because there is no game to grade them from.")
+    elif st.button(f"💾 Save this {side} pick to Results", key=f"pp_save_{g['id']}_{pick}_{stat}"):
+        save_prop({"key": f"{date.isoformat()}|{g['id']}|{name}|{stat}", "date": date.isoformat(), "event_id": str(g["id"]),
+                   "game": f"{away} @ {home}", "team": team, "player": name, "stat": stat, "line": float(line),
+                   "side": side.capitalize(), "odds": float(od), "model_p": float(mp), "book_p": float(bp), "edge": float(edge),
+                   "proj": float(proj_val), "saved_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "result": "", "actual": np.nan, "profit": np.nan})
+        st.success(f"Saved: {name} {side} {line:g} {stat.lower()}. It will be graded automatically after the game in the Results tab.")
     vals = [sum(x[s] for s in stats) for x in info["logs"]][-10:]
     if vals:
         over_n = sum(v > line for v in vals)
@@ -1112,11 +1120,11 @@ def saved_games_table(log):
                 row[mk] = ""
                 continue
             pick = gm[gm["is_pick"]].iloc[0]
-            txt = f"{pick_label(pick)} ({int(pick['odds']):+d}) {sym(pick['result'])}"
+            txt = f"{pick_label(pick)} ({opct(pick['odds'])}) {sym(pick['result'])}"
             val = gm[gm["flagged"] & ~gm["is_pick"]]
             if len(val):
                 v = val.iloc[0]
-                txt += f"  |  💰 {pick_label(v)} ({int(v['odds']):+d}) {sym(v['result'])}"
+                txt += f"  |  💰 {pick_label(v)} ({opct(v['odds'])}) {sym(v['result'])}"
             elif bool(pick["flagged"]):
                 txt = "💰 " + txt
             row[mk] = txt
@@ -1139,7 +1147,6 @@ def picks_table(df):
     for _, r in df.sort_values(["date", "game", "market"], ascending=[False, True, True]).iterrows():
         res = {"W": "✅ Win", "L": "❌ Loss", "P": "➖ Push"}.get(r["result"], "⏳ Pending")
         out.append({"Date": r["date"], "Game": r["game"], "Market": r["market"], "Pick": pick_label(r),
-                    "Odds": f"{int(r['odds']):+d}" if pd.notna(r["odds"]) else "",
                     "Model chance": pct(r["model_p"]), "Sportsbook implies": pct(r["book_p"]),
                     "Edge (pts)": f"{r['edge'] * 100:+.1f}", "Result": res,
                     "Profit ($100 bet)": (f"${r['profit']:,.0f}" if r["profit"] >= 0 else f"-${-r['profit']:,.0f}") if pd.notna(r["profit"]) else ""})
@@ -1173,7 +1180,7 @@ def summarize_picks(df):
             "ROI": f"{df['profit'].astype(float).sum() / (100 * n) * 100:+.1f}%" if n else "-"}
 
 
-def results_tab():
+def game_results_view():
     st.caption("Every pick is graded automatically from ESPN's final scores. Run the Full slate each day before games start and "
                "every moneyline, spread and total is saved, so this page shows how the model is actually doing.")
     wide = load_wide()
@@ -1304,6 +1311,179 @@ def results_tab():
 
 
 # =====================================================================
+# PLAYER PROP RESULTS
+# =====================================================================
+PROP_LOG_PATH = "props_log.csv"
+PROP_LOG_COLS = ["key", "date", "event_id", "game", "team", "player", "stat", "line", "side", "odds", "model_p", "book_p",
+                 "edge", "proj", "saved_at", "result", "actual", "profit"]
+_PROP_TXT = ("key", "date", "event_id", "game", "team", "player", "stat", "side", "saved_at", "result")
+_PROP_NUM = ("line", "odds", "model_p", "book_p", "edge", "proj", "actual", "profit")
+
+
+def clean_props(df):
+    df = df.reindex(columns=PROP_LOG_COLS).copy()
+    for c in _PROP_TXT:
+        df[c] = df[c].astype(object).where(df[c].notna(), "").astype(str)
+    for c in _PROP_NUM:
+        df[c] = pd.to_numeric(df[c], errors="coerce").astype(float)
+    return df.reset_index(drop=True)
+
+
+def load_props():
+    try:
+        return clean_props(pd.read_csv(PROP_LOG_PATH, dtype=str))
+    except Exception:
+        return st.session_state.get("props_df", clean_props(pd.DataFrame(columns=PROP_LOG_COLS)))
+
+
+def save_props(df):
+    st.session_state["props_df"] = df
+    try:
+        df.to_csv(PROP_LOG_PATH, index=False)
+        return True
+    except Exception:
+        return False
+
+
+def save_prop(row):
+    df = load_props()
+    old = df[df["key"] == row["key"]]
+    if len(old) and old.iloc[0]["result"] != "":
+        return                                          # already graded: never overwrite a final result
+    df = df[df["key"] != row["key"]]
+    save_props(clean_props(pd.concat([df, pd.DataFrame([row])], ignore_index=True)))
+
+
+def grade_props(df):
+    df = clean_props(df)
+    n_new = 0
+    for d in sorted(df.loc[df["result"] == "", "date"].unique()):
+        finals = get_finals(d)
+        for i in df.index[(df["date"] == d) & (df["result"] == "")]:
+            ev = df.at[i, "event_id"]
+            if ev not in finals:
+                continue
+            box = load_boxes((ev,)).get(ev)
+            if not box:
+                continue
+            nm, team = df.at[i, "player"].lower(), df.at[i, "team"]
+            p = next((q for q in box["players"].values() if q["name"].lower() == nm and q["team"] == team), None)
+            if p is None or p["min"] <= 0:
+                df.at[i, "result"], df.at[i, "profit"] = "V", 0.0           # did not play: bet is voided
+                n_new += 1
+                continue
+            vals = _stat_vals(p)
+            actual = sum(vals[x] for x in PROP_STATS[df.at[i, "stat"]])
+            line, over = df.at[i, "line"], df.at[i, "side"] == "Over"
+            if actual == line:
+                res = "P"
+            else:
+                res = "W" if (actual > line) == over else "L"
+            df.at[i, "actual"] = actual
+            df.at[i, "result"] = res
+            df.at[i, "profit"] = 100 * (dec(df.at[i, "odds"]) - 1) if res == "W" else (-100.0 if res == "L" else 0.0)
+            n_new += 1
+    return df, n_new
+
+
+def _money(x):
+    return "" if pd.isna(x) else (f"${x:,.0f}" if x >= 0 else f"-${-x:,.0f}")
+
+
+def props_table(df):
+    out = []
+    for _, r in df.sort_values(["date", "game", "player"], ascending=[False, True, True]).iterrows():
+        res = {"W": "✅ Win", "L": "❌ Loss", "P": "➖ Push", "V": "⚪ Didn't play"}.get(r["result"], "⏳ Waiting")
+        out.append({"Date": r["date"], "Game": r["game"], "Player": r["player"], "Pick": f"{r['side']} {r['line']:g} {r['stat'].lower()}",
+                    "Model chance": pct(r["model_p"]), "Sportsbook implies": pct(r["book_p"]), "Edge (pts)": f"{r['edge'] * 100:+.1f}",
+                    "Projected": f"{r['proj']:.1f}", "Actual": "" if pd.isna(r["actual"]) else f"{r['actual']:g}",
+                    "Result": res, "Profit ($100 bet)": _money(r["profit"])})
+    return pd.DataFrame(out)
+
+
+def props_results_view():
+    st.caption("Every prop you save from the Player props tab is graded automatically from the real box scores once the game is final. "
+               "Profit assumes a flat $100 on each pick at the odds you entered. A player who doesn't play voids the bet.")
+    df = load_props()
+    if len(df):
+        with st.spinner("Checking box scores..."):
+            df, n_new = grade_props(df)
+        if n_new:
+            save_props(df)
+            st.success(f"Graded {n_new} new props.")
+    if df.empty:
+        st.info("Nothing saved yet. Open the **Player props** tab, check a prop, and press **Save** to start tracking it here.")
+    else:
+        done = df[df["result"].isin(["W", "L", "P"])]
+        waiting = int((df["result"] == "").sum())
+        decided = done[done["result"].isin(["W", "L"])]
+        wins = int((decided["result"] == "W").sum())
+        profit = float(done["profit"].sum())
+        with st.container(border=True):
+            c1, c2, c3, c4, c5 = st.columns(5)
+            c1.metric("Record", record_line(done) if len(done) else "-")
+            c2.metric("Win %", f"{wins / len(decided) * 100:.1f}%" if len(decided) else "-")
+            c3.metric("Model expected", pct(float(decided["model_p"].mean())) if len(decided) else "-")
+            c4.metric("Profit ($100/pick)", _money(profit) if len(done) else "-")
+            c5.metric("Waiting on games", str(waiting))
+        if len(decided) and len(decided) < 100:
+            st.caption(f"Only {len(decided)} graded props so far. That is far too few to judge, because results swing wildly in small samples.")
+
+        if len(done):
+            left, right = st.columns(2)
+            with left:
+                st.markdown("**By stat**")
+                st.dataframe(pd.DataFrame({k: summarize_picks(done[done["stat"] == k]) for k in done["stat"].unique()}).T[
+                    ["Picks", "Record (W-L-P)", "Win %", "Profit ($100 per pick)"]])
+            with right:
+                st.markdown("**Over vs under**")
+                st.dataframe(pd.DataFrame({k: summarize_picks(done[done["side"] == k]) for k in ("Over", "Under") if (done["side"] == k).any()}).T[
+                    ["Picks", "Record (W-L-P)", "Win %", "Profit ($100 per pick)"]])
+            value = done[done["edge"] >= 0.02]
+            if len(value):
+                sv = summarize_picks(value)
+                st.markdown(f"**Value picks only (model edge of 2+ points):** {sv['Record (W-L-P)']}, {sv['Win %']} wins, "
+                            f"{sv['Profit ($100 per pick)']} profit.")
+
+        st.markdown("### All saved props")
+        view = st.selectbox("Show", ["All", "Waiting for the game", "Wins", "Losses", "Value picks (2+ pts edge)"], key="prop_filter")
+        shown = {"All": df, "Waiting for the game": df[df["result"] == ""], "Wins": df[df["result"] == "W"],
+                 "Losses": df[df["result"] == "L"], "Value picks (2+ pts edge)": df[df["edge"] >= 0.02]}[view]
+        if shown.empty:
+            st.caption("Nothing to show for this filter yet.")
+        else:
+            st.dataframe(props_table(shown), hide_index=True)
+
+    with st.expander("My saved props, backup and restore"):
+        st.caption("On Streamlit Cloud the saved file can be erased when the app restarts or is redeployed, so download a backup now and "
+                   "then and upload it here to restore. Anyone who opens this site can see and change the log.")
+        st.download_button("⬇️ Download my props (CSV)", df.to_csv(index=False), file_name="props_log.csv", mime="text/csv")
+        up = st.file_uploader("Restore from a saved props file (CSV)", type="csv", key="props_up")
+        if up is not None and st.button("Merge uploaded props"):
+            try:
+                other = clean_props(pd.read_csv(up, dtype=str))
+                merged = pd.concat([df, other], ignore_index=True)
+                merged["_g"] = merged["result"] != ""
+                merged = merged.sort_values("_g", ascending=False).drop_duplicates("key").drop(columns="_g")
+                save_props(clean_props(merged))
+                st.success(f"Props restored: {len(merged)} saved.")
+            except Exception as e:
+                st.error(f"Could not read that file: {e}")
+        confirm = st.checkbox("I'm sure I want to erase my saved props", key="props_erase_ok")
+        if st.button("🗑️ Erase saved props") and confirm:
+            save_props(clean_props(pd.DataFrame(columns=PROP_LOG_COLS)))
+            st.success("Props erased.")
+
+
+def results_tab():
+    t_games, t_props = st.tabs(["🏀 Games", "🎯 Player props"])
+    with t_games:
+        game_results_view()
+    with t_props:
+        props_results_view()
+
+
+# =====================================================================
 # FULL SLATE
 # =====================================================================
 def pick_name(r):
@@ -1363,7 +1543,7 @@ def slate_tab(M, date, games, injuries, b2b):
     else:
         st.dataframe(pd.DataFrame([{
             "Game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "Market": r["market"], "Pick": pick_name(r),
-            "Odds": f"{r['book_odds']:+d}", "Model chance": pct(r["model_p"]), "Sportsbook implies": pct(r["book_p"]),
+            "Model chance": pct(r["model_p"]), "Sportsbook implies": pct(r["book_p"]),
             "Edge (pts)": f"{r['edge'] * 100:+.1f}", "Profit per $100 if model is right": f"${r['ev']:,.0f}",
             "Value": strength(r["edge"])} for res, r in flagged]), hide_index=True)
         st.caption("Sorted by edge. Large edges are worth double-checking against the latest injury news and confirmed lineups.")
@@ -1424,7 +1604,7 @@ def build_chat_context(date, games, injuries):
                 lines.append(f"    book: {short(g['home'])} spread {o.get('home_spread')}, total {o.get('total')}, ML home {o.get('home_ml')} / away {o.get('away_ml')}")
             for r in res["rows"]:
                 lab = f"{r['market']} {r['side']} {r['line']}".strip()
-                lines.append(f"    {lab}: model {r['model_p'] * 100:.1f}% vs book {r['book_p'] * 100:.1f}% (edge {r['edge'] * 100:+.1f} pts, odds {r['book_odds']:+d})")
+                lines.append(f"    {lab}: model {r['model_p'] * 100:.1f}% vs book {r['book_p'] * 100:.1f}% (edge {r['edge'] * 100:+.1f} pts, price implies {opct(r['book_odds'])})")
     elif games:
         lines.append("Today's games (slate not run yet, so there are no model numbers): " + "; ".join(f"{g['away']} @ {g['home']}" for g in games))
     else:
@@ -1620,8 +1800,8 @@ with tab_game:
     if None in (odds["home_ml"], odds["away_ml"], odds["home_spread"], odds["total"]):
         with st.expander("Some sportsbook lines are missing. Enter them manually", expanded=True):
             a, b, c = st.columns(3)
-            odds["home_ml"] = a.number_input(f"{g['home']} moneyline", value=odds["home_ml"] or -110, step=5, key=f"hml{gid}")
-            odds["away_ml"] = a.number_input(f"{g['away']} moneyline", value=odds["away_ml"] or -110, step=5, key=f"aml{gid}")
+            odds["home_ml"] = a.number_input(f"{g['home']} moneyline (as your book shows)", value=odds["home_ml"] or -110, step=5, key=f"hml{gid}")
+            odds["away_ml"] = a.number_input(f"{g['away']} moneyline (as your book shows)", value=odds["away_ml"] or -110, step=5, key=f"aml{gid}")
             odds["home_spread"] = b.number_input(f"{g['home']} spread", value=float(odds["home_spread"] or 0.0), step=0.5, key=f"sp{gid}")
             odds["total"] = c.number_input("Total", value=float(odds["total"] or 224.5), step=0.5, key=f"tot{gid}")
 

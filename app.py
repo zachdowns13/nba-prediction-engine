@@ -2136,9 +2136,10 @@ def delete_bet(bet_id):
     save_bets(clean_bets(df[df["id"] != bet_id]))
 
 
-def split_legs(desc):
+def split_legs(desc, tidy=True):
     # Legs are saved joined with " + "; don't split inside combo stats like "points + rebounds + assists".
-    return [p for p in re.split(r" \+ (?!rebounds|assists|points)", desc or "") if p.strip()] or ["(no description)"]
+    legs = [p for p in re.split(r" \+ (?!rebounds|assists|points)", desc or "") if p.strip()]
+    return [cap_leg(p) if tidy else p for p in legs] or ["(no description)"]
 
 
 def leg_states(r):
@@ -2236,6 +2237,29 @@ def _search_select(label, options, key, where=None):
         return where.selectbox(label, options, index=None, placeholder="Start typing...", key=key)
 
 
+def norm_name(x, options):
+    # Tidy a typed name: match it to the real player/team (any capitalization, or just part of a team name), else capitalize each word.
+    x = (x or "").strip()
+    if not x or x in options:
+        return x
+    low = x.lower()
+    for o in options:
+        if o.lower() == low:
+            return o
+    part = [o for o in options if low in o.lower()]
+    if len(part) == 1:
+        return part[0]
+    return x.title()
+
+
+def cap_leg(leg):
+    # Display fix for legs saved in lowercase, like "suns ML".
+    leg = leg.strip()
+    if leg.endswith(" ML") or leg.endswith(" ml"):
+        return leg[:-3].title() + " ML"
+    return leg[:1].upper() + leg[1:]
+
+
 def leg_builder(key):
     # Builds the bet text for one leg from dropdowns, e.g. "Devin Booker over 23.5 points".
     players, teams = all_nba_names()
@@ -2244,7 +2268,7 @@ def leg_builder(key):
         return st.text_input("The bet", placeholder="e.g. Booker first basket", key=f"{key}_free").strip()
     if kind == "Player prop":
         c1, c2, c3, c4 = st.columns([3, 2.4, 1.3, 1.3])
-        who = _search_select("Player", players, f"{key}_who", c1)
+        who = norm_name(_search_select("Player", players, f"{key}_who", c1), players)
         stat = c2.selectbox("Stat", LEG_STATS, key=f"{key}_stat")
         if stat in ("Double-double", "Triple-double"):
             return f"{who} {stat.lower()}" if who else ""
@@ -2254,7 +2278,7 @@ def leg_builder(key):
             return ""
         return f"{who} {side.lower()} {line:g} {stat.lower().replace('3-pointers made', '3s made')}"
     c1, c2, c3 = st.columns([3, 2.4, 2.6])
-    team = _search_select("Team", teams, f"{key}_team", c1)
+    team = norm_name(_search_select("Team", teams, f"{key}_team", c1), teams)
     what = c2.selectbox("Bet", TEAM_BETS, key=f"{key}_what")
     if what.startswith("Moneyline"):
         return f"{team} ML" if team else ""

@@ -966,14 +966,28 @@ def first_basket_tab(M, g, injuries, now):
             tp = res.get("tip") or {}
             if tp.get("hj") and tp.get("aj") and tp.get("h_rec") is not None:
                 def _rec(r):
-                    return f"{r[0]}-{r[1] - r[0]} on tips" if r[1] else "no tips found"
-                tip_txt = (f'<div style="text-align:center;font-weight:600;margin-bottom:2px">Jump ball: {H(tp["hj"])} ({H(short(home))}) vs {H(tp["aj"])} ({H(short(away))})</div>'
-                           f'<div class="nb-muted" style="text-align:center">{H(tp["hj"])}: {_rec(tp["h_rec"])} · {H(tp["aj"])}: {_rec(tp["a_rec"])} · '
-                           f'head-to-head: {_rec(tp["h2h"]) if tp["h2h"][1] else "never faced each other in the games checked"}</div>'
-                           f'<div class="nb-muted" style="text-align:center">{H(short(home))} win the tip {pct(tp["p_home"])} of the time in this simulation. {H(tp["source"])}</div>')
+                    return f"{r[0]}-{r[1] - r[0]}" if r[1] else "no tips"
+                ph_ = tp["p_home"]
+                html(f'<div class="nb-card" style="margin:10px 0 4px"><div class="nb-top"><span class="nb-title">🏀 Jump ball</span>'
+                     f'{badge(short(home) + " win the tip " + pct(ph_), "acc")}</div>'
+                     f'<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;text-align:center;margin:6px 0">'
+                     f'<div>{logo(g.get("home_logo"))}<b>{H(tp["hj"])}</b><div class="nb-muted">{H(short(home))}</div>'
+                     f'<span class="nb-chip" style="margin:6px 0 0">Tips won-lost: {_rec(tp["h_rec"])}</span></div>'
+                     f'<div class="nb-muted">vs</div>'
+                     f'<div>{logo(g.get("away_logo"))}<b>{H(tp["aj"])}</b><div class="nb-muted">{H(short(away))}</div>'
+                     f'<span class="nb-chip" style="margin:6px 0 0">Tips won-lost: {_rec(tp["a_rec"])}</span></div></div>'
+                     f'<div class="nb-split"><div style="width:{ph_ * 100:.1f}%;background:var(--acc)"></div>'
+                     f'<div style="width:{(1 - ph_) * 100:.1f}%;background:#f97316"></div></div></div>')
+                with st.expander("How the tip chance is worked out"):
+                    h2h = tp["h2h"]
+                    st.markdown(f"- **Tip records:** how often each jumper's team got the ball after the opening tip in recent games.\n"
+                                f"- **Head-to-head:** " + (f"these two have tipped against each other {h2h[1]} time(s) in the games checked; {short(home)} got the ball {h2h[0]}." if h2h[1]
+                                                          else "they haven't faced each other in the games checked.") + "\n"
+                                f"- **Small samples:** each record covers only about 20 games, so it is pulled toward 50/50 and the final chance is kept between 20% and 80%.\n"
+                                f"- **Credit:** a tip counts as won by the team of the player who gains possession, which can be a teammate of the jumper.")
+                    st.caption(tp["source"])
             else:
-                tip_txt = f'<div class="nb-muted" style="text-align:center">{H(tp.get("source", "The tip is treated as 50/50."))}</div>'
-            html(f'<div class="nb-card" style="margin:10px 0 4px">{tip_txt}</div>')
+                st.caption("🏀 " + str(tp.get("source", "The tip is treated as 50/50.")))
             html(f'<div class="nb-card" style="margin:10px 0 4px"><div class="nb-muted" style="text-align:center">🏀 Opening tip · who scores first?</div>'
                      f'<div class="nb-split" style="height:18px"><div style="width:{hf * 100:.1f}%;background:{colors[0]}"></div>'
                      f'<div style="width:{(1 - hf) * 100:.1f}%;background:{colors[1]}"></div></div>'

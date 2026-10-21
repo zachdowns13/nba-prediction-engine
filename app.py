@@ -2925,12 +2925,13 @@ def chat_tab(date, games, injuries):
         if srcs:
             st.caption("Sources: " + " · ".join(f"[{t}]({u})" for t, u in srcs[:8]))
 
-    # Normal chat layout: the conversation scrolls inside the box (oldest at the top, newest at the bottom), typing box right under it.
-    try:
-        live = st.container(height=560, border=True, key="chatbox")
-    except TypeError:
-        live = st.container(height=560, border=True)
-    typed = st.chat_input("Ask about games, player props, injuries, stats, anything NBA")
+    # One card: the conversation (scrolls inside) with the typing box directly under it, same width.
+    with st.container(border=True):
+        try:
+            live = st.container(height=480, key="chatbox")
+        except TypeError:
+            live = st.container(height=480)
+        typed = st.chat_input("Ask about games, player props, injuries, stats, anything NBA")
     quick = st.session_state.pop("chat_quick", None)
     prompt = (quick or typed or "").strip()
 
@@ -2950,49 +2951,43 @@ def chat_tab(date, games, injuries):
         if prompt:
             with st.chat_message("user"):
                 st.markdown(prompt)
-            asst = st.chat_message("assistant")
-            pad = st.container()                       # empty room under the answer so your message can sit at the top of the box
-            with pad:
-                html('<div style="height:440px"></div>')
-            _scroll_chat("last_question")
             sources = []
             system = CHAT_SYSTEM + "\n\n<context>\n" + build_chat_context(date, games, injuries) + "\n</context>"
             client = anthropic.Anthropic(api_key=key)
-            with asst:
+            with st.chat_message("assistant"):
+                _scroll_chat(follow=True)                  # keeps the newest text in view while the answer types
                 reply = st.write_stream(chat_stream(client, anthropic, system, msgs_for_api(msgs, prompt), CHAT_MODELS[quality], use_web, sources))
                 show_sources(sources)
             reply = reply if isinstance(reply, str) else "".join(map(str, reply))
             msgs.append({"role": "user", "content": prompt})
             msgs.append({"role": "assistant", "content": reply, "sources": sources})
         elif msgs:
-            _scroll_chat("bottom")
+            _scroll_chat(follow=False)
     if msgs or prompt:
         st.caption("Answers are model estimates and general knowledge, not guarantees.")
 
 
-def _scroll_chat(mode):
-    # mode "last_question": put your newest question at the top of the chat box (the answer types downward under it).
-    # mode "bottom": show the end of the conversation.
+def _scroll_chat(follow=False):
+    # Scrolls only the chat box (never the page) to its end. While an answer is typing it keeps following until you scroll up yourself.
     try:
         import streamlit.components.v1 as components
-        components.html(f"""<script>/* {dt.datetime.now().timestamp()} {mode} */
-        const d = window.parent.document, mode = "{mode}";
-        function scroller(box) {{
-          const els = [box].concat(Array.from(box.querySelectorAll('*')));
-          return els.find(function (x) {{ const o = getComputedStyle(x).overflowY; return (o === 'auto' || o === 'scroll') && x.scrollHeight > x.clientHeight + 5; }});
-        }}
-        function go() {{
+        components.html(f"""<script>/* {dt.datetime.now().timestamp()} */
+        const d = window.parent.document, follow = {"true" if follow else "false"};
+        let stop = false;
+        function scroller() {{
           const box = d.querySelector('.st-key-chatbox');
-          if (!box) return;
-          const sc = scroller(box);
-          if (!sc) return;
-          if (mode === "bottom") {{ sc.scrollTop = sc.scrollHeight; return; }}
-          const msgs = box.querySelectorAll('[data-testid="stChatMessage"]');
-          if (msgs.length < 2) return;
-          const q = msgs[msgs.length - 2];
-          sc.scrollTop += q.getBoundingClientRect().top - sc.getBoundingClientRect().top - 8;
+          if (!box) return null;
+          const els = [box].concat(Array.from(box.querySelectorAll('*')));
+          return els.find(function (x) {{ const o = getComputedStyle(x).overflowY; return (o === 'auto' || o === 'scroll') && x.scrollHeight > x.clientHeight + 5; }}) || null;
         }}
-        [0, 150, 400, 900, 1800].forEach(function (t) {{ setTimeout(go, t); }});
+        function go() {{ const sc = scroller(); if (sc) sc.scrollTop = sc.scrollHeight; }}
+        const first = scroller();
+        if (first) {{ ['wheel', 'touchmove'].forEach(function (t) {{ first.addEventListener(t, function () {{ stop = true; }}, {{passive: true}}); }}); }}
+        go(); setTimeout(go, 200);
+        if (follow) {{
+          let n = 0;
+          const iv = setInterval(function () {{ if (stop || ++n > 300) {{ clearInterval(iv); return; }} go(); }}, 300);
+        }}
         </script>""", height=0)
     except Exception:
         pass

@@ -1669,7 +1669,8 @@ def breakdown_html(groups):
             continue
         s = pick_stats(d)
         w = (s["win"] or 0) * 100
-        rows.append(f'<div class="nb-brow"><div><b>{H(label)}</b></div><div class="nb-muted">{s["rec"]}</div>'
+        chip = book_chip(label) if label in BOOK_STYLE else ""
+        rows.append(f'<div class="nb-brow"><div><b>{chip}{H(label)}</b></div><div class="nb-muted">{s["rec"]}</div>'
                     f'<div><div class="nb-bl"><span></span><b>{f"{w:.0f}%" if s["win"] is not None else "-"}</b></div>'
                     f'<div class="nb-bar" style="height:8px"><div class="nb-fill" style="width:{w:.0f}%;background:var(--acc)"></div></div></div>'
                     f'<div class="pr {_tone(s["profit"])}">{_signed_money(s["profit"])}</div></div>')
@@ -1687,7 +1688,7 @@ def pick_rows_html(items):
         prof = it.get("profit")
         ptxt = f'<b class="{_tone(prof)}">{_signed_money(prof)}</b>' if prof is not None and pd.notna(prof) and res in ("W", "L", "P") else ""
         odds = f'<div class="o">{H(it["odds"])}</div>' if it.get("odds") else ""
-        out.append(f'<div class="nb-prow {cls}"><div class="m"><b>{H(it["title"])}</b><div class="nb-muted">{H(it["sub"])}</div></div>{odds}'
+        out.append(f'<div class="nb-prow {cls}"><div class="m"><b>{it.get("chip", "")}{H(it["title"])}</b><div class="nb-muted">{H(it["sub"])}</div></div>{odds}'
                    f'<div class="r">{b}<div>{ptxt}</div></div></div>')
     html("".join(out))
 
@@ -1995,6 +1996,42 @@ _BET_TXT = ("id", "date", "book", "type", "desc", "result", "settled_at")
 _BET_NUM = ("legs", "stake", "payout", "returned", "profit")
 
 
+BOOK_STYLE = {"PrizePicks": ("#7B2FF7", "PP"), "Underdog": ("#F5C518", "UD"), "Kalshi": ("#00A878", "K"), "Chalkboard": ("#2D3748", "CB"),
+              "Sleeper": ("#1F6FEB", "SL"), "DraftKings": ("#53B02C", "DK"), "Novig": ("#E5484D", "NV"), "Other": ("#6B7280", "?")}
+
+
+def book_chip(book):
+    col, mark = BOOK_STYLE.get(book, BOOK_STYLE["Other"])
+    fg = "#111" if col == "#F5C518" else "#fff"
+    return (f'<span style="display:inline-block;min-width:26px;padding:1px 6px;margin-right:8px;border-radius:6px;background:{col};color:{fg};'
+            f'font-size:11px;font-weight:800;text-align:center;letter-spacing:.3px;vertical-align:middle">{mark}</span>')
+
+
+BET_SORTS = ["Newest", "Oldest", "Biggest stake", "Biggest profit", "Biggest loss", "Book A-Z"]
+
+
+def filter_sort_bets(df, key, books_label="Books"):
+    c1, c2 = st.columns([3, 1])
+    picked = c1.multiselect(books_label, BET_BOOKS + ["Other"], key=f"{key}_books", placeholder="All books")
+    how = c2.selectbox("Sort by", BET_SORTS, key=f"{key}_sort")
+    if picked:
+        df = df[df["book"].isin(picked)]
+    d = df.assign(_p=df["profit"].fillna(0.0))
+    if how == "Oldest":
+        d = d.sort_values(["date", "settled_at"])
+    elif how == "Biggest stake":
+        d = d.sort_values("stake", ascending=False)
+    elif how == "Biggest profit":
+        d = d.sort_values("_p", ascending=False)
+    elif how == "Biggest loss":
+        d = d.sort_values("_p")
+    elif how == "Book A-Z":
+        d = d.sort_values(["book", "date"], ascending=[True, False])
+    else:
+        d = d.sort_values(["date", "settled_at"], ascending=[False, False])
+    return d.drop(columns="_p")
+
+
 def clean_bets(df):
     df = df.reindex(columns=BET_COLS).copy()
     for c in _BET_TXT:
@@ -2060,7 +2097,7 @@ def delete_bet(bet_id):
 def bet_item(r):
     # One row for the pick_rows_html list.
     kind = "Parlay" + (f" ({int(r['legs'])} legs)" if r["legs"] and r["legs"] >= 2 else "") if r["type"] == "Parlay" else "Straight"
-    return {"title": r["desc"] or "(no description)", "sub": f"{r['book']} · {kind} · {_nice_date(r['date'])} · ${r['stake']:,.2f} to win ${r['payout'] - r['stake']:,.2f}",
+    return {"chip": book_chip(r["book"]), "title": r["desc"] or "(no description)", "sub": f"{r['book']} · {kind} · {_nice_date(r['date'])} · ${r['stake']:,.2f} to win ${r['payout'] - r['stake']:,.2f}",
             "odds": f"${r['stake']:,.0f} → ${r['payout']:,.0f}", "result": r["result"], "profit": r["profit"]}
 
 
@@ -2104,12 +2141,14 @@ def bets_input_view():
                 st.rerun()
 
     df = load_bets()
-    open_ = df[df["result"] == ""].sort_values("date")
-    st.markdown(f'<div class="nb-sec">Open bets ({len(open_)})</div>', unsafe_allow_html=True)
-    if open_.empty:
+    open_all = df[df["result"] == ""]
+    st.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>', unsafe_allow_html=True)
+    open_ = open_all
+    if open_all.empty:
         st.caption("No open bets. Add one above.")
     else:
-        st.caption(f"${open_['stake'].sum():,.2f} at risk. Tap a button when the bet settles.")
+        open_ = filter_sort_bets(open_all, "bo")
+        st.caption(f"${open_all['stake'].sum():,.2f} at risk overall" + (f" · showing {len(open_)} of {len(open_all)}" if len(open_) != len(open_all) else "") + ". Tap a button when the bet settles.")
         for _, r in open_.iterrows():
             with st.container(border=True):
                 pick_rows_html([bet_item(r)])
@@ -2202,14 +2241,13 @@ def bets_results_view():
         profit_chart(done)
 
     st.markdown('<div class="nb-sec">All my bets</div>', unsafe_allow_html=True)
-    opts = ["All", "Open", "Wins", "Losses", "Pushes", "Straight", "Parlays"] + BET_BOOKS
-    flt = st.selectbox("Show", opts, key="bet_filter", label_visibility="collapsed")
+    flt = st.selectbox("Show", ["All", "Open", "Wins", "Losses", "Pushes", "Straight", "Parlays"], key="bet_filter", label_visibility="collapsed")
     sel = {"All": df, "Open": df[df["result"] == ""], "Wins": df[df["result"] == "W"], "Losses": df[df["result"] == "L"],
-           "Pushes": df[df["result"] == "P"], "Straight": df[df["type"] == "Straight"], "Parlays": df[df["type"] == "Parlay"]}.get(flt, df[df["book"] == flt])
+           "Pushes": df[df["result"] == "P"], "Straight": df[df["type"] == "Straight"], "Parlays": df[df["type"] == "Parlay"]}[flt]
+    sel = filter_sort_bets(sel, "bh")
     if sel.empty:
         st.caption("Nothing to show for this filter yet.")
     else:
-        sel = sel.sort_values(["date", "settled_at"], ascending=[False, False])
         pick_rows_html([bet_item(r) for _, r in sel.head(60).iterrows()])
         if len(sel) > 60:
             st.caption(f"Showing the latest 60 of {len(sel)}. Download your bets from the My bets subtab for the full list.")

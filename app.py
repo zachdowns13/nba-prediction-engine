@@ -1087,8 +1087,8 @@ def first_basket_tab(M, g, injuries, now):
 # PLAYER PROPS
 # =====================================================================
 PROP_BOOK_TOTAL = 104      # over% + under% a sportsbook's prices add up to (two -110s = 104.8%)
-PROP_GAMES = 20            # team games used to project each player
-PROP_DECAY = 0.93          # each older game counts this much less than the next one
+PROP_GAMES = 40            # team games used to project each player (a longer memory smooths out hot and cold streaks)
+PROP_DECAY = 0.96          # each older game counts this much less than the next one
 PROP_STATS = {"Points": ("pts",), "Rebounds": ("reb",), "Assists": ("ast",), "3-pointers made": ("tpm",),
               "Steals": ("stl",), "Blocks": ("blk",), "Points + Rebounds + Assists": ("pts", "reb", "ast"),
               "Points + Rebounds": ("pts", "reb"), "Points + Assists": ("pts", "ast"), "Rebounds + Assists": ("reb", "ast")}

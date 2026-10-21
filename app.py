@@ -964,35 +964,42 @@ def first_basket_tab(M, g, injuries, now):
             medals = ["🥇", "🥈", "🥉"]
             colors = ("var(--acc)", "#f97316")
             tp = res.get("tip") or {}
-            if tp.get("hj") and tp.get("aj") and tp.get("h_rec") is not None:
+            has_tip = bool(tp.get("hj") and tp.get("aj") and tp.get("h_rec") is not None)
+            first_bar = (f'<div class="nb-muted" style="text-align:center">Who scores first?</div>'
+                         f'<div class="nb-split" style="height:18px"><div style="width:{hf * 100:.1f}%;background:{colors[0]}"></div>'
+                         f'<div style="width:{(1 - hf) * 100:.1f}%;background:{colors[1]}"></div></div>'
+                         f'<div class="nb-tip"><span style="color:{colors[0]}">{logo(g.get("home_logo"))}{H(short(home))} {pct(hf)}</span>'
+                         f'<span style="color:{colors[1]}">{pct(1 - hf)} {H(short(away))}{logo(g.get("away_logo"))}</span></div>')
+            if has_tip:
                 def _rec(r):
                     return f"{r[0]}-{r[1] - r[0]}" if r[1] else "no tips"
                 ph_ = tp["p_home"]
-                html(f'<div class="nb-card" style="margin:10px 0 4px"><div class="nb-top"><span class="nb-title">🏀 Jump ball</span>'
-                     f'{badge(short(home) + " win the tip " + pct(ph_), "acc")}</div>'
-                     f'<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;text-align:center;margin:6px 0">'
-                     f'<div>{logo(g.get("home_logo"))}<b>{H(tp["hj"])}</b><div class="nb-muted">{H(short(home))}</div>'
-                     f'<span class="nb-chip" style="margin:6px 0 0">Tips won-lost: {_rec(tp["h_rec"])}</span></div>'
-                     f'<div class="nb-muted">vs</div>'
-                     f'<div>{logo(g.get("away_logo"))}<b>{H(tp["aj"])}</b><div class="nb-muted">{H(short(away))}</div>'
-                     f'<span class="nb-chip" style="margin:6px 0 0">Tips won-lost: {_rec(tp["a_rec"])}</span></div></div>'
-                     f'<div class="nb-split"><div style="width:{ph_ * 100:.1f}%;background:var(--acc)"></div>'
-                     f'<div style="width:{(1 - ph_) * 100:.1f}%;background:#f97316"></div></div></div>')
-                with st.expander("How the tip chance is worked out"):
-                    h2h = tp["h2h"]
-                    st.markdown(f"- **Tip records:** how often each jumper's team got the ball after the opening tip in recent games.\n"
-                                f"- **Head-to-head:** " + (f"these two have tipped against each other {h2h[1]} time(s) in the games checked; {short(home)} got the ball {h2h[0]}." if h2h[1]
-                                                          else "they haven't faced each other in the games checked.") + "\n"
-                                f"- **Small samples:** each record covers only about 20 games, so it is pulled toward 50/50 and the final chance is kept between 20% and 80%.\n"
-                                f"- **Credit:** a tip counts as won by the team of the player who gains possession, which can be a teammate of the jumper.")
-                    st.caption(tp["source"])
+                label = f"🏀 Opening tip & first score · {short(home)} win the tip {pct(ph_)}, score first {pct(hf)}"
+                tip_card = (f'<div class="nb-muted" style="text-align:center">Who wins the tip? ({H(short(home))} {pct(ph_)})</div>'
+                            f'<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;text-align:center;margin:8px 0">'
+                            f'<div>{logo(g.get("home_logo"))}<b>{H(tp["hj"])}</b><div class="nb-muted">{H(short(home))}</div>'
+                            f'<span class="nb-chip" style="margin:6px 0 0">Tips won-lost: {_rec(tp["h_rec"])}</span></div>'
+                            f'<div class="nb-muted">vs</div>'
+                            f'<div>{logo(g.get("away_logo"))}<b>{H(tp["aj"])}</b><div class="nb-muted">{H(short(away))}</div>'
+                            f'<span class="nb-chip" style="margin:6px 0 0">Tips won-lost: {_rec(tp["a_rec"])}</span></div></div>'
+                            f'<div class="nb-split"><div style="width:{ph_ * 100:.1f}%;background:{colors[0]}"></div>'
+                            f'<div style="width:{(1 - ph_) * 100:.1f}%;background:{colors[1]}"></div></div>'
+                            f'<hr style="border:none;border-top:1px solid rgba(128,128,128,.25);margin:14px 0 10px">')
             else:
-                st.caption("🏀 " + str(tp.get("source", "The tip is treated as 50/50.")))
-            html(f'<div class="nb-card" style="margin:10px 0 4px"><div class="nb-muted" style="text-align:center">🏀 Opening tip · who scores first?</div>'
-                     f'<div class="nb-split" style="height:18px"><div style="width:{hf * 100:.1f}%;background:{colors[0]}"></div>'
-                     f'<div style="width:{(1 - hf) * 100:.1f}%;background:{colors[1]}"></div></div>'
-                     f'<div class="nb-tip"><span style="color:{colors[0]}">{logo(g.get("home_logo"))}{H(short(home))} {pct(hf)}</span>'
-                     f'<span style="color:{colors[1]}">{pct(1 - hf)} {H(short(away))}{logo(g.get("away_logo"))}</span></div></div>')
+                label = f"🏀 Opening tip & first score · {short(home)} score first {pct(hf)}"
+                tip_card = ""
+            with st.expander(label):
+                html(f'<div class="nb-card" style="margin:0">{tip_card}{first_bar}</div>')
+                if has_tip:
+                    h2h = tp["h2h"]
+                    st.caption("**Tip records:** how often each jumper's team got the ball after the opening tip in recent games. "
+                               + (f"**Head-to-head:** these two have tipped against each other {h2h[1]} time(s) in the games checked; {short(home)} got the ball {h2h[0]}. "
+                                  if h2h[1] else "**Head-to-head:** they haven't faced each other in the games checked. ")
+                               + "Each record covers only about 20 games, so the tip chance is pulled toward 50/50 and kept between 20% and 80%. "
+                               "Winning the tip gives the first possession, not a guaranteed first basket, so the first-score chance is closer to 50/50. "
+                               + str(tp["source"]))
+                else:
+                    st.caption(str(tp.get("source", "The tip is treated as 50/50.")))
             st.markdown("### 🏆 Most likely first scorers")
             pods = []
             for i, r in enumerate(T.head(3).itertuples()):
@@ -1037,6 +1044,7 @@ def first_basket_tab(M, g, injuries, now):
 # =====================================================================
 # PLAYER PROPS
 # =====================================================================
+PROP_BOOK_TOTAL = 104      # over% + under% a sportsbook's prices add up to (two -110s = 104.8%)
 PROP_GAMES = 20            # team games used to project each player
 PROP_DECAY = 0.93          # each older game counts this much less than the next one
 PROP_STATS = {"Points": ("pts",), "Rebounds": ("reb",), "Assists": ("ast",), "3-pointers made": ("tpm",),
@@ -1217,10 +1225,19 @@ def props_tab(M, g, odds, injuries, date, b2b):
     proj_val = player_total(info["p"], stats)
     c3, c4, c5 = st.columns(3)
     line = c3.number_input("Sportsbook line", value=float(np.floor(proj_val) + 0.5), step=0.5, min_value=0.0, key=f"pp_line_{g['id']}_{pick}_{stat}")
-    pc_over = c4.number_input("Sportsbook odds: over (%)", value=52.4, step=0.5, min_value=1.0, max_value=99.0, key=f"pp_po_{g['id']}_{pick}_{stat}")
-    pc_under = c5.number_input("Sportsbook odds: under (%)", value=52.4, step=0.5, min_value=1.0, max_value=99.0, key=f"pp_pu_{g['id']}_{pick}_{stat}")
-    st.caption("Enter the chance your sportsbook's price implies for each side (a standard -110 price is 52.4%). "
-               "The model removes the sportsbook's built-in fee before comparing.")
+    k_o, k_u = f"pp_po_{g['id']}_{pick}_{stat}", f"pp_pu_{g['id']}_{pick}_{stat}"
+    st.session_state.setdefault(k_o, 52)
+    st.session_state.setdefault(k_u, 52)
+
+    def _link(src, dst):                       # the two sides always add up to the book's fee-inclusive total
+        st.session_state[dst] = int(min(99, max(5, PROP_BOOK_TOTAL - st.session_state[src])))
+
+    pc_over = c4.number_input("Sportsbook odds: over (%)", step=1, min_value=5, max_value=99, format="%d", key=k_o,
+                              on_change=_link, args=(k_o, k_u))
+    pc_under = c5.number_input("Sportsbook odds: under (%)", step=1, min_value=5, max_value=99, format="%d", key=k_u,
+                               on_change=_link, args=(k_u, k_o))
+    st.caption("Enter the chance your sportsbook's price implies (a standard -110 price is about 52%). Changing one side moves the other, "
+               "because the two always add up to the book's fee-inclusive total (104%). The model removes that fee before comparing.")
     o_over, o_under = pct_to_american(pc_over / 100), pct_to_american(pc_under / 100)
     st_txt = next((r["Status"] for r in rows if r["Player"] == name and r["Team"] == short(team)), "")
     if st_txt:
@@ -1242,6 +1259,12 @@ def props_tab(M, g, odds, injuries, date, b2b):
     st.markdown(f"**{name}** projects for **{proj_val:.1f}** {stat.lower()} "
                 f"(about {info['p']['min']:.0f} minutes). Model says he has **{pct(p_over)}** to go over {line:g} and **{pct(p_under)}** to go under"
                 + (f" ({pct(p_push)} to land exactly on it)." if p_push > 0.005 else "."))
+    recent = _wmean([sum(x[s_] for s_ in stats) for x in info["logs"]]) if info["logs"] else None
+    if recent is not None:
+        st.caption(f"Where {proj_val:.1f} comes from: his recent-games average is {recent:.1f}, adjusted for this game's projected score and for any teammates who are out.")
+    if line > 0 and abs(proj_val - line) / line > 0.15:
+        st.warning(f"The model's {proj_val:.1f} is far from the book's {line:g}. Sportsbooks account for things the model can't see "
+                   f"(minutes limits, matchups, late news), so check his status and minutes before trusting a gap this big.")
     st.markdown(f"Sportsbook's odds imply **{pct(nv_over)}** over / **{pct(nv_under)}** under once their fee is removed.")
     ev = ev100(mp, p_push, od)
     if edge >= 0.04 and ev > 0:

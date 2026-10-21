@@ -2101,6 +2101,75 @@ def bet_item(r):
             "odds": f"${r['stake']:,.0f} → ${r['payout']:,.0f}", "result": r["result"], "profit": r["profit"]}
 
 
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def all_nba_names():
+    # Every current NBA player and team name, so bet entry can autocomplete.
+    try:
+        teams = _get(f"{BASE}/teams", tries=2)["sports"][0]["leagues"][0]["teams"]
+        info = [(t["team"]["id"], t["team"]["displayName"]) for t in teams]
+    except Exception:
+        return [], []
+
+    def one(tid):
+        try:
+            out = []
+            for grp in _get(f"{BASE}/teams/{tid}/roster", tries=2).get("athletes", []):
+                items = grp.get("items", [grp]) if isinstance(grp, dict) else []
+                out += [i["displayName"] for i in items if isinstance(i, dict) and i.get("displayName")]
+            return out
+        except Exception:
+            return []
+    with ThreadPoolExecutor(8) as ex:
+        players = sorted({p for r in ex.map(one, [i[0] for i in info]) for p in r})
+    return players, sorted(n for _, n in info)
+
+
+LEG_KINDS = ["Player prop", "Team bet", "Type it myself"]
+LEG_STATS = ["Points", "Rebounds", "Assists", "3-pointers made", "Points + rebounds + assists", "Points + rebounds", "Points + assists",
+             "Rebounds + assists", "Steals", "Blocks", "Double-double", "Triple-double"]
+TEAM_BETS = ["Moneyline (to win)", "Spread", "Game total over", "Game total under"]
+
+
+def _search_select(label, options, key):
+    # A dropdown you can type into to filter; also accepts a name that isn't in the list when Streamlit supports it.
+    try:
+        return st.selectbox(label, options, index=None, placeholder="Start typing...", key=key, accept_new_options=True)
+    except TypeError:
+        return st.selectbox(label, options, index=None, placeholder="Start typing...", key=key)
+
+
+def leg_builder(key):
+    # Builds the bet text for one leg from dropdowns, e.g. "Devin Booker over 23.5 points".
+    players, teams = all_nba_names()
+    kind = st.radio("Leg type", LEG_KINDS, horizontal=True, key=f"{key}_kind", label_visibility="collapsed")
+    if kind == "Type it myself":
+        return st.text_input("The bet", placeholder="e.g. Booker first basket", key=f"{key}_free").strip()
+    if kind == "Player prop":
+        c1, c2 = st.columns([2, 2])
+        who = _search_select("Player", players, f"{key}_who")
+        stat = c2.selectbox("Stat", LEG_STATS, key=f"{key}_stat")
+        if stat in ("Double-double", "Triple-double"):
+            return f"{who} {stat.lower()}" if who else ""
+        d1, d2 = st.columns(2)
+        side = d1.radio("Side", ["Over", "Under"], horizontal=True, key=f"{key}_side")
+        line = d2.number_input("Line", min_value=0.0, value=0.0, step=0.5, format="%.1f", key=f"{key}_line")
+        if not who or line <= 0:
+            return ""
+        return f"{who} {side.lower()} {line:g} {stat.lower().replace('3-pointers made', '3s made')}"
+    c1, c2 = st.columns(2)
+    team = _search_select("Team", teams, f"{key}_team")
+    what = c2.selectbox("Bet", TEAM_BETS, key=f"{key}_what")
+    if what.startswith("Moneyline"):
+        return f"{team} ML" if team else ""
+    if what == "Spread":
+        sp = st.number_input("Spread (use - for favorite)", value=0.0, step=0.5, format="%.1f", key=f"{key}_sp")
+        return f"{team} {sp:+g}" if team else ""
+    tot = st.number_input("Total points", min_value=0.0, value=0.0, step=0.5, format="%.1f", key=f"{key}_tot")
+    if not team or tot <= 0:
+        return ""
+    return f"{team} game total {'over' if 'over' in what else 'under'} {tot:g}"
+
+
 def bets_input_view():
     st.caption("Log every bet you place, then mark it Won, Lost or Push when it settles. Your results show up in the **Results** tab here.")
     n = st.session_state.setdefault("bet_form_n", 0)
@@ -2114,20 +2183,29 @@ def bets_input_view():
         book = c2.selectbox("Book", BET_BOOKS + ["Other"], key=k("book"))
         btype = c3.radio("Type", ["Straight", "Parlay"], horizontal=True, key=k("type"))
         if btype == "Parlay":
-            d1, d2 = st.columns([4, 1])
-            desc = d1.text_input("The legs", placeholder="e.g. Booker over 26.5 pts + Maxey over 24.5 pts + Suns ML", key=k("desc"))
-            legs = d2.number_input("Legs", min_value=2, max_value=20, value=2, step=1, key=k("legs"))
+            legs = int(st.number_input("How many legs?", min_value=2, max_value=15, value=2, step=1, key=k("legs")))
         else:
-            desc = st.text_input("The bet", placeholder="e.g. Devin Booker over 26.5 points", key=k("desc"))
             legs = 1
+        parts = []
+        for i in range(legs):
+            if btype == "Parlay":
+                st.markdown(f"**Leg {i + 1}**")
+            txt = leg_builder(k(f"leg{i}"))
+            if txt:
+                parts.append(txt)
+        desc = " + ".join(parts)
+        if desc:
+            st.caption(f"Your bet: **{desc}**")
+        if btype == "Parlay" and len(parts) < legs:
+            st.caption(f"{legs - len(parts)} leg(s) still need filling in.")
         e1, e2 = st.columns(2)
         stake = e1.number_input("Amount you put in ($)", min_value=0.0, value=10.0, step=1.0, key=k("stake"))
         payout = e2.number_input("Payout if it wins ($, the total you get back)", min_value=0.0, value=0.0, step=1.0, key=k("payout"))
         if stake > 0 and payout > stake:
             st.caption(f"Profit if it wins: **${payout - stake:,.2f}** · you'd need to win about **{stake / payout * 100:.0f}%** of bets like this to break even.")
         if st.button("💾 Save bet", type="primary", key=k("save")):
-            if not str(desc).strip():
-                st.error("Add a short description of the bet.")
+            if not str(desc).strip() or len(parts) < legs:
+                st.error("Fill in every leg of the bet first.")
             elif stake <= 0:
                 st.error("Enter how much you put in.")
             elif payout <= stake:

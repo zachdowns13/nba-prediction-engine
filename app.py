@@ -215,6 +215,10 @@ def novig(a, b):
     return ia / (ia + ib), ib / (ia + ib)
 
 
+def fair_txt(p):
+    return f"{fair_american(p)} ({pct(p)})"
+
+
 def fair_american(p):
     p = min(max(p, 0.001), 0.999)
     return f"{-round(100 * p / (1 - p))}" if p >= 0.5 else f"+{round(100 * (1 - p) / p)}"
@@ -527,7 +531,7 @@ def market_card(res, market):
         if market == "Moneyline":
             question = f"Chance the {short(pick['side'])} win"
             fav = a if a["book_odds"] < b["book_odds"] else b
-            model = f"**{short(top['side'])}** have **{pct(top['model_p'])}** odds to win.\n\nFair odds: {fair_american(top['model_p'])}"
+            model = f"**{short(top['side'])}** have **{pct(top['model_p'])}** odds to win.\n\nFair odds: {fair_txt(top['model_p'])}"
             book = f"**{short(fav['side'])}** are favored at **{fav['book_odds']:+d}**.\n\nThat implies **{pct(fav['book_p'])}** to win."
             name = f"{short(best['side'])} moneyline"
         elif market == "Spread":
@@ -761,6 +765,10 @@ def first_basket_tab(M, g, injuries, now):
     if not any(boxes.values()):
         st.error("Could not read box scores from ESPN. The first basket simulator needs them.")
         return
+    btn_box = st.container()          # simulate button (filled in below, shown at the top)
+    results_box = st.container()      # results (filled in at the end, shown above the lineup editor)
+    st.markdown("### ⚙️ Starting lineups")
+    st.caption("Check or change each team's starting five and add your sportsbook's prices if you like, then press Simulate at the top.")
     chosen, aggs = {}, {}
     cols = st.columns(2)
     for col, team, tid in ((cols[0], home, g.get("home_id")), (cols[1], away, g.get("away_id"))):
@@ -785,10 +793,12 @@ def first_basket_tab(M, g, injuries, now):
                            "Set the real starting five above once lineups are announced (about 30 min before tip).")
     odds_text = st.text_area("Your sportsbook's first-basket prices (optional), one per line, like: Jalen Brunson, 650",
                              key=f"fbo_{g['id']}")
-    if st.button("🏀 Simulate first basket (10,000x)", type="primary", key=f"fbb_{g['id']}"):
-        if len(chosen[home]) != 5 or len(chosen[away]) != 5:
+    with btn_box:
+        clicked = st.button("🏀 Simulate first basket (10,000x)", type="primary", key=f"fbb_{g['id']}")
+    if clicked and (len(chosen[home]) != 5 or len(chosen[away]) != 5):
+        with btn_box:
             st.error("Pick exactly 5 starters for each team.")
-            return
+    elif clicked:
         fives = []
         for team in (home, away):
             by_name = {a["name"]: (aid, a) for aid, a in aggs[team].items()}
@@ -806,57 +816,57 @@ def first_basket_tab(M, g, injuries, now):
         st.session_state[f"fbres_{g['id']}"] = {
             "T": T, "home_first": float(np.mean(winner[done] == 0)), "tip_first": float(np.mean(winner[done] == first_off[done])),
             "odds": parse_odds_text(odds_text)}
-        st.balloons()
-    res = st.session_state.get(f"fbres_{g['id']}")
-    if res:
-        T, book = res["T"], res["odds"]
-        hf = res["home_first"]
-        medals = ["🥇", "🥈", "🥉"]
-        colors = ("var(--acc)", "#f97316")
-        html(f'<div class="nb-card" style="margin:10px 0 4px"><div class="nb-muted" style="text-align:center">🏀 Opening tip · who scores first?</div>'
-             f'<div class="nb-split" style="height:18px"><div style="width:{hf * 100:.1f}%;background:{colors[0]}"></div>'
-             f'<div style="width:{(1 - hf) * 100:.1f}%;background:{colors[1]}"></div></div>'
-             f'<div class="nb-tip"><span style="color:{colors[0]}">{logo(g.get("home_logo"))}{H(short(home))} {pct(hf)}</span>'
-             f'<span style="color:{colors[1]}">{pct(1 - hf)} {H(short(away))}{logo(g.get("away_logo"))}</span></div></div>')
-        st.markdown("### 🏆 Most likely first scorers")
-        pods = []
-        for i, r in enumerate(T.head(3).itertuples()):
-            bk = book.get(r.Player.lower())
-            bk_txt = (f'<div class="nb-muted" style="margin-top:6px">Your book: {bk:+d} ({pct(implied(bk))})</div>' if bk is not None else "")
-            pods.append(f'<div class="nb-pod p{i}"><div class="nb-medal">{medals[i]}</div>'
-                        f'<div class="nb-head" style="background-image:url(\'https://a.espncdn.com/i/headshots/nba/players/full/{H(r.id)}.png\')"></div>'
-                        f'<div class="nb-title">{H(r.Player)}</div><div class="nb-muted">{H(r.Team)}</div>'
-                        f'<div class="nb-big" style="color:{colors[int(r.t)]}">{pct(r.prob)}</div>'
-                        f'<div class="nb-bigsub">fair odds {fair_american(r.prob)}</div>{bk_txt}</div>')
-        html('<div class="nb-podium">' + "".join(pods) + '</div>')
-        st.markdown("### 📋 Full leaderboard")
-        top_p = float(T["prob"].max()) or 1.0
-        rows_html = []
-        for i, r in enumerate(T.itertuples(), start=1):
-            rows_html.append(f'<div class="nb-lb"><div class="r">{i}</div>'
-                             f'<div class="h" style="background-image:url(\'https://a.espncdn.com/i/headshots/nba/players/full/{H(r.id)}.png\')"></div>'
-                             f'<div><div><b>{H(r.Player)}</b> <span class="nb-muted">{H(r.Team)}</span></div>'
-                             f'<div class="nb-bar" style="height:8px;margin-top:4px"><div class="nb-fill" style="width:{r.prob / top_p * 100:.1f}%;background:{colors[int(r.t)]}"></div></div></div>'
-                             f'<div class="v">{pct(r.prob)}</div></div>')
-        html("".join(rows_html))
-        st.caption(f"Across {SIMS:,} simulated openings. The team that wins the tip scores first {pct(res['tip_first'])} of the time "
-                   "(this comes from the model's assumptions, not checked against real games).")
-        if book:
-            out = []
-            for r in T.itertuples():
-                o = book.get(r.Player.lower())
-                if o is None:
-                    continue
-                ev = ev100(r.prob, 0, o)
-                out.append({"Player": r.Player, "Team": r.Team, "Chance to score first": pct(r.prob), "Fair odds": fair_american(r.prob),
-                            "Your odds": f"{o:+d}", "Book implies": pct(implied(o)),
-                            "Profit per $100 if model is right": f"${ev:,.0f}" if ev >= 0 else f"-${-ev:,.0f}",
-                            "Worth it?": "🟢 Yes" if ev > 0 else "No"})
-            if out:
-                st.markdown("### 💰 Your sportsbook prices")
-                st.dataframe(pd.DataFrame(out), hide_index=True)
-        st.caption("First-basket prices carry a large built-in sportsbook fee, so a price has to beat the fair odds by a wide margin "
-                   "to be worth taking. These are model estimates, not guarantees.")
+    with results_box:
+        res = st.session_state.get(f"fbres_{g['id']}")
+        if res:
+            T, book = res["T"], res["odds"]
+            hf = res["home_first"]
+            medals = ["🥇", "🥈", "🥉"]
+            colors = ("var(--acc)", "#f97316")
+            html(f'<div class="nb-card" style="margin:10px 0 4px"><div class="nb-muted" style="text-align:center">🏀 Opening tip · who scores first?</div>'
+                 f'<div class="nb-split" style="height:18px"><div style="width:{hf * 100:.1f}%;background:{colors[0]}"></div>'
+                 f'<div style="width:{(1 - hf) * 100:.1f}%;background:{colors[1]}"></div></div>'
+                 f'<div class="nb-tip"><span style="color:{colors[0]}">{logo(g.get("home_logo"))}{H(short(home))} {pct(hf)}</span>'
+                 f'<span style="color:{colors[1]}">{pct(1 - hf)} {H(short(away))}{logo(g.get("away_logo"))}</span></div></div>')
+            st.markdown("### 🏆 Most likely first scorers")
+            pods = []
+            for i, r in enumerate(T.head(3).itertuples()):
+                bk = book.get(r.Player.lower())
+                bk_txt = (f'<div class="nb-muted" style="margin-top:6px">Your book: {bk:+d} ({pct(implied(bk))})</div>' if bk is not None else "")
+                pods.append(f'<div class="nb-pod p{i}"><div class="nb-medal">{medals[i]}</div>'
+                            f'<div class="nb-head" style="background-image:url(\'https://a.espncdn.com/i/headshots/nba/players/full/{H(r.id)}.png\')"></div>'
+                            f'<div class="nb-title">{H(r.Player)}</div><div class="nb-muted">{H(r.Team)}</div>'
+                            f'<div class="nb-big" style="color:{colors[int(r.t)]}">{pct(r.prob)}</div>'
+                            f'<div class="nb-bigsub">fair odds {fair_txt(r.prob)}</div>{bk_txt}</div>')
+            html('<div class="nb-podium">' + "".join(pods) + '</div>')
+            st.markdown("### 📋 Full leaderboard")
+            top_p = float(T["prob"].max()) or 1.0
+            rows_html = []
+            for i, r in enumerate(T.itertuples(), start=1):
+                rows_html.append(f'<div class="nb-lb"><div class="r">{i}</div>'
+                                 f'<div class="h" style="background-image:url(\'https://a.espncdn.com/i/headshots/nba/players/full/{H(r.id)}.png\')"></div>'
+                                 f'<div><div><b>{H(r.Player)}</b> <span class="nb-muted">{H(r.Team)}</span></div>'
+                                 f'<div class="nb-bar" style="height:8px;margin-top:4px"><div class="nb-fill" style="width:{r.prob / top_p * 100:.1f}%;background:{colors[int(r.t)]}"></div></div></div>'
+                                 f'<div class="v">{pct(r.prob)}</div></div>')
+            html("".join(rows_html))
+            st.caption(f"Across {SIMS:,} simulated openings. The team that wins the tip scores first {pct(res['tip_first'])} of the time "
+                       "(this comes from the model's assumptions, not checked against real games).")
+            if book:
+                out = []
+                for r in T.itertuples():
+                    o = book.get(r.Player.lower())
+                    if o is None:
+                        continue
+                    ev = ev100(r.prob, 0, o)
+                    out.append({"Player": r.Player, "Team": r.Team, "Chance to score first": pct(r.prob), "Fair odds": fair_txt(r.prob),
+                                "Your odds": f"{o:+d}", "Book implies": pct(implied(o)),
+                                "Profit per $100 if model is right": f"${ev:,.0f}" if ev >= 0 else f"-${-ev:,.0f}",
+                                "Worth it?": "🟢 Yes" if ev > 0 else "No"})
+                if out:
+                    st.markdown("### 💰 Your sportsbook prices")
+                    st.dataframe(pd.DataFrame(out), hide_index=True)
+            st.caption("First-basket prices carry a large built-in sportsbook fee, so a price has to beat the fair odds by a wide margin "
+                       "to be worth taking. These are model estimates, not guarantees.")
 
 
 # =====================================================================

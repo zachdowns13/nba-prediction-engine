@@ -152,7 +152,9 @@ SIMS = 10_000
 LEAN_MIN, LEAN_STRONG = 0.02, 0.04
 FB_HISTORY_GAMES = 10            # first-basket: team games used to estimate each player
 TIP_HOME_PROB = 0.50             # chance the home team wins the opening tip when there is no tip data
-TIP_GAMES = 20                   # team games searched for opening tips
+TIP_GAMES = 20                   # recent team games used to pick a team's usual jumper
+TIP_SCAN_GAMES = 82              # team games searched for opening tips (about a full season)
+TIP_LAST = 50                    # each jumper's most recent tips that count toward his record
 TIP_PRIOR = 5.0                  # pseudo-tips at 50% blended into every jumper's record (keeps tiny samples honest)
 TIP_H2H_W = 6.0                  # how strongly the jumpers' head-to-head record pulls the estimate
 FB_TURNOVER_RATE, FB_OREB_RATE = 0.13, 0.25
@@ -782,7 +784,7 @@ def player_params(aid, name, a):
 def tip_check(home, last_event, tip_all, tboxes):
     # Short status line. The raw plays are only shown if no tips are being found.
     found = sum(1 for e in tip_all if (tboxes.get(e) or {}).get("tip"))
-    st.markdown(f"**Opening tips found in ESPN's play-by-play:** {found} of {len(tip_all)} recent games.")
+    st.markdown(f"**Opening tips found in ESPN's play-by-play:** {found} of {len(tip_all)} games searched.")
     if found:
         st.caption("Tip data is working. Jumpers and their records come from these games.")
         return
@@ -797,9 +799,12 @@ def tip_check(home, last_event, tip_all, tboxes):
             st.caption(f"Could not read ESPN's play-by-play: {e}")
 
 
-def tip_record(boxes, evs, name):
+def tip_record(boxes, evs, name, limit=TIP_LAST):
+    # The jumper's most recent `limit` tips found in these games (all of them if he has fewer).
     w = n = 0
-    for e in evs:
+    for e in reversed(evs):
+        if n >= limit:
+            break
         t = (boxes.get(e) or {}).get("tip")
         if not t or name not in (t["a"], t["b"]):
             continue
@@ -893,7 +898,7 @@ def first_basket_tab(M, g, injuries, now):
     if not any(boxes.values()):
         st.error("Could not read box scores from ESPN. The first basket simulator needs them.")
         return
-    tip_evs = {t: recent_events(M["hist"], t, now.toordinal(), TIP_GAMES) for t in (home, away)}
+    tip_evs = {t: recent_events(M["hist"], t, now.toordinal(), TIP_SCAN_GAMES) for t in (home, away)}
     tip_all = tuple(sorted(set(tip_evs[home]) | set(tip_evs[away])))
     tboxes = load_boxes(tip_all)
     btn_box = st.container()          # simulate button (filled in below, shown at the top)
@@ -945,7 +950,7 @@ def first_basket_tab(M, g, injuries, now):
             fives.append(five)
         jump = {}
         for team in (home, away):
-            jump[team] = (usual_jumper(tboxes, tip_evs[team], team, set(chosen[team])) if jsel[team].startswith("Auto") else jsel[team])
+            jump[team] = (usual_jumper(tboxes, tip_evs[team][-TIP_GAMES:], team, set(chosen[team])) if jsel[team].startswith("Auto") else jsel[team])
         tipm = tip_model(tboxes, tip_all, jump[home], jump[away])
         first_off, winner, scorer, done = simulate_first_basket(fives[0], fives[1], SIMS, tipm["p_home"])
         rows = []
@@ -995,7 +1000,7 @@ def first_basket_tab(M, g, injuries, now):
                     st.caption("**Tip records:** how often each jumper's team got the ball after the opening tip in recent games. "
                                + (f"**Head-to-head:** these two have tipped against each other {h2h[1]} time(s) in the games checked; {short(home)} got the ball {h2h[0]}. "
                                   if h2h[1] else "**Head-to-head:** they haven't faced each other in the games checked. ")
-                               + "Each record covers only about 20 games, so the tip chance is pulled toward 50/50 and kept between 20% and 80%. "
+                               + "Each record uses the jumper's last 50 tips (or all he has if fewer), so the tip chance is pulled toward 50/50 and kept between 20% and 80%. "
                                "Winning the tip gives the first possession, not a guaranteed first basket, so the first-score chance is closer to 50/50. "
                                + str(tp["source"]))
                 else:

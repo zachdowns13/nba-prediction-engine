@@ -563,7 +563,17 @@ def side_label(market, r):
     return f"{r['side']} {r['line']}"
 
 
+def with_raw(res):
+    # Results saved in an open browser tab before an app update lack the model's-own numbers; fill them in so nothing crashes.
+    for r in res.get("rows", []):
+        r.setdefault("raw_p", r["model_p"])
+        r.setdefault("raw_edge", r["edge"])
+        r.setdefault("raw_ev", r["ev"])
+    return res
+
+
 def market_info(res, market):
+    res = with_raw(res)
     rows = [r for r in res["rows"] if r["market"] == market]
     if not rows:
         return None
@@ -634,6 +644,7 @@ def render_markets(res):
 
 
 def render_result(res):
+    res = with_raw(res)
     g = res["game"]
     home_wins = res["hp"] >= res["ap"]
     html(f'<div class="nb-card"><div class="nb-score">'
@@ -2028,6 +2039,7 @@ def slate_tab(M, date, games, injuries, b2b):
     results = st.session_state.get(key)
     if not results:
         return
+    results = [with_raw(r) for r in results]
     saved = st.session_state.get(key + "_saved")
     if saved:
         if saved[0]:
@@ -2142,6 +2154,7 @@ def build_chat_context(date, games, injuries):
     if results:
         lines.append("MODEL RESULTS FOR TODAY'S GAMES (simulated 10,000 times each):")
         for res in results:
+            res = with_raw(res)
             g, o = res["game"], res["odds"]
             p_h = res["p_home"]
             lines.append(f"- {g['away']} @ {g['home']} | projected {short(g['away'])} {res['ap']:.0f}, {short(g['home'])} {res['hp']:.0f} | "

@@ -1095,8 +1095,11 @@ PROP_STATS = {"Points": ("pts",), "Rebounds": ("reb",), "Assists": ("ast",), "3-
 PROP_BASE = ("pts", "reb", "ast", "tpm", "stl", "blk")
 PROP_DISP = {"pts": 2.4, "reb": 1.4, "ast": 1.4, "tpm": 1.1, "stl": 1.0, "blk": 1.1}   # game-to-game spread: variance is about this x his average
 PROP_FLOW_SD = 0.18        # shared swing in minutes / game flow that moves all of a player's stats together
-PROP_REDIST = 0.6          # share of an injured teammate's production that the others pick up
-PROP_BOOST_CAP = 0.35      # nobody's projection rises more than this much from teammates being out
+PROP_REDIST = 0.45         # share of an injured teammate's production that the others pick up (bench players absorb the rest)
+PROP_BOOST_CAP = 0.25      # nobody's projection rises more than this much from teammates being out
+PROP_TEAM_ELASTIC = 0.5    # a player's stats move this share as much as his team's projected score does
+PROP_TEAM_CLIP = 0.06      # ...and never by more than this much either way
+PROP_TOTAL_CAP = 1.25      # no projection ends up more than 25% above his own recent average
 PROP_SCORING = ("pts", "ast", "tpm")      # stats that move with the team's projected score
 PROP_MIN_MPG = 10
 
@@ -1137,7 +1140,8 @@ def project_team(team, logs, team_pts, proj_pts, out_probs, roster_ids=None):
     # Projection for every rotation player: recent weighted averages, scaled to the game's projected score,
     # with extra production when teammates are out.
     avg_pts = _wmean(team_pts) if team_pts else None
-    f_team = float(np.clip(proj_pts / avg_pts, 0.88, 1.12)) if avg_pts and proj_pts else 1.0
+    # One player's scoring does not rise point-for-point with his team's: a team projected 10% higher gives each starter about 5% more.
+    f_team = float(np.clip(1 + PROP_TEAM_ELASTIC * (proj_pts / avg_pts - 1), 1 - PROP_TEAM_CLIP, 1 + PROP_TEAM_CLIP)) if avg_pts and proj_pts else 1.0
     base = {}
     for aid, L in logs.items():
         if roster_ids and aid not in roster_ids:
@@ -1160,7 +1164,7 @@ def project_team(team, logs, team_pts, proj_pts, out_probs, roster_ids=None):
             v = b[s] * (f_team if s in PROP_SCORING else 1.0)
             if rest[s] > 0 and out_probs.get(aid, 0.0) < 0.85:
                 v += min(PROP_REDIST * lost[s] * b[s] / rest[s], PROP_BOOST_CAP * b[s])
-            row[s] = v
+            row[s] = min(v, b[s] * PROP_TOTAL_CAP)
         out[aid] = row
     return out
 
@@ -1301,12 +1305,6 @@ def props_tab(M, g, odds, injuries, date, b2b):
     st.markdown(f"**{name}** projects for **{proj_val:.1f}** {stat.lower()} "
                 f"(about {info['p']['min']:.0f} minutes). Model says he has **{pct(p_over)}** to go over {line:g} and **{pct(p_under)}** to go under"
                 + (f" ({pct(p_push)} to land exactly on it)." if p_push > 0.005 else "."))
-    recent = _wmean([sum(x[s_] for s_ in stats) for x in info["logs"]]) if info["logs"] else None
-    if recent is not None:
-        st.caption(f"Where {proj_val:.1f} comes from: his recent-games average is {recent:.1f}, adjusted for this game's projected score and for any teammates who are out.")
-    if line > 0 and abs(proj_val - line) / line > 0.15:
-        st.warning(f"The model's {proj_val:.1f} is far from the book's {line:g}. Sportsbooks account for things the model can't see "
-                   f"(minutes limits, matchups, late news), so check his status and minutes before trusting a gap this big.")
     st.markdown(f"Sportsbook's odds imply **{pct(nv_over)}** over / **{pct(nv_under)}** under once their fee is removed.")
     ev = ev100(mp, p_push, od)
     if edge >= 0.04 and ev > 0:

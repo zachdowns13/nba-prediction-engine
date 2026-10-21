@@ -2130,6 +2130,19 @@ LEG_STATS = ["Points", "Rebounds", "Assists", "3-pointers made", "Points + rebou
 TEAM_BETS = ["Moneyline (to win)", "Spread", "Game total over", "Game total under"]
 
 
+def num_box(label, key, where=None, placeholder="0", default=0.0):
+    # A plain text box (empty until you type) that returns a number, so there is no 0.0 to delete first.
+    where = where or st
+    raw = where.text_input(label, placeholder=placeholder, key=key).strip().replace("$", "").replace(",", "")
+    if raw in ("", "-", "+", "."):
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        where.caption("Numbers only")
+        return default
+
+
 def _search_select(label, options, key, where=None):
     where = where or st
     # A dropdown you can type into to filter; also accepts a name that isn't in the list when Streamlit supports it.
@@ -2151,7 +2164,7 @@ def leg_builder(key):
         stat = c2.selectbox("Stat", LEG_STATS, key=f"{key}_stat")
         if stat in ("Double-double", "Triple-double"):
             return f"{who} {stat.lower()}" if who else ""
-        line = c3.number_input("Line", min_value=0.0, value=0.0, step=0.5, format="%.1f", key=f"{key}_line")
+        line = num_box("Line", f"{key}_line", c3, "26.5")
         side = c4.selectbox("Over/Under", ["Over", "Under"], key=f"{key}_side")
         if not who or line <= 0:
             return ""
@@ -2162,9 +2175,9 @@ def leg_builder(key):
     if what.startswith("Moneyline"):
         return f"{team} ML" if team else ""
     if what == "Spread":
-        sp = c3.number_input("Spread (- = favorite)", value=0.0, step=0.5, format="%.1f", key=f"{key}_sp")
+        sp = num_box("Spread (- = favorite)", f"{key}_sp", c3, "-3.5")
         return f"{team} {sp:+g}" if team else ""
-    tot = c3.number_input("Total points", min_value=0.0, value=0.0, step=0.5, format="%.1f", key=f"{key}_tot")
+    tot = num_box("Total points", f"{key}_tot", c3, "224.5")
     if not team or tot <= 0:
         return ""
     return f"{team} game total {'over' if 'over' in what else 'under'} {tot:g}"
@@ -2199,8 +2212,8 @@ def bets_input_view():
         if btype == "Parlay" and len(parts) < legs:
             st.caption(f"{legs - len(parts)} leg(s) still need filling in.")
         e1, e2 = st.columns(2)
-        stake = e1.number_input("Amount you put in ($)", min_value=0.0, value=10.0, step=1.0, key=k("stake"))
-        payout = e2.number_input("Payout if it wins ($, the total you get back)", min_value=0.0, value=0.0, step=1.0, key=k("payout"))
+        stake = num_box("Amount you put in ($)", k("stake"), e1, "10")
+        payout = num_box("Payout if it wins ($, the total you get back)", k("payout"), e2, "30")
         if stake > 0 and payout > stake:
             st.caption(f"Profit if it wins: **${payout - stake:,.2f}** · you'd need to win about **{stake / payout * 100:.0f}%** of bets like this to break even.")
         if st.button("💾 Save bet", type="primary", key=k("save")):

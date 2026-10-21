@@ -2263,9 +2263,11 @@ def all_nba_names():
 
 
 LEG_KINDS = ["Player prop", "Team bet", "Type it myself"]
-LEG_STATS = ["Points", "Rebounds", "Assists", "3-pointers made", "Points + rebounds + assists", "Points + rebounds", "Points + assists",
-             "Rebounds + assists", "Steals", "Blocks", "3-pointers attempted", "Field goals made", "Field goals attempted",
-             "Free throws made", "Free throws attempted", "Double-double", "Triple-double"]
+LEG_STATS = ["Points", "Rebounds", "Assists", "3-pointers made",
+             "Points + rebounds + assists", "Points + rebounds", "Points + assists", "Rebounds + assists",
+             "Steals", "Blocks",
+             "3-pointers attempted", "Field goals made", "Field goals attempted", "Free throws made", "Free throws attempted",
+             "Double-double", "Triple-double"]
 TEAM_BETS = ["Moneyline (to win)", "Spread", "Game total over", "Game total under", "Team total over", "Team total under"]
 
 

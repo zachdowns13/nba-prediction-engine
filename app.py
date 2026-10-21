@@ -377,6 +377,31 @@ def get_roster(team_id):
     return sorted(ids)
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_roster_names(team_id):
+    # {player id: name} for everyone on the team's current roster, including new players who haven't played a game for the team yet.
+    if not team_id:
+        return {}
+    try:
+        data = _get(f"{BASE}/teams/{team_id}/roster", tries=2)
+    except Exception:
+        return {}
+    out = {}
+
+    def walk(x):
+        if isinstance(x, list):
+            for i in x:
+                walk(i)
+        elif isinstance(x, dict):
+            if x.get("id") and x.get("displayName"):
+                out[str(x["id"])] = x["displayName"]
+            for v in x.values():
+                if isinstance(v, (list, dict)):
+                    walk(v)
+    walk(data.get("athletes", []))
+    return out
+
+
 # =====================================================================
 # THE RATING MODEL (opponent-adjusted offense/defense, recent games count more)
 # =====================================================================
@@ -1005,6 +1030,9 @@ def first_basket_tab(M, g, injuries, now):
             for nm in default:
                 if nm not in options:
                     options.append(nm)
+            known = {a["name"] for a in agg.values()}
+            new_guys = sorted(n for n in get_roster_names(tid).values() if n not in known and n not in options)
+            options += new_guys                      # players on the roster with no games for this team yet (trades, free agents, rookies)
             chosen[team] = st.multiselect(f"Starting five ({team})", options, default=default,
                                           key=f"fb_{g['id']}_{team}")
             aggs[team] = agg

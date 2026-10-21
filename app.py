@@ -2278,6 +2278,18 @@ def _search_select(label, options, key, where=None, index=None):
         return where.selectbox(label, options, index=index, placeholder="Start typing...", key=key)
 
 
+def flip_side(key, where):
+    # One button that flips between Over and Under with a single click.
+    k = f"{key}_sideval"
+    st.session_state.setdefault(k, "Over")
+
+    def _flip():
+        st.session_state[k] = "Under" if st.session_state[k] == "Over" else "Over"
+    where.markdown("<div style='font-size:.875rem;margin-bottom:.25rem'>Side (tap to switch)</div>", unsafe_allow_html=True)
+    where.button("⬆️ Over" if st.session_state[k] == "Over" else "⬇️ Under", key=f"{key}_sidebtn", on_click=_flip, use_container_width=True)
+    return st.session_state[k]
+
+
 def norm_name(x, options):
     # Tidy a typed name: match it to the real player/team (any capitalization, or just part of a team name), else capitalize each word.
     x = (x or "").strip()
@@ -2314,7 +2326,7 @@ def leg_builder(key):
         if stat in ("Double-double", "Triple-double"):
             return f"{who} {stat.lower()}" if who else ""
         line = num_box("Line", f"{key}_line", c3, "26.5")
-        side = c4.selectbox("Over/Under", ["Over", "Under"], key=f"{key}_side")
+        side = flip_side(key, c4)
         if not who or line <= 0:
             return ""
         return f"{who} {side.lower()} {line:g} {stat.lower().replace('3-pointers made', '3s made')}"

@@ -611,7 +611,18 @@ LOG_COLS = ["key", "date", "event_id", "game", "market", "side", "side_role", "l
 
 
 def empty_log():
-    return pd.DataFrame(columns=LOG_COLS)
+    return clean_log(pd.DataFrame({c: pd.Series(dtype=object) for c in LOG_COLS}))
+
+
+def clean_log(df):
+    # Newer pandas refuses to put text ("W"/"L") into a column it thinks is numbers, so set the types explicitly.
+    df = df[LOG_COLS].copy()
+    for c in ("key", "date", "event_id", "game", "market", "side", "side_role", "line", "strength", "saved_at", "result"):
+        df[c] = df[c].astype(object)
+    for c in ("home_spread", "total_line", "odds", "model_p", "book_p", "edge", "ev", "profit"):
+        df[c] = pd.to_numeric(df[c], errors="coerce").astype(float)
+    df["flagged"] = df["flagged"].map(lambda v: str(v).lower() in ("true", "1", "1.0")).astype(bool)
+    return df.reset_index(drop=True)
 
 
 def load_log():
@@ -622,9 +633,7 @@ def load_log():
     for c in LOG_COLS:
         if c not in df.columns:
             df[c] = np.nan
-    df = df[LOG_COLS].copy()
-    df["flagged"] = df["flagged"].map(lambda v: str(v).lower() in ("true", "1", "1.0"))
-    return df
+    return clean_log(df)
 
 
 def save_log(df):
@@ -654,11 +663,15 @@ def rows_to_log(res, date_iso):
 
 def upsert_log(log, new_rows):
     # Re-saving the same slate updates picks that are not graded yet; graded picks are never changed.
-    new = pd.DataFrame(new_rows, columns=LOG_COLS)
+    new = clean_log(pd.DataFrame(new_rows, columns=LOG_COLS))
     graded_keys = set(log.loc[log["result"].isin(["W", "L", "P"]), "key"])
     new = new[~new["key"].isin(graded_keys)]
     keep = log[~log["key"].isin(set(new["key"]))]
-    return pd.concat([keep, new], ignore_index=True)[LOG_COLS]
+    if keep.empty:
+        return new.reset_index(drop=True)
+    if new.empty:
+        return keep.reset_index(drop=True)
+    return clean_log(pd.concat([keep, new], ignore_index=True))
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -683,7 +696,7 @@ def result_for(row, f):
 
 
 def grade_log(log):
-    log = log.copy()
+    log = clean_log(log)
     n_new = 0
     pending = log[~log["result"].isin(["W", "L", "P"])]
     for d in sorted(pending["date"].dropna().unique()):
@@ -784,10 +797,10 @@ def results_tab():
                 for c in LOG_COLS:
                     if c not in other.columns:
                         other[c] = np.nan
-                merged = pd.concat([log, other[LOG_COLS]], ignore_index=True)
+                merged = pd.concat([log, clean_log(other)], ignore_index=True)
                 merged["_g"] = merged["result"].isin(["W", "L", "P"])
                 merged = merged.sort_values("_g", ascending=False).drop_duplicates("key").drop(columns="_g")
-                save_log(merged[LOG_COLS])
+                save_log(clean_log(merged))
                 st.success(f"Log restored: {len(merged)} picks.")
             except Exception as e:
                 st.error(f"Could not read that file: {e}")

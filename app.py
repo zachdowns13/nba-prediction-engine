@@ -2228,13 +2228,13 @@ def num_box(label, key, where=None, placeholder="0", default=0.0, init=""):
         return default
 
 
-def _search_select(label, options, key, where=None):
+def _search_select(label, options, key, where=None, index=None):
     where = where or st
     # A dropdown you can type into to filter; also accepts a name that isn't in the list when Streamlit supports it.
     try:
-        return where.selectbox(label, options, index=None, placeholder="Start typing...", key=key, accept_new_options=True)
+        return where.selectbox(label, options, index=index, placeholder="Start typing...", key=key, accept_new_options=True)
     except TypeError:
-        return where.selectbox(label, options, index=None, placeholder="Start typing...", key=key)
+        return where.selectbox(label, options, index=index, placeholder="Start typing...", key=key)
 
 
 def norm_name(x, options):
@@ -2280,15 +2280,31 @@ def leg_builder(key):
     c1, c2, c3 = st.columns([3, 2.4, 2.6])
     team = norm_name(_search_select("Team", teams, f"{key}_team", c1), teams)
     what = c2.selectbox("Bet", TEAM_BETS, key=f"{key}_what")
+    # Opponent: filled in from the day's schedule when that team plays, otherwise pick it.
+    guess = None
+    for gm in globals().get("games", []) or []:
+        if team == gm["home"]:
+            guess = gm["away"]
+        elif team == gm["away"]:
+            guess = gm["home"]
+    opts = [t for t in teams if t != team]
+    opp = None
     if what.startswith("Moneyline"):
-        return f"{team} ML" if team else ""
-    if what == "Spread":
+        pass
+    elif what == "Spread":
         sp = num_box("Spread (- = favorite)", f"{key}_sp", c3, "-3.5")
-        return f"{team} {sp:+g}" if team else ""
-    tot = num_box("Total points", f"{key}_tot", c3, "224.5")
+    else:
+        tot = num_box("Total points", f"{key}_tot", c3, "224.5")
+    opp = norm_name(_search_select("Opponent (who they play)", opts, f"{key}_opp_{team}", None,
+                                   opts.index(guess) if guess in opts else None), opts) if team else None
+    vs = f" vs {opp}" if opp else ""
+    if what.startswith("Moneyline"):
+        return f"{team} ML{vs}" if team else ""
+    if what == "Spread":
+        return f"{team} {sp:+g}{vs}" if team else ""
     if not team or tot <= 0:
         return ""
-    return f"{team} game total {'over' if 'over' in what else 'under'} {tot:g}"
+    return f"{team}{vs}: game total {'over' if 'over' in what else 'under'} {tot:g}"
 
 
 def bets_input_view():
@@ -2379,7 +2395,10 @@ def bets_open_view():
                 with st.container(border=True):
                     legs = split_legs(r["desc"])
                     pick_rows_html([bet_item(r, controls=True)])
+                    show_legs = True
                     if len(legs) > 1:
+                        show_legs = (st.toggle if hasattr(st, "toggle") else st.checkbox)("Show legs", value=True, key=f"showlegs_{r['id']}")
+                    if len(legs) > 1 and show_legs:
                         ls = leg_states(r)
                         for i, leg in enumerate(legs):
                             q = st.columns([3, 1.3])

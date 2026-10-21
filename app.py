@@ -528,7 +528,8 @@ def analyze_game(M, g, o, h_inj, a_inj, b2b):
         add("Total", "Under", f"{T_}", o["under_odds"], un, 1 - ov - un, nv[1])
     return {"game": g, "odds": o, "rows": rows, "raw_m": raw_m, "raw_t": raw_t,
             "med_m": float(np.median(margin)), "med_t": float(np.median(total)),
-            "hp": (t_mu + m_mu) / 2, "ap": (t_mu - m_mu) / 2, "p_home": ph}
+            "hp": (t_mu + m_mu) / 2, "ap": (t_mu - m_mu) / 2, "p_home": ph,
+            "home_draws": np.rint((total + margin) / 2).astype(np.int16), "away_draws": np.rint((total - margin) / 2).astype(np.int16)}
 
 
 # =====================================================================
@@ -639,6 +640,46 @@ def render_result(res):
     note = (BACKTEST_NOTE + " ") if BACKTEST_NOTE else ""
     st.caption(f"{note}Model estimates, not guarantees.")
     render_markets(res)
+    render_team_totals(res)
+
+
+def render_team_totals(res):
+    # Each team's own points total, straight from the same 10,000 simulated games.
+    hd, ad = res.get("home_draws"), res.get("away_draws")
+    st.markdown('<div class="nb-sec">Team totals</div>', unsafe_allow_html=True)
+    if hd is None:
+        st.caption("Press Simulate game again to see team totals.")
+        return
+    g = res["game"]
+    st.caption("How many points each team scores in the 10,000 simulated games. Enter the sportsbook's team total (and prices if they differ from -110) to compare.")
+    for col, (team, draws) in zip(st.columns(2), ((g["away"], ad), (g["home"], hd))):
+        with col, st.container(border=True):
+            med = float(np.median(draws))
+            dflt = math.floor(med) + 0.5
+            st.markdown(f"**{team}** · projected **{med:.0f}** points")
+            line = num_box("Sportsbook team total", f"tt_{g['id']}_{team}_line", st, placeholder=f"{dflt:g}", default=dflt)
+            o1, o2 = st.columns(2)
+            oo = num_box("Over price", f"tt_{g['id']}_{team}_over", o1, placeholder="-110", default=-110.0)
+            uo = num_box("Under price", f"tt_{g['id']}_{team}_under", o2, placeholder="-110", default=-110.0)
+            oo = oo if abs(oo) >= 100 else -110.0
+            uo = uo if abs(uo) >= 100 else -110.0
+            pov, pun = float(np.mean(draws > line)), float(np.mean(draws < line))
+            nv = novig(oo, uo)
+            html(bar(f"Model: over {line:g}", pov) + bar(f"Sportsbook: over {line:g}", nv[0], "rgba(128,128,128,.75)")
+                 + f'<div class="nb-muted" style="margin-top:6px">Model: under {line:g} is {pct(pun)}, sportsbook {pct(nv[1])}</div>')
+            cand = [("Over", pov, nv[0], oo), ("Under", pun, nv[1], uo)]
+            side, mp, bp, od = max(cand, key=lambda c: c[1] - c[2])
+            e, ev_ = mp - bp, ev100(mp, 1 - pov - pun, od)
+            if not str(st.session_state.get(f"tt_{g['id']}_{team}_line", "")).strip():
+                st.caption("Type the sportsbook's team total above to check for value. The bars use the model's median score until you do.")
+            elif strength(e, ev_):
+                st.success(f"💰 Value: {short(team)} team total {side.lower()} {line:g} (model {pct(mp)} vs book {pct(bp)})")
+            else:
+                st.caption("⚪ No clear value")
+            with st.expander("Chance to score at least..."):
+                lo = int(math.floor(med / 5) * 5) - 15
+                rows = [{"Points": f"{t}+", "Chance": pct(float(np.mean(draws >= t)))} for t in range(lo, lo + 35, 5)]
+                st.dataframe(pd.DataFrame(rows), hide_index=True)
 
 
 # =====================================================================
@@ -2212,7 +2253,7 @@ def all_nba_names():
 LEG_KINDS = ["Player prop", "Team bet", "Type it myself"]
 LEG_STATS = ["Points", "Rebounds", "Assists", "3-pointers made", "Points + rebounds + assists", "Points + rebounds", "Points + assists",
              "Rebounds + assists", "Steals", "Blocks", "Double-double", "Triple-double"]
-TEAM_BETS = ["Moneyline (to win)", "Spread", "Game total over", "Game total under"]
+TEAM_BETS = ["Moneyline (to win)", "Spread", "Game total over", "Game total under", "Team total over", "Team total under"]
 
 
 def num_box(label, key, where=None, placeholder="0", default=0.0, init=""):
@@ -2294,7 +2335,7 @@ def leg_builder(key):
     elif what == "Spread":
         sp = num_box("Spread (- = favorite)", f"{key}_sp", c3, "-3.5")
     else:
-        tot = num_box("Total points", f"{key}_tot", c3, "224.5")
+        tot = num_box("Team points" if what.startswith("Team total") else "Total points", f"{key}_tot", c3, "112.5" if what.startswith("Team total") else "224.5")
     opp = norm_name(_search_select("Opponent (who they play)", opts, f"{key}_opp_{team}", None,
                                    opts.index(guess) if guess in opts else None), opts) if team else None
     vs = f" vs {opp}" if opp else ""
@@ -2304,6 +2345,8 @@ def leg_builder(key):
         return f"{team} {sp:+g}{vs}" if team else ""
     if not team or tot <= 0:
         return ""
+    if what.startswith("Team total"):
+        return f"{team} team total {'over' if 'over' in what else 'under'} {tot:g}{vs}"
     return f"{team}{vs}: game total {'over' if 'over' in what else 'under'} {tot:g}"
 
 

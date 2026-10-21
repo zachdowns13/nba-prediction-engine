@@ -2919,6 +2919,31 @@ def game_picker(tab):
 
 tab_game, tab_slate, tab_props, tab_fb, tab_results, tab_bets, tab_chat = st.tabs(["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "💬 AI chat"])
 
+def terms_help():
+  with st.expander("What do these terms mean?"):
+      st.markdown(
+          "- **Win chance / odds to win:** how often the model's simulations ended with that result out of 10,000 games.\n"
+          "- **Sportsbook implies:** the chance baked into the sportsbook's price after their built-in fee is removed.\n"
+          "- **Edge (pts):** the model's chance minus the sportsbook's chance. A bigger positive number means more potential value.\n"
+          "- **Value (🟢 strong, 🟡 slight):** where the model's chance beats the sportsbook's by 4+ or 2+ points.\n"
+          "- **Profit per $100:** the average win or loss per $100 bet if the model's chance is right, over many bets.\n"
+          "- **Push:** the result lands exactly on the line, so your stake is returned.\n"
+          "- **Fair odds:** the price that matches the model's chance, with no sportsbook fee.")
+
+def how_it_works():
+  with st.expander("How this works"):
+      st.markdown(
+          "- **Ratings:** every team gets an offense and a defense rating fitted across all games (so beating good teams counts for more), "
+          "with recent games weighted more and last season fading out.\n"
+          "- **Sportsbook blend:** the model is only allowed to move the sportsbook's line part of the way, so its projections stay anchored to the market.\n"
+          "- **Injuries:** every player is rated automatically from his recent box scores (minutes and production per minute, compared with a "
+          "replacement-level player), so a star's absence is weighted more than a bench player's. Each absence is scaled by how likely he is "
+          "to miss the game (out, doubtful, questionable...). You can edit any player's impact in the table.\n"
+          "- **Track record:** run the Full slate each day before games start. Every moneyline, spread and total is saved and graded from final "
+          "scores, and the Results tab shows how the model is actually doing.\n"
+          "- **Estimates:** everything here is a model estimate, not a guarantee.")
+
+
 def dropdown_toggle_fix():
     # Lets you click a dropdown's arrow again to close it (Streamlit only closes it when you click elsewhere).
     try:
@@ -2987,14 +3012,19 @@ with tab_game:
             st.session_state[f"res_{gid}"] = analyze_game(M, g, odds, inj_pts[g["home"]], inj_pts[g["away"]], b2b_teams)
     if f"res_{gid}" in st.session_state:
         render_result(st.session_state[f"res_{gid}"])
+    terms_help()
+    how_it_works()
 
 with tab_slate:
     date_picker("slate")
     slate_tab(M, date, games, injuries, b2b_teams)
+    terms_help()
+    how_it_works()
 
 with tab_props:
     game_picker("props")
     props_tab(M, g, odds, injuries, date, b2b_teams)
+    terms_help()
 
 with tab_fb:
     game_picker("fb")
@@ -3008,25 +3038,3 @@ with tab_bets:
 
 with tab_chat:
     chat_tab(date, games, injuries)
-
-with st.expander("What do these terms mean?"):
-    st.markdown(
-        "- **Win chance / odds to win:** how often the model's simulations ended with that result out of 10,000 games.\n"
-        "- **Sportsbook implies:** the chance baked into the sportsbook's price after their built-in fee is removed.\n"
-        "- **Edge (pts):** the model's chance minus the sportsbook's chance. A bigger positive number means more potential value.\n"
-        "- **Value (🟢 strong, 🟡 slight):** where the model's chance beats the sportsbook's by 4+ or 2+ points.\n"
-        "- **Profit per $100:** the average win or loss per $100 bet if the model's chance is right, over many bets.\n"
-        "- **Push:** the result lands exactly on the line, so your stake is returned.\n"
-        "- **Fair odds:** the price that matches the model's chance, with no sportsbook fee.")
-
-with st.expander("How this works"):
-    st.markdown(
-        "- **Ratings:** every team gets an offense and a defense rating fitted across all games (so beating good teams counts for more), "
-        "with recent games weighted more and last season fading out.\n"
-        "- **Sportsbook blend:** the model is only allowed to move the sportsbook's line part of the way, so its projections stay anchored to the market.\n"
-        "- **Injuries:** every player is rated automatically from his recent box scores (minutes and production per minute, compared with a "
-        "replacement-level player), so a star's absence is weighted more than a bench player's. Each absence is scaled by how likely he is "
-        "to miss the game (out, doubtful, questionable...). You can edit any player's impact in the table.\n"
-        "- **Track record:** run the Full slate each day before games start. Every moneyline, spread and total is saved and graded from final "
-        "scores, and the Results tab shows how the model is actually doing.\n"
-        "- **Estimates:** everything here is a model estimate, not a guarantee.")

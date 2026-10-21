@@ -29,7 +29,13 @@ BACKTEST_NOTE = ""               # optional: paste your Colab backtest result he
 
 BASE = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-ROLE_PTS = {"Star": 6.0, "Starter": 3.0, "Rotation": 1.2, "Deep bench": 0.0}
+# Automatic player ratings (from recent box scores) used to size each injury
+RATING_GAMES = 15        # team games used to rate each player
+PRIOR_GSM = 0.30         # league-typical production per minute; players with few minutes are nudged toward it
+PRIOR_MIN = 100          # how many minutes of "typical" evidence to blend in
+REPL_GSM = 0.22          # production per minute of a replacement-level player
+IMPACT_SCALE = 0.40      # converts (minutes x production above replacement) into points of team strength
+DEFAULT_IMPACT = 1.0     # used when ESPN has no recent stats for an injured player
 STATUS_W = {"out": 1.0, "doubtful": 0.85, "questionable": 0.5, "day-to-day": 0.3, "probable": 0.1}
 BREAKEVEN = 110 / 210
 
@@ -179,6 +185,7 @@ def get_injuries():
     out = {}
     for t in data.get("injuries", []):
         out[t.get("displayName")] = [{"player": (i.get("athlete") or {}).get("displayName", "?"),
+                                      "pid": str((i.get("athlete") or {}).get("id", "")),
                                       "pos": ((i.get("athlete") or {}).get("position") or {}).get("abbreviation", ""),
                                       "status": i.get("status", ""), "note": (i.get("shortComment") or "")[:120]}
                                      for i in t.get("injuries", [])]
@@ -287,13 +294,39 @@ def team_score(M, own, opp, is_home, own_b2b, opp_b2b):
     return x
 
 
-def injury_impact(team, injuries, roles):
-    total = 0.0
+def rating_label(impact):
+    return "Star" if impact >= 4.0 else ("Starter" if impact >= 1.6 else ("Rotation" if impact >= 0.5 else "Bench"))
+
+
+def ratings_for(M, team, date):
+    evs = tuple(recent_events(M["hist"], team, date.toordinal(), RATING_GAMES))
+    return player_ratings(team, evs) if evs else {}
+
+
+def injury_rows(team, injuries, ratings):
+    # Each injured player is rated automatically from his recent minutes and production.
+    by_name = {v["name"].lower(): v for v in ratings.values()}
+    rows = []
     for r in injuries.get(team, []):
-        role = roles.get(r["player"], "Rotation")
-        pts = ROLE_PTS.get(role, 1.2) * STATUS_W.get(r["status"].lower(), 0.3)
-        total += pts
-    return min(total, 15.0)
+        rt = ratings.get(str(r.get("pid"))) or by_name.get(r["player"].lower())
+        if rt:
+            impact, level, mpg = rt["impact"], rating_label(rt["impact"]), round(rt["mpg"], 1)
+        else:
+            impact, level, mpg = DEFAULT_IMPACT, "No recent stats", None
+        rows.append({"Player": r["player"], "Pos": r["pos"], "Status": r["status"], "Note": r["note"],
+                     "Min/game": mpg, "Level": level, "Impact if out (pts)": round(impact, 1)})
+    return rows
+
+
+def injury_total(rows):
+    # Impact if the player is out, scaled by how likely he is to miss the game.
+    return min(sum(float(r["Impact if out (pts)"]) * STATUS_W.get(str(r["Status"]).lower(), 0.3) for r in rows), 15.0)
+
+
+def team_injury_pts(M, team, injuries, date):
+    if not injuries.get(team):
+        return 0.0
+    return injury_total(injury_rows(team, injuries, ratings_for(M, team, date)))
 
 
 def analyze_game(M, g, o, h_inj, a_inj, b2b):
@@ -405,7 +438,7 @@ def render_result(res):
     elif res["rows"]:
         st.info("### No clear value\nThe model and the sportsbook roughly agree on all three markets.")
     note = (BACKTEST_NOTE + " ") if BACKTEST_NOTE else ""
-    st.caption(f"Reality check: {note}Sportsbook lines are very hard to beat. Treat these as small tilts, not locks.")
+    st.caption(f"{note}Model estimates, not guarantees.")
     cols = st.columns(3)
     for col, market in zip(cols, ["Moneyline", "Spread", "Total"]):
         with col:
@@ -420,6 +453,18 @@ def _minutes(x):
         return float(str(x).split(":")[0])
     except ValueError:
         return 0.0
+
+
+def _num(x):
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _made_att(x):
+    m = re.match(r"^\s*(\d+)\s*-\s*(\d+)", str(x))
+    return (float(m.group(1)), float(m.group(2))) if m else (0.0, 0.0)
 
 
 def _fetch_box_raw(event_id):
@@ -438,19 +483,66 @@ def _fetch_box_raw(event_id):
                     continue
                 row = dict(zip(names, stt))
                 ath = a.get("athlete") or {}
-                m = re.match(r"^\s*(\d+)\s*-\s*(\d+)", str(row.get("FG", "")))
+                fgm, fga = _made_att(row.get("FG", ""))
+                ftm, fta = _made_att(row.get("FT", ""))
+                reb, oreb, dreb = _num(row.get("REB")), _num(row.get("OREB")), _num(row.get("DREB"))
+                if reb and not (oreb or dreb):
+                    oreb, dreb = reb * 0.25, reb * 0.75
                 players[str(ath.get("id"))] = {
                     "name": ath.get("displayName", "?"), "team": team, "starter": bool(a.get("starter")),
-                    "min": _minutes(row.get("MIN", 0)),
-                    "fgm": float(m.group(1)) if m else 0.0, "fga": float(m.group(2)) if m else 0.0}
+                    "min": _minutes(row.get("MIN", 0)), "fgm": fgm, "fga": fga, "ftm": ftm, "fta": fta,
+                    "pts": _num(row.get("PTS")), "oreb": oreb, "dreb": dreb, "ast": _num(row.get("AST")),
+                    "stl": _num(row.get("STL")), "blk": _num(row.get("BLK")),
+                    "tov": _num(row.get("TO", row.get("TOV"))), "pf": _num(row.get("PF"))}
     return {"players": players}
 
 
-@st.cache_data(ttl=86400, show_spinner="Loading recent box scores...")
+@st.cache_resource
+def box_store():
+    return {}          # box scores already downloaded, shared by every tab and visitor
+
+
 def load_boxes(event_ids):
-    with ThreadPoolExecutor(8) as ex:
-        res = list(ex.map(_fetch_box_raw, event_ids))
-    return dict(zip(event_ids, res))
+    store = box_store()
+    missing = [e for e in event_ids if e not in store]
+    if missing:
+        with st.spinner("Loading recent box scores (the first time takes a bit)..."):
+            with ThreadPoolExecutor(8) as ex:
+                for e, b in zip(missing, ex.map(_fetch_box_raw, missing)):
+                    if b is not None:
+                        store[e] = b
+    return {e: store.get(e) for e in event_ids}
+
+
+def game_score(p):
+    # A standard single-game production number (points, shooting efficiency, rebounds, assists, steals, blocks, turnovers, fouls).
+    return (p["pts"] + 0.4 * p["fgm"] - 0.7 * p["fga"] - 0.4 * (p["fta"] - p["ftm"]) + 0.7 * p["oreb"] + 0.3 * p["dreb"]
+            + p["stl"] + 0.7 * p["ast"] + 0.7 * p["blk"] - 0.4 * p["pf"] - p["tov"])
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def player_ratings(team, evs):
+    # Rate every player on a team from his minutes and production per minute over the team's recent games.
+    boxes = load_boxes(evs)
+    agg = {}
+    for e in evs:
+        box = boxes.get(e)
+        if not box:
+            continue
+        for aid, p in box["players"].items():
+            if p["team"] != team or p["min"] <= 0:
+                continue
+            a = agg.setdefault(aid, {"name": p["name"], "min": 0.0, "gs": 0.0, "gp": 0})
+            a["min"] += p["min"]
+            a["gs"] += game_score(p)
+            a["gp"] += 1
+    out = {}
+    for aid, a in agg.items():
+        gsm = (a["gs"] + PRIOR_GSM * PRIOR_MIN) / (a["min"] + PRIOR_MIN)      # production per minute, nudged toward typical
+        mpg = a["min"] / a["gp"]
+        impact = min(max(IMPACT_SCALE * mpg * (gsm - REPL_GSM), 0.0), 9.0)    # points of team strength lost if he is out
+        out[aid] = {"name": a["name"], "mpg": mpg, "gsm": gsm, "impact": impact, "gp": a["gp"]}
+    return out
 
 
 def recent_events(hist, team, before_ord, n):
@@ -598,8 +690,7 @@ def first_basket_tab(M, g, injuries, now):
             out.append(row)
         st.dataframe(pd.DataFrame(out), hide_index=True)
         st.caption("First-basket prices carry a large built-in sportsbook fee, so a price has to beat the fair odds by a wide margin "
-                   "to be worth taking. 'Worth it?' assumes this simulator is accurate, and its accuracy on real games has only been "
-                   "checked in the Colab notebook.")
+                   "to be worth taking. These are model estimates, not guarantees.")
 
 
 # =====================================================================
@@ -709,6 +800,17 @@ def grade_log(log):
     return log, n_new
 
 
+def add_pick_flag(df):
+    # "Model's pick" = the side of each market (per game) the model gives the higher chance.
+    df = df.copy()
+    if df.empty:
+        df["is_pick"] = pd.Series(dtype=bool)
+        return df
+    rk = df.groupby(["date", "event_id", "market"])["model_p"].rank(method="first", ascending=False)
+    df["is_pick"] = rk == 1
+    return df
+
+
 def record_line(df):
     w, l, p = (df["result"] == "W").sum(), (df["result"] == "L").sum(), (df["result"] == "P").sum()
     return f"{w}-{l}" + (f"-{p}" if p else "")
@@ -726,8 +828,8 @@ def summarize_picks(df):
 
 
 def results_tab():
-    st.caption("Every pick you save is graded automatically from ESPN's final scores. This is the real test of the model, "
-               "because it uses the actual lines and injuries from before each game.")
+    st.caption("Every pick is graded automatically from ESPN's final scores. Run the Full slate each day before games start and "
+               "every moneyline, spread and total is saved, so this page shows how the model is actually doing.")
     log = load_log()
     if len(log):
         with st.spinner("Checking final scores..."):
@@ -735,15 +837,49 @@ def results_tab():
         if n_new:
             save_log(log)
             st.success(f"Graded {n_new} new picks.")
+    log = add_pick_flag(log)
     graded = log[log["result"].isin(["W", "L", "P"])].copy()
     for c in ("odds", "model_p", "book_p", "edge", "profit"):
         graded[c] = pd.to_numeric(graded[c])
 
     if log.empty:
-        st.info("Nothing saved yet. Open the **Full slate** tab, run it, and press **Save picks to my results log** before games start.")
+        st.info("Nothing saved yet. Open the **Full slate** tab and press **Run full slate** before games start. "
+                "Every moneyline, spread and total is saved automatically.")
     else:
+        # ---- every game, every market ----
+        pending_n = int((log["is_pick"] & ~log["result"].isin(["W", "L", "P"])).sum())
+        st.markdown("### 📊 Every game, every market")
+        st.caption("The side the model likes in every moneyline, spread and total that was saved, whether or not it was flagged as value. "
+                   "Profit assumes a flat $100 on each pick at the saved odds."
+                   + (f" {pending_n} picks are waiting for their games to finish." if pending_n else ""))
+        allp = graded[graded["is_pick"]]
+        if allp.empty:
+            st.caption("No graded picks yet. Check back after the saved games finish.")
+        else:
+            sm = summarize_picks(allp)
+            cols = st.columns(len(sm))
+            for col, (k, v) in zip(cols, sm.items()):
+                col.metric(k, v)
+            st.markdown("**By market**")
+            st.dataframe(pd.DataFrame({mk: summarize_picks(allp[allp["market"] == mk])
+                                       for mk in ("Moneyline", "Spread", "Total") if (allp["market"] == mk).any()}).T)
+            day_rows = []
+            for d in sorted(allp["date"].dropna().unique(), reverse=True):
+                a = allp[allp["date"] == d]
+                f = a[a["flagged"]]
+                sa = summarize_picks(a)
+                row = {"Date": d, "Model's picks": sa["Record (W-L-P)"], "Win %": sa["Win %"], "Profit ($100/pick)": sa["Profit ($100 per pick)"]}
+                if len(f):
+                    sf = summarize_picks(f)
+                    row["Value picks"], row["Value profit"] = sf["Record (W-L-P)"], sf["Profit ($100 per pick)"]
+                else:
+                    row["Value picks"], row["Value profit"] = "-", "-"
+                day_rows.append(row)
+            st.markdown("**Day by day**")
+            st.dataframe(pd.DataFrame(day_rows), hide_index=True)
+
         flagged = graded[graded["flagged"]]
-        st.markdown("### 💰 The value picks (the ones the app flagged)")
+        st.markdown("### 💰 Flagged value picks (the ones the app marked as value)")
         if flagged.empty:
             st.caption("No graded value picks yet. Check back after the saved games finish.")
         else:
@@ -822,19 +958,31 @@ def pick_name(r):
 
 
 def slate_tab(M, date, games, injuries, b2b):
-    st.caption("Runs every game on the date and ranks the best spots. Injured players are all treated as Rotation-level here, "
-               "so for a game where a star is out, open the **Game odds** tab and set his role.")
+    st.caption("Runs every game on the date and ranks the best spots. Each injured player is rated automatically from his recent "
+               "minutes and production. Every pick is saved to your Results log as soon as you run it.")
     if not games:
         st.info("No games on this date.")
         return
     key = f"slate_{date.isoformat()}"
     if st.button("🔥 Run full slate (10,000x per game)", type="primary", key="run_slate"):
         with st.spinner(f"Simulating {len(games)} games..."):
-            st.session_state[key] = [analyze_game(M, g, g["odds"], injury_impact(g["home"], injuries, {}),
-                                                  injury_impact(g["away"], injuries, {}), b2b) for g in games]
+            res_list = [analyze_game(M, g, g["odds"], team_injury_pts(M, g["home"], injuries, date),
+                                     team_injury_pts(M, g["away"], injuries, date), b2b) for g in games]
+            st.session_state[key] = res_list
+            pre_now = [r for r in res_list if r["game"]["state"] == "pre" and r["rows"]]
+            new_rows = [row for r in pre_now for row in rows_to_log(r, date.isoformat())]
+            ok = save_log(upsert_log(load_log(), new_rows)) if new_rows else True
+            st.session_state[key + "_saved"] = (len(new_rows), len(pre_now), ok)
     results = st.session_state.get(key)
     if not results:
         return
+    saved = st.session_state.get(key + "_saved")
+    if saved:
+        if saved[0]:
+            st.success(f"Saved {saved[0]} picks from {saved[1]} games to your Results log (every moneyline, spread and total)."
+                       + ("" if saved[2] else " The file could not be written, so they are kept for this session only. Download a backup in the Results tab."))
+        else:
+            st.info("Nothing was saved: every game has already started or has no lines posted.")
     flagged = sorted([(res, r) for res in results for r in res["rows"] if r["edge"] >= LEAN_MIN], key=lambda x: -x[1]["edge"])
     st.markdown("### 🎯 Best spots today")
     if not flagged:
@@ -845,21 +993,7 @@ def slate_tab(M, date, games, injuries, b2b):
             "Odds": f"{r['book_odds']:+d}", "Model chance": pct(r["model_p"]), "Sportsbook implies": pct(r["book_p"]),
             "Edge (pts)": f"{r['edge'] * 100:+.1f}", "Profit per $100 if model is right": f"${r['ev']:,.0f}",
             "Value": strength(r["edge"])} for res, r in flagged]), hide_index=True)
-        st.caption("Sorted by edge. Big edges usually mean the model is missing something (often an injury), not a real opportunity. "
-                   "Sportsbook lines are very hard to beat.")
-
-    pre = [res for res in results if res["game"]["state"] == "pre" and res["rows"]]
-    st.markdown("### 💾 Track these picks")
-    st.caption(f"Saves every market side for the {len(pre)} games that haven't started (flagged picks and the rest, so the model's accuracy "
-               "can be checked too). Do this BEFORE games start. The Results tab grades them afterward.")
-    if not pre:
-        st.info("Every game has already started or has no lines posted, so there is nothing new to save.")
-    elif st.button("💾 Save picks to my results log", key="save_slate"):
-        log = load_log()
-        new_rows = [row for res in pre for row in rows_to_log(res, date.isoformat())]
-        log = upsert_log(log, new_rows)
-        ok = save_log(log)
-        st.success(f"Saved {len(new_rows)} market sides from {len(pre)} games." + ("" if ok else " (Could not write the file, so they're kept for this session only. Download a backup in the Results tab.)"))
+        st.caption("Sorted by edge. Large edges are worth double-checking against the latest injury news and confirmed lineups.")
 
     st.markdown("### Every game")
     for res in results:
@@ -928,23 +1062,23 @@ with tab_game:
             odds["total"] = c.number_input("Total", value=float(odds["total"] or 224.5), step=0.5, key=f"tot{gid}")
 
     st.subheader("🩹 Injuries")
-    st.caption("Live from ESPN. Set the Role for key players (default is Rotation) so the model knows who actually matters.")
-    roles_by_team, inj_pts = {}, {}
+    st.caption("Live from ESPN. Each player is rated automatically from his recent minutes and production, so a star being out "
+               "counts for more than a bench player. The Impact column is editable if you know something the numbers don't.")
+    inj_pts = {}
     cols = st.columns(2)
     for col, team in ((cols[0], g["home"]), (cols[1], g["away"])):
         with col:
             st.markdown(f"**{team}**" + ("  ·  back-to-back" if team in b2b_teams else ""))
-            rows = injuries.get(team, [])
-            if not rows:
+            if not injuries.get(team):
                 st.caption("No injuries reported." if live_ok else "Injury data unavailable.")
                 inj_pts[team] = 0.0
                 continue
-            df = pd.DataFrame(rows).rename(columns={"player": "Player", "pos": "Pos", "status": "Status", "note": "Note"})
-            df["Role"] = "Rotation"
-            edited = st.data_editor(df, key=f"inj_{gid}_{team}", hide_index=True, disabled=["Player", "Pos", "Status", "Note"],
-                                    column_config={"Role": st.column_config.SelectboxColumn(options=list(ROLE_PTS), required=True)})
-            roles = dict(zip(edited["Player"], edited["Role"]))
-            inj_pts[team] = injury_impact(team, injuries, roles)
+            df = pd.DataFrame(injury_rows(team, injuries, ratings_for(M, team, date)))
+            edited = st.data_editor(df, key=f"inj_{gid}_{team}", hide_index=True,
+                                    disabled=["Player", "Pos", "Status", "Note", "Min/game", "Level"],
+                                    column_config={"Impact if out (pts)": st.column_config.NumberColumn(
+                                        "Impact if out (pts)", min_value=0.0, max_value=12.0, step=0.1)})
+            inj_pts[team] = injury_total(edited.to_dict("records"))
             st.caption(f"Estimated impact: **-{inj_pts[team]:.1f} pts**")
 
     st.markdown("---")
@@ -965,11 +1099,14 @@ with tab_fb:
 with tab_results:
     results_tab()
 
-with st.expander("How this works and how much to trust it"):
+with st.expander("How this works"):
     st.markdown(
         "- **Ratings:** every team gets an offense and a defense rating fitted across all games (so beating good teams counts for more), "
         "with recent games weighted more and last season fading out.\n"
-        "- **Sportsbook blend:** the model is only allowed to move the sportsbook's line part of the way, because the line is very hard to beat.\n"
-        "- **Injuries:** ESPN doesn't rate players, so the Role you pick decides how much each absence matters.\n"
-        "- **Accuracy:** the settings at the top of `app.py` should be updated from the Colab notebook's backtest. "
-        "Past testing found that betting this kind of model's picks did not beat the sportsbook's closing lines.")
+        "- **Sportsbook blend:** the model is only allowed to move the sportsbook's line part of the way, so its projections stay anchored to the market.\n"
+        "- **Injuries:** every player is rated automatically from his recent box scores (minutes and production per minute, compared with a "
+        "replacement-level player), so a star's absence is weighted more than a bench player's. Each absence is scaled by how likely he is "
+        "to miss the game (out, doubtful, questionable...). You can edit any player's impact in the table.\n"
+        "- **Track record:** run the Full slate each day before games start. Every moneyline, spread and total is saved and graded from final "
+        "scores, and the Results tab shows how the model is actually doing.\n"
+        "- **Estimates:** everything here is a model estimate, not a guarantee.")

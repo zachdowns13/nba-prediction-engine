@@ -2987,7 +2987,7 @@ def get_passcode():
 
 PASSCODE = get_passcode()
 private_ok = (not PASSCODE) or bool(st.session_state.get("unlocked"))
-menu = NAV if private_ok else NAV[:4] + [LOCKED_NAV]
+menu = NAV if private_ok else NAV[:4] + [NAV[6], LOCKED_NAV]
 if "_goto" in st.session_state:                           # jump to a section after unlocking
     st.session_state["main_nav"] = st.session_state.pop("_goto")
 if st.session_state.get("main_nav") not in menu:
@@ -2997,7 +2997,7 @@ if st.session_state.get("main_nav") not in menu:
 def private_gate():
     # Shown instead of the private sections until the right passcode is entered.
     st.markdown("### 🔒 Private sections")
-    st.caption("Results, My bets and AI chat are only for the owner of this app. Enter the passcode to open them.")
+    st.caption("Results and My bets are only for the owner of this app. Enter the passcode to open them.")
     with st.form("unlock_form"):
         pw = st.text_input("Passcode", type="password")
         go = st.form_submit_button("Unlock")
@@ -3180,6 +3180,5 @@ if nav == NAV[5] and private_ok:
     open_warning()
     bets_tab()
 
-if nav == NAV[6] and private_ok:
-    open_warning()
+if nav == NAV[6]:
     chat_tab(date, games, injuries)

@@ -9,9 +9,103 @@ import pandas as pd
 import requests
 import streamlit as st
 
-st.set_page_config(page_title="NBA Simulator", layout="wide")
-st.title("🏀 NBA Simulator")
-st.caption("Live ESPN schedule, lines and injuries · opponent-adjusted team ratings · 10,000 simulations")
+import html as _html
+
+NB_CSS = """
+<style>
+:root{--ok:#16a34a;--ok-bg:rgba(34,197,94,.16);--lean:#b7791f;--lean-bg:rgba(234,179,8,.18);--none-bg:rgba(128,128,128,.16);
+--bad:#dc2626;--bad-bg:rgba(239,68,68,.16);--acc:#3b82f6;--acc-bg:rgba(59,130,246,.16);--card:rgba(128,128,128,.07);--line:rgba(128,128,128,.28)}
+.block-container{padding-top:1.2rem;max-width:1250px}
+.nb-hero{border-radius:18px;padding:22px 26px;margin-bottom:14px;color:#fff;
+background:linear-gradient(120deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%)}
+.nb-hero h1{margin:0;font-size:2rem;color:#fff;padding:0}
+.nb-hero .sub{opacity:.85;margin-top:4px;font-size:.95rem}
+.nb-hero .pill{display:inline-block;background:rgba(255,255,255,.16);border-radius:999px;padding:3px 12px;margin:10px 8px 0 0;font-size:.82rem}
+.nb-card{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:14px 16px}
+.nb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px;margin:6px 0 14px}
+.nb-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.nb-title{font-weight:700;font-size:1.02rem}
+.nb-badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.76rem;font-weight:700;white-space:nowrap}
+.b-ok{background:var(--ok-bg);color:var(--ok)}.b-lean{background:var(--lean-bg);color:var(--lean)}
+.b-none{background:var(--none-bg);opacity:.85}.b-bad{background:var(--bad-bg);color:var(--bad)}.b-acc{background:var(--acc-bg);color:var(--acc)}
+.nb-win{font-size:1.25rem;font-weight:800;margin:2px 0}
+.nb-muted{opacity:.7;font-size:.84rem}
+.nb-bl{display:flex;justify-content:space-between;font-size:.82rem;margin:6px 0 2px}
+.nb-bar{height:10px;border-radius:6px;background:var(--none-bg);overflow:hidden}
+.nb-fill{height:100%;border-radius:6px}
+.nb-chips{margin-top:8px}.nb-chip{display:inline-block;background:var(--none-bg);border-radius:8px;padding:2px 9px;margin:0 6px 6px 0;font-size:.8rem}
+.nb-score{display:flex;align-items:center;justify-content:center;gap:22px;padding:10px 0 4px;text-align:center}
+.nb-score .t{min-width:150px}.nb-score .n{font-size:1.05rem;opacity:.85}.nb-score .p{font-size:2.6rem;font-weight:800;line-height:1.1}
+.nb-score .w .p,.nb-score .w .n{color:var(--acc);opacity:1}.nb-score .at{opacity:.5;font-size:1.2rem}
+.nb-split{display:flex;height:14px;border-radius:8px;overflow:hidden;margin:6px 0}
+.nb-bars{position:relative;display:flex;align-items:flex-end;gap:8px;height:96px;padding-bottom:16px;margin:8px 0 2px}
+.nb-b{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:.72rem}
+.nb-bv{width:100%;border-radius:5px 5px 0 0;min-height:2px}
+.nb-line{position:absolute;left:0;right:0;border-top:2px dashed var(--acc);opacity:.8}
+.nb-strip span{display:inline-block;width:20px;height:20px;border-radius:5px;margin:0 3px 3px 0}
+.nb-strip .w{background:var(--ok)}.nb-strip .l{background:var(--bad)}.nb-strip .p{background:rgba(128,128,128,.55)}
+[data-testid="stMetricValue"]{font-size:1.5rem}
+@media (max-width:640px){.nb-hero{padding:16px}.nb-hero h1{font-size:1.5rem}.nb-score .p{font-size:2rem}.nb-score .t{min-width:100px}
+.nb-grid{grid-template-columns:1fr}.block-container{padding-left:.8rem;padding-right:.8rem}}
+</style>
+"""
+
+
+def inject_css():
+    st.markdown(NB_CSS, unsafe_allow_html=True)
+
+
+def H(x):
+    return _html.escape(str(x))
+
+
+def html(markup):
+    st.markdown(markup.replace("\n", ""), unsafe_allow_html=True)
+
+
+def badge(text, kind="none"):
+    return f'<span class="nb-badge b-{kind}">{H(text)}</span>'
+
+
+def value_badge(edge):
+    if edge >= 0.04:
+        return badge("Strong value", "ok")
+    if edge >= 0.02:
+        return badge("Slight value", "lean")
+    return badge("No edge", "none")
+
+
+def bar(label, p, color="var(--acc)", right=None):
+    w = max(0.0, min(100.0, p * 100))
+    return (f'<div class="nb-bl"><span>{H(label)}</span><b>{H(right if right is not None else pct(p))}</b></div>'
+            f'<div class="nb-bar"><div class="nb-fill" style="width:{w:.1f}%;background:{color}"></div></div>')
+
+
+def result_strip(results):
+    # Colored squares for the most recent results (green win, red loss, gray push).
+    cls = {"W": "w", "L": "l", "P": "p"}
+    sq = "".join(f'<span class="{cls[r]}" title="{r}"></span>' for r in results if r in cls)
+    return f'<div class="nb-strip">{sq}</div>' if sq else ""
+
+
+def profit_chart(df):
+    # Running profit over time from a graded picks table (needs date + profit columns).
+    d = df[df["result"].isin(["W", "L", "P"])]
+    if d.empty:
+        return
+    by_day = d.groupby("date")["profit"].sum().astype(float).sort_index().cumsum()
+    st.line_chart(by_day.rename("Profit ($100 per pick)"))
+
+
+METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, losses and pushes (a push is a tie with the line: your stake is returned).",
+               "Win %": "Share of decided picks that won.", "Break-even %": "The win rate needed to make money at the odds taken.",
+               "Profit ($100 per pick)": "Total profit if you bet a flat $100 on every pick.",
+               "ROI": "Profit divided by the total amount staked.", "Model expected": "How often the model said these picks would win, on average."}
+
+
+st.set_page_config(page_title="NBA Simulator", page_icon="🏀", layout="wide")
+inject_css()
+hero = st.container()          # filled in below once the date and games are known
 
 # =====================================================================
 # SETTINGS  (change these here; they are NOT on the page)
@@ -387,14 +481,19 @@ def by_txt(home, away, m):
 def market_card(res, market):
     rows = [r for r in res["rows"] if r["market"] == market]
     with st.container(border=True):
-        st.markdown(f"### {market}")
         if not rows:
+            html(f'<div class="nb-top"><span class="nb-title">{H(market)}</span>{badge("No line yet", "none")}</div>')
             st.caption("No sportsbook line posted yet.")
             return
         g = res["game"]
         a, b = rows
         top = a if a["model_p"] >= b["model_p"] else b
         best = a if a["edge"] >= b["edge"] else b
+        html(f'<div class="nb-top"><span class="nb-title">{H(market)}</span>{value_badge(best["edge"])}</div>')
+        top_name = short(top["side"]) if market != "Total" else top["side"]
+        top_line = "" if market == "Moneyline" else f" {top['line']}"
+        html(bar(f"Model: {top_name}{top_line}", top["model_p"], "var(--acc)")
+             + bar(f"Sportsbook: {top_name}{top_line}", top["book_p"], "rgba(128,128,128,.75)"))
         if market == "Moneyline":
             fav = a if a["book_odds"] < b["book_odds"] else b
             model = f"**{short(top['side'])}** have **{pct(top['model_p'])}** odds to win.\n\nFair odds: {fair_american(top['model_p'])}"
@@ -409,11 +508,11 @@ def market_card(res, market):
             model = f"**{top['side']} {top['line']}** has **{pct(top['model_p'])}** odds to hit.\n\nModel projects: {res['med_t']:.0f} total points"
             book = f"The total is set at **{top['line']}**.\n\nOver at {a['book_odds']:+d}\n\nUnder at {b['book_odds']:+d}"
             name = f"{best['side']} {best['line']}"
-        st.markdown("**🤖 MODEL SAYS**")
+        st.markdown("**🤖 Model says**")
         st.markdown(model)
-        st.markdown("**🏦 SPORTSBOOK SAYS**")
+        st.markdown("**🏦 Sportsbook says**")
         st.markdown(book)
-        st.markdown("**💰 IS THERE VALUE?**")
+        st.markdown("**💰 Is there value?**")
         lab = strength(best["edge"])
         if lab:
             msg = (f"{lab}: **{name}**\n\nThe sportsbook's odds imply this hits **{pct(best['book_p'])}** of the time. "
@@ -426,9 +525,12 @@ def market_card(res, market):
 
 def render_result(res):
     g = res["game"]
-    st.subheader(f"{g['away']} @ {g['home']}")
-    st.caption(f"Sportsbook: {res['odds']['provider']} · {SIMS:,} simulations")
-    st.markdown(f"#### Projected score: {g['away']} **{res['ap']:.0f}**, {g['home']} **{res['hp']:.0f}**")
+    home_wins = res["hp"] >= res["ap"]
+    html(f'<div class="nb-card"><div class="nb-score">'
+         f'<div class="t {"" if home_wins else "w"}"><div class="n">{H(g["away"])}</div><div class="p">{res["ap"]:.0f}</div></div>'
+         f'<div class="at">@</div>'
+         f'<div class="t {"w" if home_wins else ""}"><div class="n">{H(g["home"])}</div><div class="p">{res["hp"]:.0f}</div></div></div>'
+         f'<div class="nb-muted" style="text-align:center">Projected score · {SIMS:,} simulations · lines from {H(res["odds"]["provider"])}</div></div>')
     st.caption(f"Raw rating-based projection (before blending with the sportsbook line): "
                f"{by_txt(g['home'], g['away'], res['raw_m'])}, {res['raw_t']:.0f} total points.")
     best = max(res["rows"], key=lambda r: r["edge"]) if res["rows"] else None
@@ -843,7 +945,20 @@ def props_tab(M, g, odds, injuries, date, b2b):
     st.markdown("### Projected stat lines")
     st.caption(f"Model's projection for this game (the {short(home)} are projected for {res['hp']:.0f} points and the {short(away)} for {res['ap']:.0f}). "
                "Players marked Out are shown for reference. Their teammates' numbers already include the boost.")
-    st.dataframe(pd.DataFrame(rows), hide_index=True)
+    pcols = st.columns(2)
+    for col, team in zip(pcols, (home, away)):
+        with col:
+            st.markdown(f"**{team}**")
+            cards = []
+            for r in [x for x in rows if x["Team"] == short(team)][:6]:
+                stt = (badge(r["Status"], "bad" if r["Status"].lower() in ("out", "doubtful") else "lean") if r["Status"] else "")
+                cards.append(f'<div class="nb-card" style="padding:10px 12px"><div class="nb-top"><span class="nb-title">{H(r["Player"])}</span>{stt}</div>'
+                             f'<div class="nb-muted">{r["Min"]} min</div><div class="nb-chips">'
+                             f'<span class="nb-chip"><b>{r["Pts"]}</b> PTS</span><span class="nb-chip"><b>{r["Reb"]}</b> REB</span>'
+                             f'<span class="nb-chip"><b>{r["Ast"]}</b> AST</span><span class="nb-chip"><b>{r["3PM"]}</b> 3PM</span></div></div>')
+            html('<div style="display:grid;gap:8px">' + "".join(cards) + '</div>')
+    with st.expander("See every player as a table"):
+        st.dataframe(pd.DataFrame(rows), hide_index=True)
     if any(r["Games"] < 8 for r in rows):
         st.caption("Players with fewer than 8 games of data are less reliable.")
 
@@ -874,6 +989,11 @@ def props_tab(M, g, odds, injuries, date, b2b):
     nv_over, nv_under = novig(o_over, o_under)
     e_over, e_under = p_over - nv_over, p_under - nv_under
     side, mp, bp, od, edge = ("over", p_over, nv_over, o_over, e_over) if e_over >= e_under else ("under", p_under, nv_under, o_under, e_under)
+    html(f'<div class="nb-split"><div style="width:{p_over * 100:.1f}%;background:var(--ok)"></div>'
+         f'<div style="width:{p_push * 100:.1f}%;background:rgba(128,128,128,.6)"></div>'
+         f'<div style="width:{p_under * 100:.1f}%;background:var(--acc)"></div></div>'
+         f'<div class="nb-bl"><span style="color:var(--ok)"><b>Over {line:g}: {pct(p_over)}</b></span>'
+         f'<span class="nb-muted">Projection {proj_val:.1f}</span><span style="color:var(--acc)"><b>Under: {pct(p_under)}</b></span></div>')
     st.markdown(f"**{name}** projects for **{proj_val:.1f}** {stat.lower()} "
                 f"(about {info['p']['min']:.0f} minutes). Model says he has **{pct(p_over)}** to go over {line:g} and **{pct(p_under)}** to go under"
                 + (f" ({pct(p_push)} to land exactly on it)." if p_push > 0.005 else "."))
@@ -897,8 +1017,11 @@ def props_tab(M, g, odds, injuries, date, b2b):
     vals = [sum(x[s] for s in stats) for x in info["logs"]][-10:]
     if vals:
         over_n = sum(v > line for v in vals)
-        st.markdown(f"**Recent games ({len(vals)}, oldest to newest):** " + ", ".join(f"{v:g}" for v in vals)
-                    + f"  →  went over {line:g} in **{over_n} of {len(vals)}**.")
+        top_v = max(max(vals), line, 1.0)
+        bars = "".join(f'<div class="nb-b"><div class="nb-bv" style="height:{max(v, 0) / top_v * 70:.0f}px;background:{"var(--ok)" if v > line else "rgba(128,128,128,.55)"}"></div>{v:g}</div>' for v in vals)
+        html(f'<div class="nb-muted" style="margin-top:8px">Last {len(vals)} games (oldest to newest). Dashed line = the sportsbook line.</div>'
+             f'<div class="nb-bars">{bars}<div class="nb-line" style="bottom:{16 + line / top_v * 70:.0f}px"></div></div>')
+        st.markdown(f"Went over {line:g} in **{over_n} of {len(vals)}** recent games.")
     st.caption("Model estimates, not guarantees. Props can swing on minutes, matchups and lineup news the model can't see, "
                "so check the starting lineup before betting.")
 
@@ -1220,9 +1343,16 @@ def game_results_view():
             st.caption("No graded picks yet. Check back after the saved games finish.")
         else:
             sm = summarize_picks(allp)
-            cols = st.columns(len(sm))
-            for col, (k, v) in zip(cols, sm.items()):
-                col.metric(k, v)
+            with st.container(border=True):
+                cols = st.columns(len(sm))
+                for col, (k, v) in zip(cols, sm.items()):
+                    col.metric(k, v, help=METRIC_HELP.get(k))
+            st.markdown("**Running profit** (flat $100 on each pick)")
+            profit_chart(allp)
+            last = allp.sort_values("date").tail(20)
+            if len(last):
+                st.markdown("**Last 20 picks** (green win, red loss, gray push)")
+                html(result_strip(list(last["result"])))
             st.markdown("**By market**")
             st.dataframe(pd.DataFrame({mk: summarize_picks(allp[allp["market"] == mk])
                                        for mk in ("Moneyline", "Spread", "Total") if (allp["market"] == mk).any()}).T)
@@ -1252,9 +1382,10 @@ def game_results_view():
             st.caption("No graded value picks yet. Check back after the saved games finish.")
         else:
             sm = summarize_picks(flagged)
-            cols = st.columns(len(sm))
-            for col, (k, v) in zip(cols, sm.items()):
-                col.metric(k, v)
+            with st.container(border=True):
+                cols = st.columns(len(sm))
+                for col, (k, v) in zip(cols, sm.items()):
+                    col.metric(k, v, help=METRIC_HELP.get(k))
             n_dec = int(flagged["result"].isin(["W", "L"]).sum())
             if n_dec < 100:
                 st.info(f"Only {n_dec} graded value picks so far, which is far too few to judge. Results swing wildly in small samples. "
@@ -1433,13 +1564,16 @@ def props_results_view():
             c1, c2, c3, c4, c5 = st.columns(5)
             c1.metric("Record", record_line(done) if len(done) else "-")
             c2.metric("Win %", f"{wins / len(decided) * 100:.1f}%" if len(decided) else "-")
-            c3.metric("Model expected", pct(float(decided["model_p"].mean())) if len(decided) else "-")
+            c3.metric("Model expected", pct(float(decided["model_p"].mean())) if len(decided) else "-", help=METRIC_HELP["Model expected"])
             c4.metric("Profit ($100/pick)", _money(profit) if len(done) else "-")
             c5.metric("Waiting on games", str(waiting))
         if len(decided) and len(decided) < 100:
             st.caption(f"Only {len(decided)} graded props so far. That is far too few to judge, because results swing wildly in small samples.")
 
         if len(done):
+            st.markdown("**Running profit** (flat $100 on each pick)")
+            profit_chart(done)
+            html(result_strip(list(done.sort_values("date")["result"].tail(20))))
             left, right = st.columns(2)
             with left:
                 st.markdown("**By stat**")
@@ -1532,19 +1666,44 @@ def slate_tab(M, date, games, injuries, b2b):
             st.info("Nothing was saved: every game has already started or has no lines posted.")
     st.markdown("### 🏆 Predictions for every game")
     st.caption("The model's projected score and winner for each game, before looking at any betting value.")
-    pred_rows = []
+    cards = []
     for res in results:
         g = res["game"]
         p_h = res["p_home"]
         home_fav = p_h >= 0.5
-        pred_rows.append({
-            "Game": f"{short(g['away'])} @ {short(g['home'])}",
-            "Projected score": f"{short(g['away'])} {res['ap']:.0f}, {short(g['home'])} {res['hp']:.0f}",
-            "Predicted winner": short(g["home"] if home_fav else g["away"]),
-            "Win chance": pct(p_h if home_fav else 1 - p_h),
-            "Model spread": f"{short(g['home'])} {-res['med_m']:+.1f}",
-            "Model total": f"{res['med_t']:.0f}"})
-    st.dataframe(pd.DataFrame(pred_rows), hide_index=True)
+        wp = p_h if home_fav else 1 - p_h
+        win_team = g["home"] if home_fav else g["away"]
+        best = max(res["rows"], key=lambda r: r["edge"]) if res["rows"] else None
+        has_val = bool(best and best["edge"] >= LEAN_MIN)
+        cards.append({"res": res, "wp": wp, "edge": best["edge"] if has_val else -1.0, "val": has_val, "order": len(cards),
+                      "html": (f'<div class="nb-card"><div class="nb-top"><span class="nb-title">{H(short(g["away"]))} @ {H(short(g["home"]))}</span>'
+                               f'{value_badge(best["edge"]) if best else badge("No lines yet", "none")}</div>'
+                               f'<div class="nb-muted">Predicted winner</div><div class="nb-win">{H(win_team)}</div>'
+                               + bar("Win chance", wp, "var(--acc)")
+                               + f'<div class="nb-chips"><span class="nb-chip">📊 {H(short(g["away"]))} {res["ap"]:.0f} – {H(short(g["home"]))} {res["hp"]:.0f}</span>'
+                               f'<span class="nb-chip">Spread: {H(short(g["home"]))} {-res["med_m"]:+.1f}</span>'
+                               f'<span class="nb-chip">Total: {res["med_t"]:.0f}</span></div>'
+                               + (f'<div class="nb-muted" style="margin-top:2px">💰 Best spot: <b>{H(pick_name(best))}</b> ({H(best["market"])}, {best["edge"] * 100:+.1f} pts edge)</div>' if has_val else "")
+                               + '</div>')})
+    f1, f2 = st.columns(2)
+    show = f1.radio("Show", ["All games", "Only games with value"], horizontal=True, key="slate_show")
+    sort_by = f2.selectbox("Sort by", ["Game order", "Biggest edge", "Most confident winner"], key="slate_sort")
+    shown = [c for c in cards if c["val"] or show == "All games"]
+    if sort_by == "Biggest edge":
+        shown.sort(key=lambda c: -c["edge"])
+    elif sort_by == "Most confident winner":
+        shown.sort(key=lambda c: -c["wp"])
+    if shown:
+        html('<div class="nb-grid">' + "".join(c["html"] for c in shown) + '</div>')
+    else:
+        st.info("No games with value right now. Switch to **All games** to see every prediction.")
+    with st.expander("See predictions as a table"):
+        st.dataframe(pd.DataFrame([{
+            "Game": f"{short(c['res']['game']['away'])} @ {short(c['res']['game']['home'])}",
+            "Projected score": f"{short(c['res']['game']['away'])} {c['res']['ap']:.0f}, {short(c['res']['game']['home'])} {c['res']['hp']:.0f}",
+            "Predicted winner": short(c["res"]["game"]["home"] if c["res"]["p_home"] >= 0.5 else c["res"]["game"]["away"]),
+            "Win chance": pct(c["wp"]), "Model spread": f"{short(c['res']['game']['home'])} {-c['res']['med_m']:+.1f}",
+            "Model total": f"{c['res']['med_t']:.0f}"} for c in cards]), hide_index=True)
 
     flagged = sorted([(res, r) for res in results for r in res["rows"] if r["edge"] >= LEAN_MIN], key=lambda x: -x[1]["edge"])
     st.markdown("### 🎯 Best value plays")
@@ -1558,7 +1717,8 @@ def slate_tab(M, date, games, injuries, b2b):
             "Value": strength(r["edge"])} for res, r in flagged]), hide_index=True)
         st.caption("Sorted by edge. Large edges are worth double-checking against the latest injury news and confirmed lineups.")
 
-    st.markdown("### Every game")
+    st.markdown("### Game details")
+    st.caption("Open any game for the full breakdown: projected score, all three markets, and where the value is.")
     for res in results:
         g = res["game"]
         best = max(res["rows"], key=lambda r: r["edge"]) if res["rows"] else None
@@ -1715,8 +1875,18 @@ def chat_tab(date, games, injuries):
         cleared = c2.form_submit_button("Clear chat")
     if cleared:
         st.session_state["chat_msgs"] = msgs = []
+    quick = st.session_state.pop("chat_quick", None)
+    if not msgs:
+        st.caption("Quick questions:")
+        qcols = st.columns(3)
+        for qc, q in zip(qcols, ("Which games does the model like most today?", "Who's injured that matters tonight?", "Explain the best value play in simple terms.")):
+            if qc.button(q, key=f"quick_{q[:12]}"):
+                st.session_state["chat_quick"] = q
+                st.rerun()
     live = st.container()
     history = st.container()
+    if quick:
+        asked, prompt = True, quick
     prompt = (prompt or "").strip()
 
     def show_sources(srcs):
@@ -1782,6 +1952,14 @@ try:
 except Exception:
     b2b_teams = set()
 
+with hero:
+    _n = len(games)
+    html(f'<div class="nb-hero"><h1>🏀 NBA Simulator</h1>'
+         f'<div class="sub">Every game simulated 10,000 times, compared with the sportsbooks, with injuries weighted automatically.</div>'
+         f'<span class="pill">📅 {date.strftime("%A, %B %-d, %Y")}</span>'
+         f'<span class="pill">🏟️ {_n} game{"s" if _n != 1 else ""}</span>'
+         f'<span class="pill">🔄 Lines and injuries refresh from ESPN automatically</span></div>')
+
 labels = [f"{g['away']} @ {g['home']}" for g in games] + ["✏️ Manual matchup"]
 choice = st.selectbox("Select game", labels)
 if not games and live_ok:
@@ -1815,25 +1993,29 @@ with tab_game:
             odds["home_spread"] = b.number_input(f"{g['home']} spread", value=float(odds["home_spread"] or 0.0), step=0.5, key=f"sp{gid}")
             odds["total"] = c.number_input("Total", value=float(odds["total"] or 224.5), step=0.5, key=f"tot{gid}")
 
-    st.subheader("🩹 Injuries")
-    st.caption("Live from ESPN. Each player is rated automatically from his recent minutes and production, so a star being out "
-               "counts for more than a bench player. The Impact column is editable if you know something the numbers don't.")
-    inj_pts = {}
-    cols = st.columns(2)
-    for col, team in ((cols[0], g["home"]), (cols[1], g["away"])):
-        with col:
-            st.markdown(f"**{team}**" + ("  ·  back-to-back" if team in b2b_teams else ""))
-            if not injuries.get(team):
-                st.caption("No injuries reported." if live_ok else "Injury data unavailable.")
-                inj_pts[team] = 0.0
-                continue
-            df = pd.DataFrame(injury_rows(team, injuries, ratings_for(M, team, date)))
-            edited = st.data_editor(df, key=f"inj_{gid}_{team}", hide_index=True,
-                                    disabled=["Player", "Pos", "Status", "Note", "Min/game", "Level"],
-                                    column_config={"Impact if out (pts)": st.column_config.NumberColumn(
-                                        "Impact if out (pts)", min_value=0.0, max_value=12.0, step=0.1)})
-            inj_pts[team] = injury_total(edited.to_dict("records"))
-            st.caption(f"Estimated impact: **-{inj_pts[team]:.1f} pts**")
+    _inj_n = {t: injuries.get(t, []) for t in (g["home"], g["away"])}
+    _out = sum(1 for v in _inj_n.values() for r in v if r["status"].lower() in ("out", "doubtful"))
+    _q = sum(1 for v in _inj_n.values() for r in v if r["status"].lower() not in ("out", "doubtful"))
+    _sum = ", ".join(x for x in (f"{_out} out" if _out else "", f"{_q} questionable / day-to-day" if _q else "") if x) or "none reported"
+    with st.expander(f"🩹 Injuries ({_sum}). Open to see ratings and edit impact"):
+        st.caption("Live from ESPN. Each player is rated automatically from his recent minutes and production, so a star being out "
+                   "counts for more than a bench player. The Impact column is editable if you know something the numbers don't.")
+        inj_pts = {}
+        cols = st.columns(2)
+        for col, team in ((cols[0], g["home"]), (cols[1], g["away"])):
+            with col:
+                st.markdown(f"**{team}**" + ("  ·  back-to-back" if team in b2b_teams else ""))
+                if not injuries.get(team):
+                    st.caption("No injuries reported." if live_ok else "Injury data unavailable.")
+                    inj_pts[team] = 0.0
+                    continue
+                df = pd.DataFrame(injury_rows(team, injuries, ratings_for(M, team, date)))
+                edited = st.data_editor(df, key=f"inj_{gid}_{team}", hide_index=True,
+                                        disabled=["Player", "Pos", "Status", "Note", "Min/game", "Level"],
+                                        column_config={"Impact if out (pts)": st.column_config.NumberColumn(
+                                            "Impact if out (pts)", min_value=0.0, max_value=12.0, step=0.1)})
+                inj_pts[team] = injury_total(edited.to_dict("records"))
+                st.caption(f"Estimated impact: **-{inj_pts[team]:.1f} pts**")
 
     st.markdown("---")
     if st.button("🔥 Simulate game (10,000x)", type="primary", key=f"sim_{gid}"):
@@ -1858,6 +2040,16 @@ with tab_results:
 
 with tab_chat:
     chat_tab(date, games, injuries)
+
+with st.expander("What do these terms mean?"):
+    st.markdown(
+        "- **Win chance / odds to win:** how often the model's simulations ended with that result out of 10,000 games.\n"
+        "- **Sportsbook implies:** the chance baked into the sportsbook's price after their built-in fee is removed.\n"
+        "- **Edge (pts):** the model's chance minus the sportsbook's chance. A bigger positive number means more potential value.\n"
+        "- **Value (🟢 strong, 🟡 slight):** where the model's chance beats the sportsbook's by 4+ or 2+ points.\n"
+        "- **Profit per $100:** the average win or loss per $100 bet if the model's chance is right, over many bets.\n"
+        "- **Push:** the result lands exactly on the line, so your stake is returned.\n"
+        "- **Fair odds:** the price that matches the model's chance, with no sportsbook fee.")
 
 with st.expander("How this works"):
     st.markdown(

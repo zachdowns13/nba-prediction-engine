@@ -2973,7 +2973,24 @@ def game_picker(tab):
         st.info("No games found for this date (the season may not have started). Pick another date or use the manual matchup.")
 
 
-tab_game, tab_slate, tab_props, tab_fb, tab_results, tab_bets, tab_chat = st.tabs(["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "💬 AI chat"])
+NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "💬 AI chat"]
+st.markdown("""<style>
+.st-key-navbar{position:sticky;top:3.75rem;z-index:1000;background:var(--nb-bg,#ffffff);padding:.35rem 0 .45rem;margin-bottom:.5rem;
+  border-bottom:1px solid rgba(128,128,128,.28)}
+@media (prefers-color-scheme: dark){.st-key-navbar{background:var(--nb-bg,#0e1117)}}
+.st-key-navbar [role="radiogroup"]{gap:.15rem;flex-wrap:wrap}
+.st-key-navbar label{padding:.35rem .85rem;border-radius:8px;cursor:pointer;margin:0}
+.st-key-navbar label > div:first-child{display:none}
+.st-key-navbar label:hover{background:rgba(128,128,128,.14)}
+.st-key-navbar label:has(input:checked){background:rgba(255,75,75,.16);color:#ff4b4b;font-weight:600}
+.st-key-navbar label p{font-size:.95rem}
+</style>""", unsafe_allow_html=True)
+try:
+    _nav_box = st.container(key="navbar")
+except TypeError:                                        # older Streamlit without container keys
+    _nav_box = st.container()
+with _nav_box:
+    nav = st.radio("Section", NAV, horizontal=True, key="main_nav", label_visibility="collapsed")
 
 def terms_help():
   with st.expander("What do these terms mean?"):
@@ -3032,8 +3049,6 @@ def dropdown_toggle_fix():
         <script>
         (function () {
           const P = window.parent, doc = P.document;
-          if (P.__nbSticky2) return;
-          P.__nbSticky2 = true;
           function bg() {
             let el = doc.querySelector('.stApp') || doc.body;
             while (el) {
@@ -3041,34 +3056,11 @@ def dropdown_toggle_fix():
               if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c;
               el = el.parentElement;
             }
-            return '#ffffff';
+            return null;
           }
-          function isRoot(el) {
-            const t = el.getAttribute && el.getAttribute('data-testid');
-            return !el.parentElement || t === 'stMain' || t === 'stAppViewContainer' || t === 'stApp' || el.tagName === 'SECTION' || el === doc.body;
-          }
-          function apply() {
-            doc.querySelectorAll('[data-baseweb="tabs"]').forEach(function (tabs) {
-              if (tabs.closest('[data-baseweb="tab-panel"]')) return;            // only the main tabs
-              const list = tabs.querySelector('[data-baseweb="tab-list"]');
-              if (!list) return;
-              let top = list;
-              while (top.parentElement && top.parentElement !== tabs) top = top.parentElement;
-              top.style.position = 'sticky';
-              top.style.top = '3.75rem';
-              top.style.zIndex = '1000';
-              top.style.background = bg();
-              // sticky does nothing if a parent clips its content, so let those parents show overflow
-              let el = tabs;
-              while (el && !isRoot(el)) {
-                const cs = P.getComputedStyle(el);
-                if (cs.overflowY !== 'visible' || cs.overflowX !== 'visible') { el.style.overflow = 'visible'; }
-                el = el.parentElement;
-              }
-            });
-          }
-          apply();
-          setInterval(apply, 800);
+          function setBg() { const c = bg(); if (c) doc.documentElement.style.setProperty('--nb-bg', c); }
+          setBg();
+          if (!P.__nbBg) { P.__nbBg = true; setInterval(setBg, 1500); }
         })();
         </script>""", height=0)
     except Exception:
@@ -3077,7 +3069,7 @@ def dropdown_toggle_fix():
 
 dropdown_toggle_fix()
 
-with tab_game:
+if nav == NAV[0]:
     game_picker("game")
     if None in (odds["home_ml"], odds["away_ml"], odds["home_spread"], odds["total"]):
         with st.expander("Some sportsbook lines are missing. Enter them manually", expanded=True):
@@ -3122,26 +3114,26 @@ with tab_game:
     terms_help()
     how_it_works()
 
-with tab_slate:
+if nav == NAV[1]:
     date_picker("slate")
     slate_tab(M, date, games, injuries, b2b_teams)
     terms_help()
     how_it_works()
 
-with tab_props:
+if nav == NAV[2]:
     game_picker("props")
     props_tab(M, g, odds, injuries, date, b2b_teams)
     terms_help()
 
-with tab_fb:
+if nav == NAV[3]:
     game_picker("fb")
     first_basket_tab(M, g, injuries, date)
 
-with tab_results:
+if nav == NAV[4]:
     results_tab()
 
-with tab_bets:
+if nav == NAV[5]:
     bets_tab()
 
-with tab_chat:
+if nav == NAV[6]:
     chat_tab(date, games, injuries)

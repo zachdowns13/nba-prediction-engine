@@ -23,6 +23,10 @@ background:linear-gradient(120deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%)}
 .nb-hero .pill{display:inline-block;background:rgba(255,255,255,.16);border-radius:999px;padding:3px 12px;margin:10px 8px 0 0;font-size:.82rem}
 .nb-card{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:14px 16px}
 .nb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px;margin:6px 0 14px}
+.nb-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:10px 0 18px;align-items:stretch}
+.nb-mk{display:flex;flex-direction:column;min-width:0}
+.nb-pickrow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:.93rem}
+.nb-pickrow .l{opacity:.75;white-space:nowrap}.nb-pickrow b{text-align:right}
 .nb-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .nb-title{font-weight:700;font-size:1.02rem}
 .nb-badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.76rem;font-weight:700;white-space:nowrap}
@@ -66,7 +70,7 @@ background:linear-gradient(120deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%)}
 @keyframes nbgrow{from{width:0}}
 @keyframes nbrise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 @media (max-width:640px){.nb-hero{padding:16px}.nb-hero h1{font-size:1.5rem}.nb-score .p{font-size:2rem}.nb-score .t{min-width:100px}
-.nb-grid{grid-template-columns:1fr}.nb-podium{grid-template-columns:1fr}.block-container{padding-left:.8rem;padding-right:.8rem;padding-top:4rem !important}}
+.nb-grid{grid-template-columns:1fr}.nb-grid3{grid-template-columns:1fr}.nb-podium{grid-template-columns:1fr}.block-container{padding-left:.8rem;padding-right:.8rem;padding-top:4rem !important}}
 </style>
 """
 
@@ -87,14 +91,19 @@ def badge(text, kind="none"):
     return f'<span class="nb-badge b-{kind}">{H(text)}</span>'
 
 
+def headshot(pid):
+    return f"https://a.espncdn.com/i/headshots/nba/players/full/{H(pid)}.png"
+
+
 def logo(url, big=False):
     return f'<span class="nb-logo{" lg" if big else ""}" style="background-image:url(\'{H(url)}\')"></span>' if url else ""
 
 
-def value_badge(edge):
-    if edge >= 0.04:
+def value_badge(edge, ev=None):
+    lvl = strength(edge, ev)
+    if lvl and "Strong" in lvl:
         return badge("Strong value", "ok")
-    if edge >= 0.02:
+    if lvl:
         return badge("Slight value", "lean")
     return badge("No edge", "none")
 
@@ -506,7 +515,10 @@ def analyze_game(M, g, o, h_inj, a_inj, b2b):
 # =====================================================================
 # RENDERING THE GAME RESULT
 # =====================================================================
-def strength(e):
+def strength(e, ev=None):
+    # Value needs the model to beat the sportsbook by a clear margin AND the bet to be expected to make money after the sportsbook's fee.
+    if ev is not None and ev <= 0:
+        return None
     return "🟢 Strong value" if e >= LEAN_STRONG else ("🟡 Slight value" if e >= LEAN_MIN else None)
 
 
@@ -514,51 +526,78 @@ def by_txt(home, away, m):
     return f"{short(home)} by {m:.1f}" if m >= 0 else f"{short(away)} by {-m:.1f}"
 
 
-def market_card(res, market):
+def side_label(market, r):
+    if market == "Moneyline":
+        return f"{short(r['side'])} ML"
+    if market == "Spread":
+        return f"{short(r['side'])} {r['line']}"
+    return f"{r['side']} {r['line']}"
+
+
+def market_info(res, market):
     rows = [r for r in res["rows"] if r["market"] == market]
-    with st.container(border=True):
-        if not rows:
-            html(f'<div class="nb-top"><span class="nb-title">{H(market)}</span>{badge("No line yet", "none")}</div>')
-            st.caption("No sportsbook line posted yet.")
-            return
-        g = res["game"]
-        a, b = rows
-        top = a if a["model_p"] >= b["model_p"] else b
-        best = a if a["edge"] >= b["edge"] else b
-        html(f'<div class="nb-top"><span class="nb-title">{H(market)}</span>{value_badge(best["edge"])}</div>')
-        has_val = best["edge"] >= LEAN_MIN
-        pick = best if has_val else top                      # show the side with value, or else the side the model likes more
-        if market == "Moneyline":
-            question = f"Chance the {short(pick['side'])} win"
-            fav = a if a["book_odds"] < b["book_odds"] else b
-            model = f"**{short(top['side'])}** have **{pct(top['model_p'])}** odds to win.\n\nFair odds: {fair_txt(top['model_p'])}"
-            book = f"**{short(fav['side'])}** are favored at **{fav['book_odds']:+d}**.\n\nThat implies **{pct(fav['book_p'])}** to win."
-            name = f"{short(best['side'])} moneyline"
-        elif market == "Spread":
-            question = f"Chance the {short(pick['side'])} {pick['line']} cover"
-            model = (f"**{short(top['side'])} {top['line']}** have **{pct(top['model_p'])}** odds to cover.\n\n"
-                     f"Model projects: {by_txt(g['home'], g['away'], res['med_m'])}")
-            book = (f"{short(a['side'])} {a['line']} at {a['book_odds']:+d}\n\n{short(b['side'])} {b['line']} at {b['book_odds']:+d}")
-            name = f"{short(best['side'])} {best['line']}"
-        else:
-            question = f"Chance the game goes {pick['side']} {pick['line']}"
-            model = f"**{top['side']} {top['line']}** has **{pct(top['model_p'])}** odds to hit.\n\nModel projects: {res['med_t']:.0f} total points"
-            book = f"The total is set at **{top['line']}**.\n\nOver at {a['book_odds']:+d}\n\nUnder at {b['book_odds']:+d}"
-            name = f"{best['side']} {best['line']}"
-        html(f'<div style="font-weight:600;margin:2px 0 4px">{H(question)}</div>'
-             + bar("Model", pick["model_p"], "var(--acc)") + bar("Sportsbook", pick["book_p"], "rgba(128,128,128,.75)"))
-        gap = (pick["model_p"] - pick["book_p"]) * 100
-        if has_val:
-            msg = (f"{strength(best['edge'])}: **{name}**\n\nThe model rates this {gap:.1f} points higher than the sportsbook. "
-                   f"If the model is right, a {md_money(100)} bet wins about **{md_money(best['ev'])}** on average over many bets.")
-            (st.success if best["edge"] >= LEAN_STRONG else st.warning)(msg)
-        else:
-            st.caption("⚪ No clear value. The model and the sportsbook roughly agree.")
-        with st.expander("More detail"):
-            st.markdown("**🤖 Model says**")
-            st.markdown(model)
-            st.markdown("**🏦 Sportsbook says**")
-            st.markdown(book)
+    if not rows:
+        return None
+    a, b = rows
+    g = res["game"]
+    top = a if a["model_p"] >= b["model_p"] else b                 # the side the model likes
+    book_top = a if a["book_p"] >= b["book_p"] else b              # the side the sportsbook likes
+    best = a if a["edge"] >= b["edge"] else b                      # the side with the biggest edge
+    lvl = strength(best["edge"], best["ev"])
+    if market == "Moneyline":
+        question = f"Chance the {short(top['side'])} win"
+        fav = a if a["book_odds"] < b["book_odds"] else b
+        model = f"**{short(top['side'])}** have **{pct(top['model_p'])}** odds to win.\n\nFair odds: {fair_txt(top['model_p'])}"
+        book = f"**{short(fav['side'])}** are favored at **{fav['book_odds']:+d}**.\n\nThat implies **{pct(fav['book_p'])}** to win."
+    elif market == "Spread":
+        question = f"Chance the {short(top['side'])} {top['line']} cover"
+        model = (f"**{short(top['side'])} {top['line']}** have **{pct(top['model_p'])}** odds to cover.\n\n"
+                 f"Model projects: {by_txt(g['home'], g['away'], res['med_m'])}")
+        book = f"{short(a['side'])} {a['line']} at {a['book_odds']:+d}\n\n{short(b['side'])} {b['line']} at {b['book_odds']:+d}"
+    else:
+        question = f"Chance the game goes {top['side']} {top['line']}"
+        model = f"**{top['side']} {top['line']}** has **{pct(top['model_p'])}** odds to hit.\n\nModel projects: {res['med_t']:.0f} total points"
+        book = f"The total is set at **{top['line']}**.\n\nOver at {a['book_odds']:+d}\n\nUnder at {b['book_odds']:+d}"
+    verdict = (f"💰 Value: <b>{H(side_label(market, best))}</b>" if lvl else "⚪ No clear value")
+    if lvl and best is not top:
+        verdict += f'<div class="nb-muted" style="margin-top:2px">The model gives this side a higher chance ({pct(best["model_p"])}) than the sportsbook does ({pct(best["book_p"])}).</div>'
+    card = (f'<div class="nb-card nb-mk"><div class="nb-top"><span class="nb-title">{H(market)}</span>{value_badge(best["edge"], best["ev"])}</div>'
+            f'<div class="nb-pickrow"><span class="l">🤖 Model has</span><b>{H(side_label(market, top))}</b></div>'
+            f'<div class="nb-pickrow"><span class="l">🏦 Book likes</span><b>{H(side_label(market, book_top))}</b></div>'
+            f'<div style="font-weight:600;margin:12px 0 2px;font-size:.9rem">{H(question)}</div>'
+            + bar("Model", top["model_p"], "var(--acc)") + bar("Sportsbook", top["book_p"], "rgba(128,128,128,.75)")
+            + f'<div style="margin-top:auto;padding-top:12px;font-size:.9rem">{verdict}</div></div>')
+    return {"card": card, "model": model, "book": book, "best": best, "lvl": lvl, "name": side_label(market, best)}
+
+
+def render_markets(res):
+    infos = {m: market_info(res, m) for m in ("Moneyline", "Spread", "Total")}
+    cards = []
+    for m, inf in infos.items():
+        cards.append(inf["card"] if inf else
+                     f'<div class="nb-card nb-mk"><div class="nb-top"><span class="nb-title">{H(m)}</span>{badge("No line yet", "none")}</div>'
+                     f'<div class="nb-muted">No sportsbook line posted yet.</div></div>')
+    html('<div class="nb-grid3">' + "".join(cards) + '</div>')
+    for m, inf in infos.items():
+        if inf and inf["lvl"]:
+            b_ = inf["best"]
+            gap = (b_["model_p"] - b_["book_p"]) * 100
+            msg = (f"{inf['lvl']}: **{inf['name']}** ({m})\n\nThe model gives it **{pct(b_['model_p'])}** and the sportsbook **{pct(b_['book_p'])}** "
+                   f"({gap:.1f} points higher). If the model is right, a {md_money(100)} bet wins about **{md_money(b_['ev'])}** on average over many bets.")
+            (st.success if b_["edge"] >= LEAN_STRONG else st.warning)(msg)
+    if not any(i and i["lvl"] for i in infos.values()):
+        st.info("No clear value in any market. The model and the sportsbook roughly agree.")
+    with st.expander("More detail (fair odds, sportsbook prices, projections)"):
+        for col, (m, inf) in zip(st.columns(3), infos.items()):
+            with col:
+                st.markdown(f"**{m}**")
+                if inf:
+                    st.markdown("🤖 **Model says**")
+                    st.markdown(inf["model"])
+                    st.markdown("🏦 **Sportsbook says**")
+                    st.markdown(inf["book"])
+                else:
+                    st.caption("No sportsbook line posted yet.")
 
 
 def render_result(res):
@@ -572,7 +611,7 @@ def render_result(res):
     st.caption(f"Raw rating-based projection (before blending with the sportsbook line): "
                f"{by_txt(g['home'], g['away'], res['raw_m'])}, {res['raw_t']:.0f} total points.")
     best = max(res["rows"], key=lambda r: r["edge"]) if res["rows"] else None
-    if best and best["edge"] >= LEAN_MIN:
+    if best and strength(best["edge"], best["ev"]):
         label = best["side"] if best["market"] == "Moneyline" else f"{best['side']} {best['line']}"
         st.success(f"### ✅ Best value: {best['market']}: {label}\n"
                    f"Model gives it **{pct(best['model_p'])}**, the sportsbook's odds only imply **{pct(best['book_p'])}**.")
@@ -580,10 +619,7 @@ def render_result(res):
         st.info("### No clear value\nThe model and the sportsbook roughly agree on all three markets.")
     note = (BACKTEST_NOTE + " ") if BACKTEST_NOTE else ""
     st.caption(f"{note}Model estimates, not guarantees.")
-    cols = st.columns(3)
-    for col, market in zip(cols, ["Moneyline", "Spread", "Total"]):
-        with col:
-            market_card(res, market)
+    render_markets(res)
 
 
 # =====================================================================
@@ -1008,8 +1044,8 @@ def props_tab(M, g, odds, injuries, date, b2b):
         for aid, p in sorted(pr.items(), key=lambda kv: -kv[1]["min"]):
             if status.get(aid, "").lower().startswith("out"):
                 continue                                   # players who are out get no projection
-            all_proj[(team, p["name"])] = {"p": p, "logs": logs[aid]["games"]}
-            rows.append({"Team": short(team), "Player": p["name"], "Status": status.get(aid, ""), "Min": round(p["min"]),
+            all_proj[(team, p["name"])] = {"p": p, "logs": logs[aid]["games"], "id": aid}
+            rows.append({"_id": aid, "Team": short(team), "Player": p["name"], "Status": status.get(aid, ""), "Min": round(p["min"]),
                          "Pts": round(p["pts"], 1), "Reb": round(p["reb"], 1), "Ast": round(p["ast"], 1), "3PM": round(p["tpm"], 1),
                          "Pts+Reb+Ast": round(p["pts"] + p["reb"] + p["ast"], 1), "Games": p["gp"]})
     if not rows:
@@ -1026,13 +1062,15 @@ def props_tab(M, g, odds, injuries, date, b2b):
             cards = []
             for r in [x for x in rows if x["Team"] == short(team)][:6]:
                 stt = (badge(r["Status"], "bad" if r["Status"].lower() in ("out", "doubtful") else "lean") if r["Status"] else "")
-                cards.append(f'<div class="nb-card" style="padding:10px 12px"><div class="nb-top"><span class="nb-title">{H(r["Player"])}</span>{stt}</div>'
-                             f'<div class="nb-muted">{r["Min"]} min</div><div class="nb-chips">'
+                cards.append(f'<div class="nb-card" style="padding:10px 12px;display:flex;gap:12px;align-items:center">'
+                             f'<div class="nb-head" style="width:62px;height:62px;margin:0;flex:none;background-image:url(\'{headshot(r["_id"])}\')"></div>'
+                             f'<div style="flex:1;min-width:0"><div class="nb-top" style="margin:0"><span class="nb-title">{H(r["Player"])}</span>{stt}</div>'
+                             f'<div class="nb-muted">{r["Min"]} min</div><div class="nb-chips" style="margin-top:4px">'
                              f'<span class="nb-chip"><b>{r["Pts"]}</b> PTS</span><span class="nb-chip"><b>{r["Reb"]}</b> REB</span>'
-                             f'<span class="nb-chip"><b>{r["Ast"]}</b> AST</span><span class="nb-chip"><b>{r["3PM"]}</b> 3PM</span></div></div>')
+                             f'<span class="nb-chip"><b>{r["Ast"]}</b> AST</span><span class="nb-chip"><b>{r["3PM"]}</b> 3PM</span></div></div></div>')
             html('<div style="display:grid;gap:8px">' + "".join(cards) + '</div>')
     with st.expander("See every player as a table"):
-        st.dataframe(pd.DataFrame(rows), hide_index=True)
+        st.dataframe(pd.DataFrame(rows).drop(columns="_id"), hide_index=True)
     if any(r["Games"] < 8 for r in rows):
         st.caption("Players with fewer than 8 games of data are less reliable.")
 
@@ -1058,6 +1096,10 @@ def props_tab(M, g, odds, injuries, date, b2b):
     st_txt = next((r["Status"] for r in rows if r["Player"] == name and r["Team"] == short(team)), "")
     if st_txt:
         st.warning(f"ESPN lists {name} as **{st_txt}**. This projection assumes he plays, so check his status before betting.")
+    tlogo = g.get("home_logo") if team == home else g.get("away_logo")
+    html(f'<div style="display:flex;align-items:center;gap:12px;margin:8px 0">'
+         f'<div class="nb-head" style="width:64px;height:64px;margin:0;flex:none;background-image:url(\'{headshot(info["id"])}\')"></div>'
+         f'<div><div class="nb-title" style="font-size:1.15rem">{H(name)}</div><div class="nb-muted">{logo(tlogo)}{H(team)} · {H(stat)}</div></div></div>')
     draws = sim_prop(info["p"], stats)
     p_over, p_push, p_under = prop_probs(draws, line)
     nv_over, nv_under = novig(o_over, o_under)
@@ -1073,10 +1115,10 @@ def props_tab(M, g, odds, injuries, date, b2b):
                 + (f" ({pct(p_push)} to land exactly on it)." if p_push > 0.005 else "."))
     st.markdown(f"Sportsbook's odds imply **{pct(nv_over)}** over / **{pct(nv_under)}** under once their fee is removed.")
     ev = ev100(mp, p_push, od)
-    if edge >= 0.04:
+    if edge >= 0.04 and ev > 0:
         st.success(f"🟢 Strong value on the {side}: the model gives it {pct(mp)} vs the book's {pct(bp)}. "
                    f"If the model is right, a \\$100 bet wins about {md_money(ev)} on average.")
-    elif edge >= 0.02:
+    elif edge >= 0.02 and ev > 0:
         st.info(f"🟡 Slight value on the {side}: the model gives it {pct(mp)} vs the book's {pct(bp)}.")
     else:
         st.warning("⚪ No clear value on either side at these odds.")
@@ -1300,12 +1342,12 @@ def expand_wide(wide):
                 else:
                     res, prof = np.nan, np.nan
                 edge = mp - bp
-                lab = strength(edge)
+                lab = strength(edge, ev100(mp, push, float(odds)))
                 out.append({"key": f"{r['key']}|{name}|{role}", "date": r["date"], "event_id": r["event_id"], "game": r["game"],
                             "market": name, "side": side, "side_role": role, "line": line,
                             "home_spread": L if m == "sp" else np.nan, "total_line": L if m == "to" else np.nan,
                             "odds": odds, "model_p": mp, "book_p": bp, "edge": edge, "ev": ev100(mp, push, float(odds)),
-                            "flagged": edge >= LEAN_MIN, "strength": ("Strong" if "Strong" in lab else "Slight") if lab else "",
+                            "flagged": bool(lab), "strength": ("Strong" if "Strong" in lab else "Slight") if lab else "",
                             "saved_at": r["saved_at"], "result": res, "profit": prof})
     return clean_long(pd.DataFrame(out, columns=LOG_COLS))
 
@@ -1600,6 +1642,10 @@ def grade_props(df):
     return df, n_new
 
 
+def _prop_value_mask(d):
+    return d.apply(lambda r: bool(r["edge"] >= 0.02 and ev100(r["model_p"], 0.0, r["odds"]) > 0), axis=1) if len(d) else pd.Series([], dtype=bool)
+
+
 def _money(x):
     return "" if pd.isna(x) else (f"${x:,.0f}" if x >= 0 else f"-${-x:,.0f}")
 
@@ -1656,7 +1702,7 @@ def props_results_view():
                 st.markdown("**Over vs under**")
                 st.dataframe(pd.DataFrame({k: summarize_picks(done[done["side"] == k]) for k in ("Over", "Under") if (done["side"] == k).any()}).T[
                     ["Picks", "Record (W-L-P)", "Win %", "Profit ($100 per pick)"]])
-            value = done[done["edge"] >= 0.02]
+            value = done[_prop_value_mask(done)]
             if len(value):
                 sv = summarize_picks(value)
                 st.markdown(f"**Value picks only (model edge of 2+ points):** {sv['Record (W-L-P)']}, {sv['Win %']} wins, "
@@ -1665,7 +1711,7 @@ def props_results_view():
         st.markdown("### All saved props")
         view = st.selectbox("Show", ["All", "Waiting for the game", "Wins", "Losses", "Value picks (2+ pts edge)"], key="prop_filter")
         shown = {"All": df, "Waiting for the game": df[df["result"] == ""], "Wins": df[df["result"] == "W"],
-                 "Losses": df[df["result"] == "L"], "Value picks (2+ pts edge)": df[df["edge"] >= 0.02]}[view]
+                 "Losses": df[df["result"] == "L"], "Value picks (2+ pts edge)": df[_prop_value_mask(df)]}[view]
         if shown.empty:
             st.caption("Nothing to show for this filter yet.")
         else:
@@ -1749,10 +1795,10 @@ def slate_tab(M, date, games, injuries, b2b):
         lose_team = g["away"] if home_fav else g["home"]
         hi, lo = sorted((round(res["hp"]), round(res["ap"])), reverse=True)       # higher score always shown first
         best = max(res["rows"], key=lambda r: r["edge"]) if res["rows"] else None
-        has_val = bool(best and best["edge"] >= LEAN_MIN)
+        has_val = bool(best and strength(best["edge"], best["ev"]))
         cards.append({"res": res, "wp": wp, "edge": best["edge"] if has_val else -1.0, "val": has_val, "order": len(cards),
                       "html": (f'<div class="nb-card"><div class="nb-top"><span class="nb-title">{logo(g.get("away_logo"))}{H(short(g["away"]))} @ {logo(g.get("home_logo"))}{H(short(g["home"]))}</span>'
-                               f'{value_badge(best["edge"]) if best else badge("No lines yet", "none")}</div>'
+                               f'{value_badge(best["edge"], best["ev"]) if best else badge("No lines yet", "none")}</div>'
                                f'<div class="nb-muted">🏆 Predicted winner</div>'
                                f'<div class="nb-winner">{logo(g.get("home_logo") if home_fav else g.get("away_logo"))}{H(win_team)}</div>'
                                f'<div class="nb-fscore">{hi} – {lo} over {H(short(lose_team))}</div>'
@@ -1783,7 +1829,7 @@ def slate_tab(M, date, games, injuries, b2b):
             "Win chance": pct(c["wp"]), "Model spread": f"{short(c['res']['game']['home'])} {-c['res']['med_m']:+.1f}",
             "Model total": f"{c['res']['med_t']:.0f}"} for c in cards]), hide_index=True)
 
-    flagged = sorted([(res, r) for res in results for r in res["rows"] if r["edge"] >= LEAN_MIN], key=lambda x: -x[1]["edge"])
+    flagged = sorted([(res, r) for res in results for r in res["rows"] if strength(r["edge"], r["ev"])], key=lambda x: -x[1]["edge"])
     st.markdown("### 🎯 Best value plays")
     if not flagged:
         st.info("No value found: the model and the sportsbook agree across the slate (or no lines are posted yet).")
@@ -1792,7 +1838,7 @@ def slate_tab(M, date, games, injuries, b2b):
             "Game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "Market": r["market"], "Pick": pick_name(r),
             "Odds": f"{r['book_odds']:+d}", "Model chance": pct(r["model_p"]), "Sportsbook implies": pct(r["book_p"]),
             "Edge (pts)": f"{r['edge'] * 100:+.1f}", "Profit per $100 if model is right": f"${r['ev']:,.0f}",
-            "Value": strength(r["edge"])} for res, r in flagged]), hide_index=True)
+            "Value": strength(r["edge"], r["ev"])} for res, r in flagged]), hide_index=True)
         st.caption("Sorted by edge. Large edges are worth double-checking against the latest injury news and confirmed lineups.")
 
     st.markdown("### Game details")
@@ -1800,7 +1846,7 @@ def slate_tab(M, date, games, injuries, b2b):
     for res in results:
         g = res["game"]
         best = max(res["rows"], key=lambda r: r["edge"]) if res["rows"] else None
-        tag = f"  ·  {strength(best['edge'])}: {pick_name(best)}" if best and best["edge"] >= LEAN_MIN else ""
+        tag = f"  ·  {strength(best['edge'], best['ev'])}: {pick_name(best)}" if best and strength(best["edge"], best["ev"]) else ""
         with st.expander(f"{g['away']} @ {g['home']}{tag}"):
             render_result(res)
 

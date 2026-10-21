@@ -889,6 +889,29 @@ def parse_odds_text(text):
     return out
 
 
+TEAM_COLORS = {   # (main colour, backup colour); lightened where the real one is too dark to read on a dark page
+    "Hawks": ("#e03a3e", "#c4d600"), "Celtics": ("#16a34a", "#ba9653"), "Nets": ("#9ca3af", "#e5e7eb"),
+    "Hornets": ("#1fa5b8", "#7c5cc4"), "Bulls": ("#ce1141", "#9ca3af"), "Cavaliers": ("#b3294e", "#fdbb30"),
+    "Mavericks": ("#3b82c4", "#9ca3af"), "Nuggets": ("#fec524", "#4b8bdc"), "Pistons": ("#c8102e", "#4f7be0"),
+    "Warriors": ("#ffc72c", "#3b6fd4"), "Rockets": ("#ce1141", "#9ca3af"), "Pacers": ("#fdbb30", "#5b8bd8"),
+    "Clippers": ("#c8102e", "#3b82c4"), "Lakers": ("#8b5cf6", "#fdb927"), "Grizzlies": ("#5d76a9", "#f5b112"),
+    "Heat": ("#d1203f", "#f9a01b"), "Bucks": ("#00a550", "#eee1c6"), "Timberwolves": ("#4a90d9", "#78be20"),
+    "Pelicans": ("#4a6fc0", "#e31837"), "Knicks": ("#f58426", "#3b82c4"), "Thunder": ("#3b9be0", "#ef3b24"),
+    "Magic": ("#3b82c4", "#c4ced4"), "76ers": ("#3b82d4", "#ed174c"), "Suns": ("#e56020", "#8b5cf6"),
+    "Blazers": ("#e03a3e", "#9ca3af"), "Kings": ("#8b5cf6", "#9ca3af"), "Spurs": ("#9ca3af", "#e5e7eb"),
+    "Raptors": ("#ce1141", "#9ca3af"), "Jazz": ("#f9a01b", "#7c5cc4"), "Wizards": ("#e31837", "#3b82c4"),
+}
+
+
+def team_colors(home, away):
+    # Each team's colour for the bars; if the two are too alike, the away team switches to its backup colour.
+    h = TEAM_COLORS.get(short(home), ("#3b82f6", "#f97316"))
+    a = TEAM_COLORS.get(short(away), ("#f97316", "#3b82f6"))
+    rgb = lambda c: [int(c[i:i + 2], 16) for i in (1, 3, 5)]
+    close = sum((x - y) ** 2 for x, y in zip(rgb(h[0]), rgb(a[0]))) ** 0.5 < 45
+    return h[0], (a[1] if close else a[0])
+
+
 def first_basket_tab(M, g, injuries, now):
     home, away = g["home"], g["away"]
     st.caption("Simulates the opening tip and each possession until someone makes a field goal. "
@@ -967,29 +990,30 @@ def first_basket_tab(M, g, injuries, now):
             T, book = res["T"], res["odds"]
             hf = res["home_first"]
             medals = ["🥇", "🥈", "🥉"]
-            colors = ("var(--acc)", "#f97316")
+            colors = team_colors(home, away)
             tp = res.get("tip") or {}
             has_tip = bool(tp.get("hj") and tp.get("aj") and tp.get("h_rec") is not None)
-            first_bar = (f'<div class="nb-muted" style="text-align:center">Who scores first?</div>'
-                         f'<div class="nb-split" style="height:18px"><div style="width:{hf * 100:.1f}%;background:{colors[0]}"></div>'
-                         f'<div style="width:{(1 - hf) * 100:.1f}%;background:{colors[1]}"></div></div>'
-                         f'<div class="nb-tip"><span style="color:{colors[0]}">{logo(g.get("home_logo"))}{H(short(home))} {pct(hf)}</span>'
-                         f'<span style="color:{colors[1]}">{pct(1 - hf)} {H(short(away))}{logo(g.get("away_logo"))}</span></div>')
+            def _versus(label, p):
+                return ((f'<div class="nb-muted" style="text-align:center">{label}</div>' if label else "")
+                        + f'<div class="nb-split" style="height:18px"><div style="width:{p * 100:.1f}%;background:{colors[0]}"></div>'
+                        f'<div style="width:{(1 - p) * 100:.1f}%;background:{colors[1]}"></div></div>'
+                        f'<div class="nb-tip"><span style="color:{colors[0]}">{logo(g.get("home_logo"))}{H(short(home))} {pct(p)}</span>'
+                        f'<span style="color:{colors[1]}">{pct(1 - p)} {H(short(away))}{logo(g.get("away_logo"))}</span></div>')
+            first_bar = _versus("Who scores first?", hf)
             if has_tip:
                 def _rec(r):
                     return f"{r[0]}-{r[1] - r[0]}" if r[1] else "no tips"
                 ph_ = tp["p_home"]
                 label = f"🏀 Opening tip & first score · {short(home)} win the tip {pct(ph_)}, score first {pct(hf)}"
-                tip_card = (f'<div class="nb-muted" style="text-align:center">Who wins the tip? ({H(short(home))} {pct(ph_)})</div>'
+                tip_card = (f'<div class="nb-muted" style="text-align:center">Who wins the tip?</div>'
                             f'<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;text-align:center;margin:8px 0">'
                             f'<div>{logo(g.get("home_logo"))}<b>{H(tp["hj"])}</b><div class="nb-muted">{H(short(home))}</div>'
                             f'<span class="nb-chip" style="margin:6px 0 0">Tips won-lost: {_rec(tp["h_rec"])}</span></div>'
                             f'<div class="nb-muted">vs</div>'
                             f'<div>{logo(g.get("away_logo"))}<b>{H(tp["aj"])}</b><div class="nb-muted">{H(short(away))}</div>'
                             f'<span class="nb-chip" style="margin:6px 0 0">Tips won-lost: {_rec(tp["a_rec"])}</span></div></div>'
-                            f'<div class="nb-split"><div style="width:{ph_ * 100:.1f}%;background:{colors[0]}"></div>'
-                            f'<div style="width:{(1 - ph_) * 100:.1f}%;background:{colors[1]}"></div></div>'
-                            f'<hr style="border:none;border-top:1px solid rgba(128,128,128,.25);margin:14px 0 10px">')
+                            + _versus("", ph_)
+                            + f'<hr style="border:none;border-top:1px solid rgba(128,128,128,.25);margin:14px 0 10px">')
             else:
                 label = f"🏀 Opening tip & first score · {short(home)} score first {pct(hf)}"
                 tip_card = ""

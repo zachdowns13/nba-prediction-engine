@@ -2264,7 +2264,8 @@ def all_nba_names():
 
 LEG_KINDS = ["Player prop", "Team bet", "Type it myself"]
 LEG_STATS = ["Points", "Rebounds", "Assists", "3-pointers made", "Points + rebounds + assists", "Points + rebounds", "Points + assists",
-             "Rebounds + assists", "Steals", "Blocks", "Double-double", "Triple-double"]
+             "Rebounds + assists", "Steals", "Blocks", "3-pointers attempted", "Field goals made", "Field goals attempted",
+             "Free throws made", "Free throws attempted", "Double-double", "Triple-double"]
 TEAM_BETS = ["Moneyline (to win)", "Spread", "Game total over", "Game total under", "Team total over", "Team total under"]
 
 
@@ -2341,7 +2342,7 @@ def leg_builder(key):
         side = flip_side(key, c4)
         if not who or line <= 0:
             return ""
-        return f"{who} {side.lower()} {line:g} {stat.lower().replace('3-pointers made', '3s made')}"
+        return f"{who} {side.lower()} {line:g} {stat.lower().replace('3-pointers', '3s')}"
     c1, c2, c3 = st.columns([3, 2.4, 2.6])
     team = norm_name(_search_select("Team", teams, f"{key}_team", c1), teams)
     what = c2.selectbox("Bet", TEAM_BETS, key=f"{key}_what")

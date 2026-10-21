@@ -2913,31 +2913,28 @@ def chat_tab(date, games, injuries):
         if srcs:
             st.caption("Sources: " + " · ".join(f"[{t}]({u})" for t, u in srcs[:8]))
 
-    # Type here (top of the tab). Your question and its answer appear right underneath; earlier questions fold away below.
+    # Normal chat layout: the conversation scrolls inside the box (oldest at the top, newest at the bottom), typing box right under it.
+    try:
+        live = st.container(height=560, border=True, key="chatbox")
+    except TypeError:
+        live = st.container(height=560, border=True)
     typed = st.chat_input("Ask about games, player props, injuries, stats, anything NBA")
     quick = st.session_state.pop("chat_quick", None)
     prompt = (quick or typed or "").strip()
 
-    live = st.container(height=560, border=True)   # the conversation scrolls inside this box, not the whole page
-    pairs = [msgs[i:i + 2] for i in range(0, len(msgs) - 1, 2)]
-    if prompt:
-        older, current = pairs, None
-    else:
-        older, current = pairs[:-1], (pairs[-1] if pairs else None)
-
     with live:
         if not msgs and not prompt:
+            st.markdown("#### 💬 Ask me anything about tonight's games")
             st.caption("I can see the games, lines, injuries and model numbers loaded in this app (run the Full slate first for model numbers). "
                        "Anything else comes from general knowledge or a web search, so double-check anything important.")
             for q in ("Which games does the model like most today?", "Who's injured that matters tonight?", "Explain the best value play in simple terms."):
                 if st.button(q, key=f"quick_{q[:12]}", use_container_width=True):
                     st.session_state["chat_quick"] = q
                     st.rerun()
-        if current:
-            for m in current:
-                with st.chat_message(m["role"]):
-                    st.markdown(m["content"])
-                    show_sources(m.get("sources"))
+        for m in msgs:
+            with st.chat_message(m["role"]):
+                st.markdown(m["content"])
+                show_sources(m.get("sources"))
         if prompt:
             with st.chat_message("user"):
                 st.markdown(prompt)
@@ -2950,17 +2947,23 @@ def chat_tab(date, games, injuries):
             reply = reply if isinstance(reply, str) else "".join(map(str, reply))
             msgs.append({"role": "user", "content": prompt})
             msgs.append({"role": "assistant", "content": reply, "sources": sources})
-
-        if older:
-            st.markdown("##### Earlier")
-            for pair in reversed(older):                   # newest first
-                q = pair[0]["content"]
-                with st.expander(q if len(q) <= 90 else q[:87] + "..."):
-                    for m in pair[1:]:
-                        st.markdown(m["content"])
-                        show_sources(m.get("sources"))
     if msgs or prompt:
         st.caption("Answers are model estimates and general knowledge, not guarantees.")
+        try:                                              # keep the newest message in view
+            import streamlit.components.v1 as components
+            components.html(f"""<script>/* {dt.datetime.now().timestamp()} */
+            const d = window.parent.document;
+            function go() {{
+              const box = d.querySelector('.st-key-chatbox');
+              if (!box) return;
+              const els = [box].concat(Array.from(box.querySelectorAll('*')));
+              const sc = els.find(function (x) {{ const o = getComputedStyle(x).overflowY; return (o === 'auto' || o === 'scroll') && x.scrollHeight > x.clientHeight + 5; }});
+              if (sc) sc.scrollTop = sc.scrollHeight;
+            }}
+            go(); setTimeout(go, 250); setTimeout(go, 800);
+            </script>""", height=0)
+        except Exception:
+            pass
 
 
 def _has_valign():

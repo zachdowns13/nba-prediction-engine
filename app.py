@@ -151,7 +151,10 @@ SD_M, SD_T = 13.0, 18.0          # typical miss on the margin / the total (from 
 SIMS = 10_000
 LEAN_MIN, LEAN_STRONG = 0.02, 0.04
 FB_HISTORY_GAMES = 10            # first-basket: team games used to estimate each player
-TIP_HOME_PROB = 0.50             # chance the home team wins the opening tip
+TIP_HOME_PROB = 0.50             # chance the home team wins the opening tip when there is no tip data
+TIP_GAMES = 20                   # team games searched for opening tips
+TIP_PRIOR = 5.0                  # pseudo-tips at 50% blended into every jumper's record (keeps tiny samples honest)
+TIP_H2H_W = 6.0                  # how strongly the jumpers' head-to-head record pulls the estimate
 FB_TURNOVER_RATE, FB_OREB_RATE = 0.13, 0.25
 BACKTEST_NOTE = ""               # optional: paste your Colab backtest result here, e.g. "Last season its spread picks won 51.2%."
 
@@ -644,6 +647,29 @@ def _made_att(x):
     return (float(m.group(1)), float(m.group(2))) if m else (0.0, 0.0)
 
 
+_TIP_RE = re.compile(r"^\s*(?:jump\s*ball[:\s-]*)?(.+?)\s+vs\.?\s+(.+?)\s*\((.+?)\s+gains\s+possession\)", re.I)
+
+
+def _parse_tip(plays, name_team):
+    # Finds the opening tip among the first plays: who jumped for each team and which team got the ball.
+    for p in (plays or [])[:15]:
+        per = (p.get("period") or {}).get("number")
+        if per not in (1, None):
+            continue
+        txt = str(p.get("text") or "")
+        if "jump" not in (str((p.get("type") or {}).get("text") or "") + " " + txt).lower():
+            continue
+        m = _TIP_RE.match(txt)
+        if not m:
+            return None
+        a, b, c = (x.strip() for x in m.groups())
+        ta, tb, tc = name_team.get(a.lower()), name_team.get(b.lower()), name_team.get(c.lower())
+        if ta and tb and tc and ta != tb:
+            return {"a": a, "ta": ta, "b": b, "tb": tb, "win": tc}
+        return None
+    return None
+
+
 def _fetch_box_raw(event_id):
     try:
         data = _get(f"{BASE}/summary", {"event": event_id}, tries=2)
@@ -672,7 +698,8 @@ def _fetch_box_raw(event_id):
                     "pts": _num(row.get("PTS")), "oreb": oreb, "dreb": dreb, "ast": _num(row.get("AST")),
                     "stl": _num(row.get("STL")), "blk": _num(row.get("BLK")),
                     "tov": _num(row.get("TO", row.get("TOV"))), "pf": _num(row.get("PF"))}
-    return {"players": players}
+    name_team = {v["name"].lower(): v["team"] for v in players.values()}
+    return {"players": players, "tip": _parse_tip(data.get("plays"), name_team)}
 
 
 @st.cache_resource
@@ -752,7 +779,104 @@ def player_params(aid, name, a):
             "fg": (a["fgm"] + 0.47 * 40) / (a["fga"] + 40)}
 
 
-def simulate_first_basket(home5, away5, n):
+def _nba_cdn_get(url):
+    r = requests.get(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json", "Referer": "https://www.nba.com/"}, timeout=25)
+    r.raise_for_status()
+    return r.json()
+
+
+def _same_team(sched_team, display_name):
+    city, name = str(sched_team.get("teamCity", "")), str(sched_team.get("teamName", ""))
+    return f"{city} {name}".strip().lower() == display_name.lower() or (name and display_name.lower().endswith(name.lower()))
+
+
+def tip_check(home, last_event, tip_all, tboxes):
+    # Troubleshooting view: shows what ESPN and NBA.com actually return for opening tips.
+    found = sum(1 for e in tip_all if (tboxes.get(e) or {}).get("tip"))
+    st.markdown(f"**Opening tips found in ESPN's play-by-play:** {found} of {len(tip_all)} recent games.")
+    if last_event:
+        try:
+            data = _get(f"{BASE}/summary", {"event": last_event}, tries=2)
+            plays = data.get("plays") or []
+            st.markdown(f"**ESPN, first plays of the {short(home)}' latest game** ({len(plays)} plays returned):")
+            st.dataframe(pd.DataFrame([{"Period": (p.get("period") or {}).get("number"), "Type": (p.get("type") or {}).get("text"),
+                                        "Text": p.get("text")} for p in plays[:10]]), hide_index=True)
+            names = {}
+            for t in (data.get("boxscore") or {}).get("players", []):
+                for grp in t.get("statistics", []):
+                    for a in grp.get("athletes", []):
+                        names[str((a.get("athlete") or {}).get("displayName", "")).lower()] = (t.get("team") or {}).get("displayName")
+            parsed = _parse_tip(plays, names)
+            st.markdown("Parsed as an opening tip: " + (f"✅ {parsed}" if parsed else "❌ no (the wording wasn't recognised, or there was no jump ball in the first plays)"))
+        except Exception as e:
+            st.warning(f"Could not read ESPN's play-by-play: {e}")
+    if st.button("Check NBA.com as another source", key="tip_nba_check"):
+        try:
+            sched = _nba_cdn_get("https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json")
+            games = [gm for d in (sched.get("leagueSchedule") or {}).get("gameDates", []) for gm in d.get("games", [])]
+            mine = [gm for gm in games if gm.get("gameStatus") == 3 and (_same_team(gm.get("homeTeam") or {}, home) or _same_team(gm.get("awayTeam") or {}, home))]
+            if not mine:
+                st.warning("Could not find a finished game for this team on NBA.com's schedule.")
+            else:
+                gid = mine[-1]["gameId"]
+                pbp = _nba_cdn_get(f"https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{gid}.json")
+                acts = (pbp.get("game") or {}).get("actions", [])
+                st.markdown(f"**NBA.com play-by-play, game {gid}** ({len(acts)} actions). First actions:")
+                st.dataframe(pd.DataFrame([{k: a.get(k) for k in ("period", "actionType", "subType", "description", "personId", "teamTricode")} for a in acts[:10]]), hide_index=True)
+                jb = [a for a in acts if "jump" in str(a.get("actionType", "")).lower()][:4]
+                st.markdown("Jump ball actions: " + (str(jb) if jb else "none found"))
+        except Exception as e:
+            st.warning(f"Could not read NBA.com: {e}")
+
+
+def tip_record(boxes, evs, name):
+    w = n = 0
+    for e in evs:
+        t = (boxes.get(e) or {}).get("tip")
+        if not t or name not in (t["a"], t["b"]):
+            continue
+        my_team = t["ta"] if name == t["a"] else t["tb"]
+        n += 1
+        w += int(t["win"] == my_team)
+    return w, n
+
+
+def usual_jumper(boxes, evs, team, allowed):
+    # The player who most often took this team's opening tip in recent games, limited to the names in `allowed`.
+    cnt = {}
+    for e in evs:
+        t = (boxes.get(e) or {}).get("tip")
+        if not t:
+            continue
+        j = t["a"] if t["ta"] == team else (t["b"] if t["tb"] == team else None)
+        if j and j in allowed:
+            cnt[j] = cnt.get(j, 0) + 1
+    return max(cnt, key=cnt.get) if cnt else None
+
+
+def tip_model(boxes, evs, hj, aj):
+    # Chance the home team wins the opening tip, from each jumper's own tip record and their head-to-head history.
+    if not hj or not aj:
+        return {"p_home": TIP_HOME_PROB, "source": "No tip data for these jumpers, so the tip is treated as 50/50.", "hj": hj, "aj": aj}
+    hw, hn = tip_record(boxes, evs, hj)
+    aw, an = tip_record(boxes, evs, aj)
+    rh, ra = (hw + TIP_PRIOR * 0.5) / (hn + TIP_PRIOR), (aw + TIP_PRIOR * 0.5) / (an + TIP_PRIOR)
+    p = rh * (1 - ra) / (rh * (1 - ra) + ra * (1 - rh))
+    h2h_w = h2h_n = 0
+    for e in evs:
+        t = (boxes.get(e) or {}).get("tip")
+        if t and {t["a"], t["b"]} == {hj, aj}:
+            h2h_n += 1
+            h2h_w += int(t["win"] == (t["ta"] if t["a"] == hj else t["tb"]))
+    p = (p * TIP_H2H_W + h2h_w) / (TIP_H2H_W + h2h_n)
+    src = "Based on each jumper's recent tips" + (f" and {h2h_n} past tip(s) against each other." if h2h_n else " (they haven't tipped against each other in the games checked).")
+    if hn + an == 0:
+        src = "No tips found for these jumpers in recent games, so the tip is treated as 50/50."
+    return {"p_home": float(np.clip(p, 0.2, 0.8)), "source": src, "hj": hj, "aj": aj,
+            "h_rec": (hw, hn), "a_rec": (aw, an), "h2h": (h2h_w, h2h_n)}
+
+
+def simulate_first_basket(home5, away5, n, tip_home=TIP_HOME_PROB):
     rng = np.random.default_rng()
     cum, fg = np.zeros((2, 5)), np.zeros((2, 5))
     for t, ps in enumerate((home5, away5)):
@@ -760,7 +884,7 @@ def simulate_first_basket(home5, away5, n):
         cum[t] = np.cumsum(u / u.sum())
         fg[t] = [p["fg"] for p in ps]
     cum[:, -1] = 1.0
-    off = np.where(rng.random(n) < TIP_HOME_PROB, 0, 1)
+    off = np.where(rng.random(n) < tip_home, 0, 1)
     first_off = off.copy()
     winner, scorer = np.full(n, -1), np.full(n, -1)
     active = np.ones(n, bool)
@@ -801,11 +925,14 @@ def first_basket_tab(M, g, injuries, now):
     if not any(boxes.values()):
         st.error("Could not read box scores from ESPN. The first basket simulator needs them.")
         return
+    tip_evs = {t: recent_events(M["hist"], t, now.toordinal(), TIP_GAMES) for t in (home, away)}
+    tip_all = tuple(sorted(set(tip_evs[home]) | set(tip_evs[away])))
+    tboxes = load_boxes(tip_all)
     btn_box = st.container()          # simulate button (filled in below, shown at the top)
     results_box = st.container()      # results (filled in at the end, shown above the lineup editor)
     st.markdown("### ⚙️ Starting lineups")
     st.caption("Check or change each team's starting five and add your sportsbook's prices if you like, then press Simulate at the top.")
-    chosen, aggs = {}, {}
+    chosen, aggs, jsel = {}, {}, {}
     cols = st.columns(2)
     for col, team, tid in ((cols[0], home, g.get("home_id")), (cols[1], away, g.get("away_id"))):
         with col:
@@ -824,9 +951,14 @@ def first_basket_tab(M, g, injuries, now):
             chosen[team] = st.multiselect(f"Starting five ({team})", options, default=default,
                                           key=f"fb_{g['id']}_{team}")
             aggs[team] = agg
+            jsel[team] = st.selectbox(f"Tip-off jumper ({team})", ["Auto (most likely)"] + list(chosen[team]), key=f"fbj_{g['id']}_{team}",
+                                      help="Who takes the opening tip. Auto picks the starter who has taken the most recent tips for this team.")
             if M["cur_counts"].get(team, 0) < 5:
                 st.warning("Fewer than 5 games played this season, so this lineup is a GUESS from older games. "
                            "Set the real starting five above once lineups are announced (about 30 min before tip).")
+    with st.expander("🔎 Tip data check (troubleshooting)"):
+        st.caption("Shows whether the opening-tip data is being found. If it says 0 tips found, send me what the tables below show and I'll fix the reader.")
+        tip_check(home, (tip_evs[home] or [None])[-1], tip_all, tboxes)
     odds_text = st.text_area("Your sportsbook's first-basket prices (optional), one per line, like: Jalen Brunson, 650",
                              key=f"fbo_{g['id']}")
     with btn_box:
@@ -843,7 +975,11 @@ def first_basket_tab(M, g, injuries, now):
                 aid, a = by_name.get(nm, (nm, None))        # unknown player: league-average shooting
                 five.append(player_params(aid, nm, a))
             fives.append(five)
-        first_off, winner, scorer, done = simulate_first_basket(fives[0], fives[1], SIMS)
+        jump = {}
+        for team in (home, away):
+            jump[team] = (usual_jumper(tboxes, tip_evs[team], team, set(chosen[team])) if jsel[team].startswith("Auto") else jsel[team])
+        tipm = tip_model(tboxes, tip_all, jump[home], jump[away])
+        first_off, winner, scorer, done = simulate_first_basket(fives[0], fives[1], SIMS, tipm["p_home"])
         rows = []
         for t, (team, five) in enumerate(((home, fives[0]), (away, fives[1]))):
             for i, p in enumerate(five):
@@ -851,7 +987,7 @@ def first_basket_tab(M, g, injuries, now):
         T = pd.DataFrame(rows).sort_values("prob", ascending=False).reset_index(drop=True)
         st.session_state[f"fbres_{g['id']}"] = {
             "T": T, "home_first": float(np.mean(winner[done] == 0)), "tip_first": float(np.mean(winner[done] == first_off[done])),
-            "odds": parse_odds_text(odds_text)}
+            "odds": parse_odds_text(odds_text), "tip": tipm}
     with results_box:
         res = st.session_state.get(f"fbres_{g['id']}")
         if res:
@@ -859,11 +995,22 @@ def first_basket_tab(M, g, injuries, now):
             hf = res["home_first"]
             medals = ["🥇", "🥈", "🥉"]
             colors = ("var(--acc)", "#f97316")
+            tp = res.get("tip") or {}
+            if tp.get("hj") and tp.get("aj") and tp.get("h_rec") is not None:
+                def _rec(r):
+                    return f"{r[0]}-{r[1] - r[0]} on tips" if r[1] else "no tips found"
+                tip_txt = (f'<div style="text-align:center;font-weight:600;margin-bottom:2px">Jump ball: {H(tp["hj"])} ({H(short(home))}) vs {H(tp["aj"])} ({H(short(away))})</div>'
+                           f'<div class="nb-muted" style="text-align:center">{H(tp["hj"])}: {_rec(tp["h_rec"])} · {H(tp["aj"])}: {_rec(tp["a_rec"])} · '
+                           f'head-to-head: {_rec(tp["h2h"]) if tp["h2h"][1] else "never faced each other in the games checked"}</div>'
+                           f'<div class="nb-muted" style="text-align:center">{H(short(home))} win the tip {pct(tp["p_home"])} of the time in this simulation. {H(tp["source"])}</div>')
+            else:
+                tip_txt = f'<div class="nb-muted" style="text-align:center">{H(tp.get("source", "The tip is treated as 50/50."))}</div>'
+            html(f'<div class="nb-card" style="margin:10px 0 4px">{tip_txt}</div>')
             html(f'<div class="nb-card" style="margin:10px 0 4px"><div class="nb-muted" style="text-align:center">🏀 Opening tip · who scores first?</div>'
-                 f'<div class="nb-split" style="height:18px"><div style="width:{hf * 100:.1f}%;background:{colors[0]}"></div>'
-                 f'<div style="width:{(1 - hf) * 100:.1f}%;background:{colors[1]}"></div></div>'
-                 f'<div class="nb-tip"><span style="color:{colors[0]}">{logo(g.get("home_logo"))}{H(short(home))} {pct(hf)}</span>'
-                 f'<span style="color:{colors[1]}">{pct(1 - hf)} {H(short(away))}{logo(g.get("away_logo"))}</span></div></div>')
+                     f'<div class="nb-split" style="height:18px"><div style="width:{hf * 100:.1f}%;background:{colors[0]}"></div>'
+                     f'<div style="width:{(1 - hf) * 100:.1f}%;background:{colors[1]}"></div></div>'
+                     f'<div class="nb-tip"><span style="color:{colors[0]}">{logo(g.get("home_logo"))}{H(short(home))} {pct(hf)}</span>'
+                     f'<span style="color:{colors[1]}">{pct(1 - hf)} {H(short(away))}{logo(g.get("away_logo"))}</span></div></div>')
             st.markdown("### 🏆 Most likely first scorers")
             pods = []
             for i, r in enumerate(T.head(3).itertuples()):
@@ -886,7 +1033,7 @@ def first_basket_tab(M, g, injuries, now):
                                  f'<div class="v">{pct(r.prob)}</div></div>')
             html("".join(rows_html))
             st.caption(f"Across {SIMS:,} simulated openings. The team that wins the tip scores first {pct(res['tip_first'])} of the time "
-                       "(this comes from the model's assumptions, not checked against real games).")
+                       "(this comes from the model's assumptions, not checked against real games). Tip records come from a small number of recent games, so treat them as a light nudge.")
             if book:
                 out = []
                 for r in T.itertuples():

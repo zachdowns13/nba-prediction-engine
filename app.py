@@ -69,7 +69,20 @@ background:linear-gradient(120deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%)}
 .nb-fill{animation:nbgrow .9s ease-out}
 @keyframes nbgrow{from{width:0}}
 @keyframes nbrise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-@media (max-width:640px){.nb-hero{padding:16px}.nb-hero h1{font-size:1.5rem}.nb-score .p{font-size:2rem}.nb-score .t{min-width:100px}
+.nb-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:8px 0 14px}
+.nb-tile{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:14px 16px}
+.nb-tile .l{opacity:.7;font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.nb-tile .v{font-size:2rem;font-weight:800;line-height:1.15;margin:4px 0 2px}
+.nb-tile .s{opacity:.65;font-size:.8rem}
+.pos{color:var(--ok)}.neg{color:var(--bad)}
+.nb-brow{display:grid;grid-template-columns:1.3fr .9fr 1.7fr .9fr;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line)}
+.nb-brow.hd{opacity:.55;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;padding-bottom:4px}
+.nb-brow .pr{text-align:right;font-weight:800}
+.nb-prow{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--card)}
+.nb-prow.w{border-left-color:var(--ok)}.nb-prow.l{border-left-color:var(--bad)}
+.nb-prow .m{flex:1;min-width:0}.nb-prow .o{opacity:.75;white-space:nowrap}.nb-prow .r{text-align:right;white-space:nowrap}
+.nb-sec{font-size:1.25rem;font-weight:800;margin:22px 0 4px}
+@media (max-width:640px){.nb-brow{grid-template-columns:1fr 1fr;row-gap:4px}.nb-brow.hd{display:none}.nb-hero{padding:16px}.nb-hero h1{font-size:1.5rem}.nb-score .p{font-size:2rem}.nb-score .t{min-width:100px}
 .nb-grid{grid-template-columns:1fr}.nb-grid3{grid-template-columns:1fr}.nb-podium{grid-template-columns:1fr}.block-container{padding-left:.8rem;padding-right:.8rem;padding-top:4rem !important}}
 </style>
 """
@@ -1609,6 +1622,101 @@ def summarize_picks(df):
             "Profit ($100 per pick)": f"${df['profit'].astype(float).sum():,.0f}"}
 
 
+def _signed_money(x):
+    return "$0" if abs(x) < 0.5 else (f"+${x:,.0f}" if x > 0 else f"-${-x:,.0f}")
+
+
+def _tone(x):
+    return "pos" if x > 0.5 else ("neg" if x < -0.5 else "")
+
+
+def pick_stats(d):
+    dec = d[d["result"].isin(["W", "L"])]
+    n, w = len(dec), int((dec["result"] == "W").sum())
+    push = int((d["result"] == "P").sum())
+    prof = float(pd.to_numeric(d["profit"], errors="coerce").fillna(0).sum())
+    be = float(pd.to_numeric(dec["odds"], errors="coerce").map(implied).mean()) if n else None
+    return {"picks": len(d), "w": w, "l": n - w, "p": push, "n": n, "win": (w / n) if n else None, "profit": prof, "be": be,
+            "rec": f"{w}-{n - w}" + (f"-{push}" if push else "")}
+
+
+def stat_tile(label, value, sub="", tone=""):
+    return f'<div class="nb-tile"><div class="l">{H(label)}</div><div class="v {tone}">{H(value)}</div><div class="s">{H(sub)}</div></div>'
+
+
+def results_summary(d, waiting):
+    s = pick_stats(d)
+    html('<div class="nb-tiles">'
+         + stat_tile("Record", s["rec"], f"{waiting} waiting on games" if waiting else "all games finished")
+         + stat_tile("Win rate", f"{s['win'] * 100:.0f}%" if s["win"] is not None else "-",
+                     f"needs {s['be'] * 100:.0f}% to break even" if s["be"] else "")
+         + stat_tile("Profit", _signed_money(s["profit"]), "betting $100 on every pick", _tone(s["profit"]))
+         + stat_tile("Picks graded", str(s["n"] + s["p"]), "wins, losses and pushes")
+         + '</div>')
+    if 0 < s["n"] < 100:
+        st.caption(f"Early days: only {s['n']} picks are graded so far, so these numbers can swing a lot from day to day.")
+
+
+def form_strip(results):
+    html('<div class="nb-muted" style="margin:6px 0 4px;font-weight:600">Last 20 picks '
+         '<span style="color:var(--ok)">■ win</span> &nbsp;<span style="color:var(--bad)">■ loss</span> &nbsp;<span>■ push</span></div>'
+         + result_strip(list(results)[-20:]))
+
+
+def breakdown_html(groups):
+    rows = ['<div class="nb-brow hd"><div></div><div>Record</div><div>Win rate</div><div style="text-align:right">Profit</div></div>']
+    for label, d in groups:
+        if not len(d):
+            continue
+        s = pick_stats(d)
+        w = (s["win"] or 0) * 100
+        rows.append(f'<div class="nb-brow"><div><b>{H(label)}</b></div><div class="nb-muted">{s["rec"]}</div>'
+                    f'<div><div class="nb-bl"><span></span><b>{f"{w:.0f}%" if s["win"] is not None else "-"}</b></div>'
+                    f'<div class="nb-bar" style="height:8px"><div class="nb-fill" style="width:{w:.0f}%;background:var(--acc)"></div></div></div>'
+                    f'<div class="pr {_tone(s["profit"])}">{_signed_money(s["profit"])}</div></div>')
+    if len(rows) > 1:
+        html('<div class="nb-card" style="padding:8px 16px">' + "".join(rows) + '</div>')
+
+
+def pick_rows_html(items):
+    # items: dicts with title, sub, odds (optional), result, profit
+    out = []
+    for it in items:
+        res = it["result"]
+        cls = {"W": "w", "L": "l"}.get(res, "")
+        b = it["badge"] if "badge" in it else {"W": badge("Win", "ok"), "L": badge("Loss", "bad"), "P": badge("Push", "none"), "V": badge("Didn't play", "none")}.get(res, badge("Waiting", "acc"))
+        prof = it.get("profit")
+        ptxt = f'<b class="{_tone(prof)}">{_signed_money(prof)}</b>' if prof is not None and pd.notna(prof) and res in ("W", "L", "P") else ""
+        odds = f'<div class="o">{H(it["odds"])}</div>' if it.get("odds") else ""
+        out.append(f'<div class="nb-prow {cls}"><div class="m"><b>{H(it["title"])}</b><div class="nb-muted">{H(it["sub"])}</div></div>{odds}'
+                   f'<div class="r">{b}<div>{ptxt}</div></div></div>')
+    html("".join(out))
+
+
+def _nice_date(d):
+    try:
+        return pd.to_datetime(d).strftime("%a %b %-d")
+    except Exception:
+        return str(d)
+
+
+def day_rows(d):
+    items = []
+    for day in sorted(d["date"].dropna().unique(), reverse=True):
+        s = pick_stats(d[d["date"] == day])
+        items.append({"title": _nice_date(day), "sub": f"{s['rec']} on {s['picks']} picks", "badge": "",
+                      "result": "W" if s["profit"] > 0.5 else ("L" if s["profit"] < -0.5 else "P"), "profit": s["profit"]})
+    return items
+
+
+def day_list(d):
+    items = day_rows(d)
+    pick_rows_html(items[:7])
+    if len(items) > 7:
+        with st.expander(f"Show {len(items) - 7} older days"):
+            pick_rows_html(items[7:])
+
+
 def game_results_view():
     st.caption("Every pick is graded automatically from ESPN's final scores. Run the Full slate each day before games start and "
                "every moneyline, spread and total is saved, so this page shows how the model is actually doing.")
@@ -1628,99 +1736,57 @@ def game_results_view():
         st.info("Nothing saved yet. Open the **Full slate** tab and press **Run full slate** before games start. "
                 "Every moneyline, spread and total is saved automatically.")
     else:
-        # ---- every game, every market ----
-        pending_n = int((log["is_pick"] & ~log["result"].isin(["W", "L", "P"])).sum())
-        st.markdown("### 📊 Every game, every market")
-        st.caption("The side the model likes in every moneyline, spread and total that was saved, whether or not it was flagged as value. "
-                   "Profit assumes a flat $100 on each pick at the saved odds."
-                   + (f" {pending_n} picks are waiting for their games to finish." if pending_n else ""))
-        allp = graded[graded["is_pick"]]
-        if allp.empty:
-            st.caption("No graded picks yet. Check back after the saved games finish.")
+        view = st.radio("Show", ["All picks", "Value plays only"], horizontal=True, key="res_view", label_visibility="collapsed")
+        st.caption("**All picks:** the side the model liked in every moneyline, spread and total that was saved. "
+                   if view == "All picks" else "**Value plays:** only the picks the app flagged as value (the model's chance beat the sportsbook's by enough to matter). ")
+        col = "is_pick" if view == "All picks" else "flagged"
+        base, gd = log[log[col]], graded[graded[col]]
+        waiting = int((~base["result"].isin(["W", "L", "P"])).sum())
+        if gd.empty:
+            st.info(f"No graded picks yet. {waiting} are waiting for their games to finish." if waiting else "No graded picks yet.")
         else:
-            sm = summarize_picks(allp)
-            with st.container(border=True):
-                cols = st.columns(len(sm))
-                for col, (k, v) in zip(cols, sm.items()):
-                    col.metric(k, v, help=METRIC_HELP.get(k))
-            st.markdown("**Running profit** (flat $100 on each pick)")
-            profit_chart(allp)
-            last = allp.sort_values("date").tail(20)
-            if len(last):
-                st.markdown("**Last 20 picks** (green win, red loss, gray push)")
-                html(result_strip(list(last["result"])))
-            st.markdown("**By market**")
-            st.dataframe(pd.DataFrame({mk: summarize_picks(allp[allp["market"] == mk])
-                                       for mk in ("Moneyline", "Spread", "Total") if (allp["market"] == mk).any()}).T)
-            day_rows = []
-            for d in sorted(allp["date"].dropna().unique(), reverse=True):
-                a = allp[allp["date"] == d]
-                f = a[a["flagged"]]
-                sa = summarize_picks(a)
-                row = {"Date": d, "Model's picks": sa["Record (W-L-P)"], "Win %": sa["Win %"], "Profit ($100/pick)": sa["Profit ($100 per pick)"]}
-                if len(f):
-                    sf = summarize_picks(f)
-                    row["Value picks"], row["Value profit"] = sf["Record (W-L-P)"], sf["Profit ($100 per pick)"]
-                else:
-                    row["Value picks"], row["Value profit"] = "-", "-"
-                day_rows.append(row)
-            st.markdown("**Day by day**")
-            st.dataframe(pd.DataFrame(day_rows), hide_index=True)
+            results_summary(gd, waiting)
+            form_strip(gd.sort_values("date")["result"])
+            st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
+            profit_chart(gd)
+            st.markdown('<div class="nb-sec">How each market is doing</div>', unsafe_allow_html=True)
+            groups = [(mk, gd[gd["market"] == mk]) for mk in ("Moneyline", "Spread", "Total")]
+            if view == "Value plays only":
+                groups += [(f"{k} value", gd[gd["strength"] == k]) for k in gd["strength"].dropna().unique() if str(k)]
+            breakdown_html(groups)
+            st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
+            day_list(gd)
 
-        model_picks = log[log["is_pick"]]
-        with st.expander(f"📋 See every model pick ({len(model_picks)})"):
-            st.caption("The side the model liked in each moneyline, spread and total, with the result once the game is final.")
-            st.dataframe(picks_table(model_picks), hide_index=True)
-
-        flagged = graded[graded["flagged"]]
-        st.markdown("### 💰 Flagged value picks (the ones the app marked as value)")
-        if flagged.empty:
-            st.caption("No graded value picks yet. Check back after the saved games finish.")
-        else:
-            sm = summarize_picks(flagged)
-            with st.container(border=True):
-                cols = st.columns(len(sm))
-                for col, (k, v) in zip(cols, sm.items()):
-                    col.metric(k, v, help=METRIC_HELP.get(k))
-            n_dec = int(flagged["result"].isin(["W", "L"]).sum())
-            if n_dec < 100:
-                st.info(f"Only {n_dec} graded value picks so far, which is far too few to judge. Results swing wildly in small samples. "
-                        "Wait for several hundred before drawing conclusions.")
+        with st.expander(f"📋 See every pick ({len(base)})"):
+            flt = st.selectbox("Show", ["All", "Wins", "Losses", "Waiting for the game"], key="res_pf", label_visibility="collapsed")
+            sel = {"All": base, "Wins": base[base["result"] == "W"], "Losses": base[base["result"] == "L"],
+                   "Waiting for the game": base[~base["result"].isin(["W", "L", "P"])]}[flt]
+            sel = sel.sort_values(["date", "game", "market"], ascending=[False, True, True])
+            if sel.empty:
+                st.caption("Nothing to show for this filter yet.")
             else:
-                roi = flagged["profit"].sum() / (100 * n_dec)
-                st.info(("Value picks are profitable so far, but check that it holds up over more picks and isn't a few lucky bets. "
-                         if roi > 0 else "Value picks are not beating the sportsbook so far. If this holds with a few hundred more picks, the model has no real edge. ")
-                        + "Note that this assumes you could get the logged odds.")
-            for label, col in (("By market", "market"), ("By strength", "strength")):
-                rows = {str(k): summarize_picks(flagged[flagged[col] == k]) for k in flagged[col].dropna().unique() if str(k)}
-                if rows:
-                    st.markdown(f"**{label}**")
-                    st.dataframe(pd.DataFrame(rows).T)
-
-        flagged_all = log[log["flagged"]]
-        with st.expander(f"📋 See each flagged value pick ({len(flagged_all)})"):
-            if flagged_all.empty:
-                st.caption("No value picks have been flagged yet.")
-            else:
-                st.dataframe(picks_table(flagged_all), hide_index=True)
+                pick_rows_html([{"title": f"{pick_label(r)}", "sub": f"{r['game']} · {_nice_date(r['date'])} · model {pct(r['model_p'])} vs book {pct(r['book_p'])}",
+                                 "odds": f"{int(r['odds']):+d}" if pd.notna(r["odds"]) else "", "result": r["result"],
+                                 "profit": r["profit"]} for _, r in sel.head(60).iterrows()])
+                if len(sel) > 60:
+                    st.caption(f"Showing the latest 60 of {len(sel)}. Download the log below for the full list.")
 
         nonpush = graded[graded["result"].isin(["W", "L"])].copy()
-        st.markdown("### 🎯 Is the model more accurate than the sportsbook?")
-        if len(nonpush) < 40:
-            st.caption("Needs at least 40 graded sides. This one uses every side of every saved market, not just flagged picks.")
-        else:
-            y = (nonpush["result"] == "W").astype(float)
-            b_model, b_book = ((nonpush["model_p"] - y) ** 2).mean(), ((nonpush["book_p"] - y) ** 2).mean()
-            c1, c2 = st.columns(2)
-            c1.metric("Model error (Brier, lower is better)", f"{b_model:.4f}")
-            c2.metric("Sportsbook error (Brier, lower is better)", f"{b_book:.4f}")
-            st.caption("If the model's error is not clearly lower than the sportsbook's, the model adds nothing beyond the line. "
-                       "The difference needs a few hundred games to mean anything.")
-            nonpush["bucket"] = pd.cut(nonpush["model_p"], [0, .3, .4, .45, .5, .55, .6, .7, 1.0])
-            cal = nonpush.assign(won=y).groupby("bucket", observed=True).agg(
-                picks=("won", "size"), model_said=("model_p", "mean"), actually_won=("won", "mean")).round(3)
-            st.markdown("**Calibration: when the model says X%, how often does it happen?**")
-            st.dataframe(cal)
+        with st.expander("🎯 Model vs sportsbook accuracy"):
+            if len(nonpush) < 40:
+                st.caption("Needs at least 40 graded sides (this uses both sides of every saved market).")
+            else:
+                y = (nonpush["result"] == "W").astype(float)
+                b_model, b_book = ((nonpush["model_p"] - y) ** 2).mean(), ((nonpush["book_p"] - y) ** 2).mean()
+                html('<div class="nb-tiles">' + stat_tile("Model error", f"{b_model:.3f}", "lower is better")
+                     + stat_tile("Sportsbook error", f"{b_book:.3f}", "lower is better") + '</div>')
+                st.caption("Each number measures how far the chances were from what actually happened. "
+                           "It takes a few hundred games before the difference means much.")
+                nonpush["bucket"] = pd.cut(nonpush["model_p"], [0, .3, .4, .45, .5, .55, .6, .7, 1.0])
+                cal = nonpush.assign(won=y).groupby("bucket", observed=True).agg(
+                    picks=("won", "size"), model_said=("model_p", "mean"), actually_won=("won", "mean")).round(3)
+                st.markdown("**When the model says X%, how often does it happen?**")
+                st.dataframe(cal)
 
     with st.expander("My saved games, backup and restore"):
         st.caption("One line per game: the model's pick in each market (✅ win, ❌ loss, ➖ push, ⏳ waiting) and, where it differs or is flagged, "
@@ -1857,46 +1923,37 @@ def props_results_view():
     else:
         done = df[df["result"].isin(["W", "L", "P"])]
         waiting = int((df["result"] == "").sum())
-        decided = done[done["result"].isin(["W", "L"])]
-        wins = int((decided["result"] == "W").sum())
-        profit = float(done["profit"].sum())
-        with st.container(border=True):
-            c1, c2, c3, c4, c5 = st.columns(5)
-            c1.metric("Record", record_line(done) if len(done) else "-")
-            c2.metric("Win %", f"{wins / len(decided) * 100:.1f}%" if len(decided) else "-")
-            c3.metric("Model expected", pct(float(decided["model_p"].mean())) if len(decided) else "-", help=METRIC_HELP["Model expected"])
-            c4.metric("Profit ($100/pick)", _money(profit) if len(done) else "-")
-            c5.metric("Waiting on games", str(waiting))
-        if len(decided) and len(decided) < 100:
-            st.caption(f"Only {len(decided)} graded props so far. That is far too few to judge, because results swing wildly in small samples.")
-
-        if len(done):
-            st.markdown("**Running profit** (flat $100 on each pick)")
+        if done.empty:
+            st.info(f"No graded props yet. {waiting} are waiting for their games to finish." if waiting else "No graded props yet.")
+        else:
+            results_summary(done, waiting)
+            form_strip(done.sort_values("date")["result"])
+            st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
             profit_chart(done)
-            html(result_strip(list(done.sort_values("date")["result"].tail(20))))
-            left, right = st.columns(2)
-            with left:
-                st.markdown("**By stat**")
-                st.dataframe(pd.DataFrame({k: summarize_picks(done[done["stat"] == k]) for k in done["stat"].unique()}).T[
-                    ["Picks", "Record (W-L-P)", "Win %", "Profit ($100 per pick)"]])
-            with right:
-                st.markdown("**Over vs under**")
-                st.dataframe(pd.DataFrame({k: summarize_picks(done[done["side"] == k]) for k in ("Over", "Under") if (done["side"] == k).any()}).T[
-                    ["Picks", "Record (W-L-P)", "Win %", "Profit ($100 per pick)"]])
-            value = done[_prop_value_mask(done)]
-            if len(value):
-                sv = summarize_picks(value)
-                st.markdown(f"**Value picks only (model edge of 2+ points):** {sv['Record (W-L-P)']}, {sv['Win %']} wins, "
-                            f"{sv['Profit ($100 per pick)']} profit.")
+            st.markdown('<div class="nb-sec">By stat</div>', unsafe_allow_html=True)
+            breakdown_html([(k, done[done["stat"] == k]) for k in done["stat"].unique()])
+            st.markdown('<div class="nb-sec">Over, under and value</div>', unsafe_allow_html=True)
+            breakdown_html([("Overs", done[done["side"] == "Over"]), ("Unders", done[done["side"] == "Under"]),
+                            ("Value picks (2+ pts edge)", done[_prop_value_mask(done)])])
+            st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
+            day_list(done)
 
-        st.markdown("### All saved props")
-        view = st.selectbox("Show", ["All", "Waiting for the game", "Wins", "Losses", "Value picks (2+ pts edge)"], key="prop_filter")
+        st.markdown('<div class="nb-sec">All saved props</div>', unsafe_allow_html=True)
+        view = st.selectbox("Show", ["All", "Waiting for the game", "Wins", "Losses", "Value picks (2+ pts edge)"], key="prop_filter",
+                            label_visibility="collapsed")
         shown = {"All": df, "Waiting for the game": df[df["result"] == ""], "Wins": df[df["result"] == "W"],
                  "Losses": df[df["result"] == "L"], "Value picks (2+ pts edge)": df[_prop_value_mask(df)]}[view]
         if shown.empty:
             st.caption("Nothing to show for this filter yet.")
         else:
-            st.dataframe(props_table(shown), hide_index=True)
+            shown = shown.sort_values(["date", "game", "player"], ascending=[False, True, True])
+            pick_rows_html([{"title": f"{r['player']} {r['side'].lower()} {r['line']:g} {r['stat'].lower()}",
+                             "sub": f"{r['game']} · {_nice_date(r['date'])} · model {pct(r['model_p'])} vs book {pct(r['book_p'])}"
+                                    + (f" · projected {r['proj']:.1f}, actual {r['actual']:g}" if pd.notna(r["actual"]) else f" · projected {r['proj']:.1f}"),
+                             "odds": f"{r['odds']:+.0f}" if pd.notna(r["odds"]) else "", "result": r["result"], "profit": r["profit"]}
+                            for _, r in shown.head(60).iterrows()])
+            if len(shown) > 60:
+                st.caption(f"Showing the latest 60 of {len(shown)}. Download the props file below for the full list.")
 
     with st.expander("My saved props, backup and restore"):
         st.caption("On Streamlit Cloud the saved file can be erased when the app restarts or is redeployed, so download a backup now and "

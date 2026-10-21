@@ -170,6 +170,7 @@ TIP_GAMES = 20                   # recent team games used to pick a team's usual
 TIP_SCAN_GAMES = 82              # team games searched for opening tips (about a full season)
 TIP_LAST = 50                    # each jumper's most recent tips that count toward his record
 TIP_PRIOR = 5.0                  # pseudo-tips at 50% blended into every jumper's record (keeps tiny samples honest)
+TIP_FULL_TIPS = 15                # a jumper needs this many tips before his record counts fully (fewer = the edge is dampened)
 TIP_H2H_W = 6.0                  # how strongly the jumpers' head-to-head record pulls the estimate
 FB_TURNOVER_RATE, FB_OREB_RATE = 0.13, 0.25
 BACKTEST_NOTE = ""               # optional: paste your Colab backtest result here, e.g. "Last season its spread picks won 51.2%."
@@ -890,6 +891,8 @@ def tip_model(boxes, evs, hj, aj):
     aw, an = tip_record(boxes, evs, aj)
     rh, ra = (hw + TIP_PRIOR * 0.5) / (hn + TIP_PRIOR), (aw + TIP_PRIOR * 0.5) / (an + TIP_PRIOR)
     p = rh * (1 - ra) / (rh * (1 - ra) + ra * (1 - rh))
+    conf = min(1.0, min(hn, an) / TIP_FULL_TIPS)           # the less experienced jumper limits how far the estimate can move from 50/50
+    p = 0.5 + (p - 0.5) * conf
     h2h_w = h2h_n = 0
     for e in evs:
         t = (boxes.get(e) or {}).get("tip")
@@ -898,6 +901,9 @@ def tip_model(boxes, evs, hj, aj):
             h2h_w += int(t["win"] == (t["ta"] if t["a"] == hj else t["tb"]))
     p = (p * TIP_H2H_W + h2h_w) / (TIP_H2H_W + h2h_n)
     src = "Based on each jumper's recent tips" + (f" and {h2h_n} past tip(s) against each other." if h2h_n else " (they haven't tipped against each other in the games checked).")
+    if min(hn, an) < TIP_FULL_TIPS:
+        low = hj if hn <= an else aj
+        src += f" {low} has only {min(hn, an)} tip(s) on record, so the estimate stays closer to 50/50."
     if hn + an == 0:
         src = "No tips found for these jumpers in recent games, so the tip is treated as 50/50."
     return {"p_home": float(np.clip(p, 0.2, 0.8)), "source": src, "hj": hj, "aj": aj,

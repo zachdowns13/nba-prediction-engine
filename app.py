@@ -1688,7 +1688,7 @@ def pick_rows_html(items):
         prof = it.get("profit")
         ptxt = f'<b class="{_tone(prof)}">{_signed_money(prof)}</b>' if prof is not None and pd.notna(prof) and res in ("W", "L", "P") else ""
         odds = f'<div class="o">{H(it["odds"])}</div>' if it.get("odds") else ""
-        out.append(f'<div class="nb-prow {cls}"><div class="m"><b>{it.get("chip", "")}{H(it["title"])}</b><div class="nb-muted">{H(it["sub"])}</div></div>{odds}'
+        out.append(f'<div class="nb-prow {cls}"><div class="m"><b>{it.get("chip", "")}{it["title_html"] if "title_html" in it else H(it["title"])}</b><div class="nb-muted">{H(it["sub"])}</div></div>{odds}'
                    f'<div class="r">{b}<div>{ptxt}</div></div></div>')
     html("".join(out))
 
@@ -2106,10 +2106,19 @@ def delete_bet(bet_id):
     save_bets(clean_bets(df[df["id"] != bet_id]))
 
 
+def split_legs(desc):
+    # Legs are saved joined with " + "; don't split inside combo stats like "points + rebounds + assists".
+    return [p for p in re.split(r" \+ (?!rebounds|assists|points)", desc or "") if p.strip()] or ["(no description)"]
+
+
 def bet_item(r):
     # One row for the pick_rows_html list.
     kind = "Parlay" + (f" ({int(r['legs'])} legs)" if r["legs"] and r["legs"] >= 2 else "") if r["type"] == "Parlay" else "Straight"
-    return {"chip": book_chip(r["book"]), "title": r["desc"] or "(no description)", "sub": f"{r['book']} · {kind} · {_nice_date(r['date'])} · ${r['stake']:,.2f} to win ${r['payout'] - r['stake']:,.2f}",
+    legs = split_legs(r["desc"])
+    chip = book_chip(r["book"])
+    return {"chip": "" if len(legs) > 1 else chip, "title": r["desc"] or "(no description)",
+            "title_html": "".join(f'<div style="font-weight:600;margin-top:2px">{chip if i == 0 else ""}{H(l)}</div>' for i, l in enumerate(legs))
+            if len(legs) > 1 else H(legs[0]), "sub": f"{r['book']} · {kind} · {_nice_date(r['date'])} · ${r['stake']:,.2f} to win ${r['payout'] - r['stake']:,.2f}",
             "odds": f"${r['stake']:,.0f} → ${r['payout']:,.0f}", "result": r["result"], "profit": r["profit"]}
 
 

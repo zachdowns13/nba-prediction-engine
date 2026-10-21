@@ -2385,7 +2385,8 @@ def bets_open_view():
     df = load_bets()
     open_all = df[df["result"] == ""]
     open_ = open_all
-    with st.expander(f"Open bets ({len(open_all)})", expanded=True):
+    st.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>', unsafe_allow_html=True)
+    with st.container():
         if open_all.empty:
             st.caption("No open bets. Add one in the **Add a bet** tab.")
         else:
@@ -2395,31 +2396,30 @@ def bets_open_view():
                 with st.container(border=True):
                     legs = split_legs(r["desc"])
                     pick_rows_html([bet_item(r, controls=True)])
-                    show_legs = True
                     if len(legs) > 1:
-                        show_legs = (st.toggle if hasattr(st, "toggle") else st.checkbox)("Show legs", value=True, key=f"showlegs_{r['id']}")
-                    if len(legs) > 1 and show_legs:
-                        ls = leg_states(r)
-                        for i, leg in enumerate(legs):
-                            q = st.columns([3, 1.3])
-                            q[0].markdown(f"{_leg_icon(ls[i])} {leg}")
-                            try:
-                                pick_ = q[1].segmented_control("Leg result", ["✅", "❌"], default={"H": "✅", "M": "❌"}.get(ls[i]),
-                                                               key=f"seg_{r['id']}_{i}_{ls[i]}", label_visibility="collapsed")
-                                new_ = {"✅": "H", "❌": "M"}.get(pick_, "-")
-                                if new_ != ls[i]:
-                                    set_leg(r["id"], i, new_)
-                                    st.rerun()
-                            except AttributeError:                                   # older Streamlit: plain buttons
-                                z = q[1].columns(3)
-                                for col_, lab_, val_ in zip(z, ["✅", "❌", "↩️"], ["H", "M", "-"]):
-                                    if col_.button(lab_, key=f"lg_{r['id']}_{i}_{val_}"):
-                                        set_leg(r["id"], i, val_)
-                                        st.rerun()
-                        if "M" in ls:
-                            st.caption("A leg missed. If your book still pays on partial hits, use Edit, otherwise mark the slip Lost.")
-                        elif ls.count("H") == len(ls):
-                            st.caption("Every leg hit. Tap Won to collect.")
+                        _ls0 = leg_states(r)
+                        with st.expander(f"Legs · {_ls0.count('H')} of {len(legs)} hit", expanded=True):
+                                ls = leg_states(r)
+                                for i, leg in enumerate(legs):
+                                    q = st.columns([3, 1.3])
+                                    q[0].markdown(f"{_leg_icon(ls[i])} {leg}")
+                                    try:
+                                        pick_ = q[1].segmented_control("Leg result", ["✅", "❌"], default={"H": "✅", "M": "❌"}.get(ls[i]),
+                                                                       key=f"seg_{r['id']}_{i}_{ls[i]}", label_visibility="collapsed")
+                                        new_ = {"✅": "H", "❌": "M"}.get(pick_, "-")
+                                        if new_ != ls[i]:
+                                            set_leg(r["id"], i, new_)
+                                            st.rerun()
+                                    except AttributeError:                                   # older Streamlit: plain buttons
+                                        z = q[1].columns(3)
+                                        for col_, lab_, val_ in zip(z, ["✅", "❌", "↩️"], ["H", "M", "-"]):
+                                            if col_.button(lab_, key=f"lg_{r['id']}_{i}_{val_}"):
+                                                set_leg(r["id"], i, val_)
+                                                st.rerun()
+                                if "M" in ls:
+                                    st.caption("A leg missed. If your book still pays on partial hits, use Edit, otherwise mark the slip Lost.")
+                                elif ls.count("H") == len(ls):
+                                    st.caption("Every leg hit. Tap Won to collect.")
                     b1, b2, b3, b4 = st.columns(4)
                     if b1.button("✅ Won", key=f"bw_{r['id']}"):
                         settle_bet(r["id"], r["payout"])
@@ -3030,38 +3030,46 @@ def dropdown_toggle_fix():
         }
         </script>
         <script>
-        const pd_ = window.parent;
-        if (!pd_.__nbSticky) {
-          pd_.__nbSticky = true;
-          const sc = pd_.document.createElement('script');
-          sc.textContent = `(function () {
-            function bg() {
-              let el = document.querySelector('.stApp') || document.body;
-              while (el) {
-                const c = getComputedStyle(el).backgroundColor;
-                if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c;
+        (function () {
+          const P = window.parent, doc = P.document;
+          if (P.__nbSticky2) return;
+          P.__nbSticky2 = true;
+          function bg() {
+            let el = doc.querySelector('.stApp') || doc.body;
+            while (el) {
+              const c = P.getComputedStyle(el).backgroundColor;
+              if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c;
+              el = el.parentElement;
+            }
+            return '#ffffff';
+          }
+          function isRoot(el) {
+            const t = el.getAttribute && el.getAttribute('data-testid');
+            return !el.parentElement || t === 'stMain' || t === 'stAppViewContainer' || t === 'stApp' || el.tagName === 'SECTION' || el === doc.body;
+          }
+          function apply() {
+            doc.querySelectorAll('[data-baseweb="tabs"]').forEach(function (tabs) {
+              if (tabs.closest('[data-baseweb="tab-panel"]')) return;            // only the main tabs
+              const list = tabs.querySelector('[data-baseweb="tab-list"]');
+              if (!list) return;
+              let top = list;
+              while (top.parentElement && top.parentElement !== tabs) top = top.parentElement;
+              top.style.position = 'sticky';
+              top.style.top = '3.75rem';
+              top.style.zIndex = '1000';
+              top.style.background = bg();
+              // sticky does nothing if a parent clips its content, so let those parents show overflow
+              let el = tabs;
+              while (el && !isRoot(el)) {
+                const cs = P.getComputedStyle(el);
+                if (cs.overflowY !== 'visible' || cs.overflowX !== 'visible') { el.style.overflow = 'visible'; }
                 el = el.parentElement;
               }
-              return '#ffffff';
-            }
-            function apply() {
-              document.querySelectorAll('[data-baseweb="tabs"]').forEach(function (tabs) {
-                if (tabs.closest('[data-baseweb="tab-panel"]')) return;          // only the main tabs
-                const list = tabs.querySelector('[data-baseweb="tab-list"]');
-                if (!list) return;
-                let top = list;
-                while (top.parentElement && top.parentElement !== tabs) top = top.parentElement;
-                top.style.position = 'sticky';
-                top.style.top = '3.5rem';
-                top.style.zIndex = '100';
-                top.style.background = bg();
-              });
-            }
-            apply();
-            setInterval(apply, 1000);
-          })();`;
-          pd_.document.head.appendChild(sc);
-        }
+            });
+          }
+          apply();
+          setInterval(apply, 800);
+        })();
         </script>""", height=0)
     except Exception:
         pass

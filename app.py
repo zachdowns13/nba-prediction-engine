@@ -30,6 +30,9 @@ background:linear-gradient(120deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%)}
 .b-none{background:var(--none-bg);opacity:.85}.b-bad{background:var(--bad-bg);color:var(--bad)}.b-acc{background:var(--acc-bg);color:var(--acc)}
 .nb-win{font-size:1.1rem;font-weight:700;margin:0 0 2px}
 .nb-big{font-size:2.4rem;font-weight:800;line-height:1.1;letter-spacing:.5px;margin:4px 0 0}
+.nb-winner{display:flex;align-items:center;gap:10px;font-size:1.75rem;font-weight:800;line-height:1.15;margin:2px 0 0;color:var(--acc)}
+.nb-winner .nb-logo{height:40px;width:40px;margin:0}
+.nb-fscore{font-size:1.15rem;font-weight:700;margin:2px 0 8px;opacity:.9}
 .nb-bigsub{opacity:.75;font-size:.88rem;margin-bottom:6px}
 .nb-muted{opacity:.7;font-size:.84rem}
 .nb-bl{display:flex;justify-content:space-between;font-size:.82rem;margin:6px 0 2px}
@@ -47,8 +50,23 @@ background:linear-gradient(120deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%)}
 .nb-strip span{display:inline-block;width:20px;height:20px;border-radius:5px;margin:0 3px 3px 0}
 .nb-strip .w{background:var(--ok)}.nb-strip .l{background:var(--bad)}.nb-strip .p{background:rgba(128,128,128,.55)}
 [data-testid="stMetricValue"]{font-size:1.5rem}
+.nb-logo{display:inline-block;height:24px;width:24px;background-size:contain;background-repeat:no-repeat;background-position:center;vertical-align:middle;margin-right:6px}
+.nb-logo.lg{height:48px;width:48px;margin:0 0 4px}
+.nb-podium{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:8px 0 16px}
+.nb-pod{border:1px solid var(--line);background:var(--card);border-radius:16px;padding:16px 10px;text-align:center;animation:nbrise .6s ease-out both}
+.nb-pod:nth-child(2){animation-delay:.12s}.nb-pod:nth-child(3){animation-delay:.24s}
+.nb-pod.p0{border-color:#eab308;box-shadow:0 0 0 1px rgba(234,179,8,.45),0 8px 26px rgba(234,179,8,.16)}
+.nb-medal{font-size:1.7rem;line-height:1}
+.nb-head{width:76px;height:76px;border-radius:50%;background-color:var(--none-bg);background-size:cover;background-position:top center;margin:6px auto}
+.nb-lb{display:grid;grid-template-columns:26px 36px 1fr 62px;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.nb-lb .h{width:34px;height:34px;border-radius:50%;background-color:var(--none-bg);background-size:cover;background-position:top center}
+.nb-lb .r{opacity:.55;font-weight:700;text-align:center}.nb-lb .v{text-align:right;font-weight:800}
+.nb-tip{display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:700}
+.nb-fill{animation:nbgrow .9s ease-out}
+@keyframes nbgrow{from{width:0}}
+@keyframes nbrise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 @media (max-width:640px){.nb-hero{padding:16px}.nb-hero h1{font-size:1.5rem}.nb-score .p{font-size:2rem}.nb-score .t{min-width:100px}
-.nb-grid{grid-template-columns:1fr}.block-container{padding-left:.8rem;padding-right:.8rem;padding-top:4rem !important}}
+.nb-grid{grid-template-columns:1fr}.nb-podium{grid-template-columns:1fr}.block-container{padding-left:.8rem;padding-right:.8rem;padding-top:4rem !important}}
 </style>
 """
 
@@ -67,6 +85,10 @@ def html(markup):
 
 def badge(text, kind="none"):
     return f'<span class="nb-badge b-{kind}">{H(text)}</span>'
+
+
+def logo(url, big=False):
+    return f'<span class="nb-logo{" lg" if big else ""}" style="background-image:url(\'{H(url)}\')"></span>' if url else ""
 
 
 def value_badge(edge):
@@ -102,7 +124,7 @@ def profit_chart(df):
 METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, losses and pushes (a push is a tie with the line: your stake is returned).",
                "Win %": "Share of decided picks that won.", "Break-even %": "The win rate needed to make money at the odds taken.",
                "Profit ($100 per pick)": "Total profit if you bet a flat $100 on every pick.",
-               "ROI": "Profit divided by the total amount staked.", "Model expected": "How often the model said these picks would win, on average."}
+               "Model expected": "How often the model said these picks would win, on average."}
 
 
 st.set_page_config(page_title="NBA Simulator", page_icon="🏀", layout="wide")
@@ -261,6 +283,13 @@ def parse_odds(comp, home_abbr):
 
 
 @st.cache_data(ttl=300, show_spinner=False)
+def _team_logo(team):
+    url = team.get("logo")
+    if not url and team.get("abbreviation"):
+        url = f"https://a.espncdn.com/i/teamlogos/nba/500/{str(team['abbreviation']).lower()}.png"
+    return url or ""
+
+
 def get_slate(date_iso):
     d = dt.date.fromisoformat(date_iso)
     data = _get(f"{BASE}/scoreboard", {"dates": d.strftime("%Y%m%d")})
@@ -272,6 +301,7 @@ def get_slate(date_iso):
         games.append({"id": ev["id"], "home": home["team"]["displayName"], "away": away["team"]["displayName"],
                       "home_id": home["team"].get("id"), "away_id": away["team"].get("id"),
                       "state": ev["status"]["type"]["state"],
+                      "home_logo": _team_logo(home["team"]), "away_logo": _team_logo(away["team"]),
                       "odds": parse_odds(comp, home["team"].get("abbreviation", ""))})
     return games
 
@@ -529,9 +559,9 @@ def render_result(res):
     g = res["game"]
     home_wins = res["hp"] >= res["ap"]
     html(f'<div class="nb-card"><div class="nb-score">'
-         f'<div class="t {"" if home_wins else "w"}"><div class="n">{H(g["away"])}</div><div class="p">{res["ap"]:.0f}</div></div>'
+         f'<div class="t {"" if home_wins else "w"}">{logo(g.get("away_logo"), True)}<div class="n">{H(g["away"])}</div><div class="p">{res["ap"]:.0f}</div></div>'
          f'<div class="at">@</div>'
-         f'<div class="t {"w" if home_wins else ""}"><div class="n">{H(g["home"])}</div><div class="p">{res["hp"]:.0f}</div></div></div>'
+         f'<div class="t {"w" if home_wins else ""}">{logo(g.get("home_logo"), True)}<div class="n">{H(g["home"])}</div><div class="p">{res["hp"]:.0f}</div></div></div>'
          f'<div class="nb-muted" style="text-align:center">Projected score · {SIMS:,} simulations · lines from {H(res["odds"]["provider"])}</div></div>')
     st.caption(f"Raw rating-based projection (before blending with the sportsbook line): "
                f"{by_txt(g['home'], g['away'], res['raw_m'])}, {res['raw_t']:.0f} total points.")
@@ -769,32 +799,60 @@ def first_basket_tab(M, g, injuries, now):
         rows = []
         for t, (team, five) in enumerate(((home, fives[0]), (away, fives[1]))):
             for i, p in enumerate(five):
-                rows.append({"Player": p["name"], "Team": short(team), "prob": float(np.mean((winner == t) & (scorer == i)))})
+                rows.append({"Player": p["name"], "Team": short(team), "prob": float(np.mean((winner == t) & (scorer == i))), "id": str(p["id"]), "t": t})
         T = pd.DataFrame(rows).sort_values("prob", ascending=False).reset_index(drop=True)
         st.session_state[f"fbres_{g['id']}"] = {
             "T": T, "home_first": float(np.mean(winner[done] == 0)), "tip_first": float(np.mean(winner[done] == first_off[done])),
             "odds": parse_odds_text(odds_text)}
+        st.balloons()
     res = st.session_state.get(f"fbres_{g['id']}")
     if res:
         T, book = res["T"], res["odds"]
-        top = T.iloc[0]
-        st.markdown(f"### Across {SIMS:,} simulated openings, **{top['Player']}** is the most likely first scorer at "
-                    f"**{pct(top['prob'])}** (fair odds {fair_american(top['prob'])}).")
-        st.markdown(f"**{short(home)}** score the first basket **{pct(res['home_first'])}** of the time and "
-                    f"**{short(away)}** **{pct(1 - res['home_first'])}**. The team that wins the tip scores first "
-                    f"**{pct(res['tip_first'])}** of the time (this comes from the model's assumptions, not checked against real games).")
-        out = []
-        for r in T.itertuples():
-            row = {"Player": r.Player, "Team": r.Team, "Chance to score first": pct(r.prob), "Fair odds": fair_american(r.prob)}
-            o = book.get(r.Player.lower())
-            if o is not None:
+        hf = res["home_first"]
+        medals = ["🥇", "🥈", "🥉"]
+        colors = ("var(--acc)", "#f97316")
+        html(f'<div class="nb-card" style="margin:10px 0 4px"><div class="nb-muted" style="text-align:center">🏀 Opening tip · who scores first?</div>'
+             f'<div class="nb-split" style="height:18px"><div style="width:{hf * 100:.1f}%;background:{colors[0]}"></div>'
+             f'<div style="width:{(1 - hf) * 100:.1f}%;background:{colors[1]}"></div></div>'
+             f'<div class="nb-tip"><span style="color:{colors[0]}">{logo(g.get("home_logo"))}{H(short(home))} {pct(hf)}</span>'
+             f'<span style="color:{colors[1]}">{pct(1 - hf)} {H(short(away))}{logo(g.get("away_logo"))}</span></div></div>')
+        st.markdown("### 🏆 Most likely first scorers")
+        pods = []
+        for i, r in enumerate(T.head(3).itertuples()):
+            bk = book.get(r.Player.lower())
+            bk_txt = (f'<div class="nb-muted" style="margin-top:6px">Your book: {bk:+d} ({pct(implied(bk))})</div>' if bk is not None else "")
+            pods.append(f'<div class="nb-pod p{i}"><div class="nb-medal">{medals[i]}</div>'
+                        f'<div class="nb-head" style="background-image:url(\'https://a.espncdn.com/i/headshots/nba/players/full/{H(r.id)}.png\')"></div>'
+                        f'<div class="nb-title">{H(r.Player)}</div><div class="nb-muted">{H(r.Team)}</div>'
+                        f'<div class="nb-big" style="color:{colors[int(r.t)]}">{pct(r.prob)}</div>'
+                        f'<div class="nb-bigsub">fair odds {fair_american(r.prob)}</div>{bk_txt}</div>')
+        html('<div class="nb-podium">' + "".join(pods) + '</div>')
+        st.markdown("### 📋 Full leaderboard")
+        top_p = float(T["prob"].max()) or 1.0
+        rows_html = []
+        for i, r in enumerate(T.itertuples(), start=1):
+            rows_html.append(f'<div class="nb-lb"><div class="r">{i}</div>'
+                             f'<div class="h" style="background-image:url(\'https://a.espncdn.com/i/headshots/nba/players/full/{H(r.id)}.png\')"></div>'
+                             f'<div><div><b>{H(r.Player)}</b> <span class="nb-muted">{H(r.Team)}</span></div>'
+                             f'<div class="nb-bar" style="height:8px;margin-top:4px"><div class="nb-fill" style="width:{r.prob / top_p * 100:.1f}%;background:{colors[int(r.t)]}"></div></div></div>'
+                             f'<div class="v">{pct(r.prob)}</div></div>')
+        html("".join(rows_html))
+        st.caption(f"Across {SIMS:,} simulated openings. The team that wins the tip scores first {pct(res['tip_first'])} of the time "
+                   "(this comes from the model's assumptions, not checked against real games).")
+        if book:
+            out = []
+            for r in T.itertuples():
+                o = book.get(r.Player.lower())
+                if o is None:
+                    continue
                 ev = ev100(r.prob, 0, o)
-                row["Your odds"] = f"{o:+d}"
-                row["Book implies"] = pct(implied(o))
-                row["Profit per $100 if model is right"] = f"${ev:,.0f}" if ev >= 0 else f"-${-ev:,.0f}"
-                row["Worth it?"] = "🟢 Yes" if ev > 0 else "No"
-            out.append(row)
-        st.dataframe(pd.DataFrame(out), hide_index=True)
+                out.append({"Player": r.Player, "Team": r.Team, "Chance to score first": pct(r.prob), "Fair odds": fair_american(r.prob),
+                            "Your odds": f"{o:+d}", "Book implies": pct(implied(o)),
+                            "Profit per $100 if model is right": f"${ev:,.0f}" if ev >= 0 else f"-${-ev:,.0f}",
+                            "Worth it?": "🟢 Yes" if ev > 0 else "No"})
+            if out:
+                st.markdown("### 💰 Your sportsbook prices")
+                st.dataframe(pd.DataFrame(out), hide_index=True)
         st.caption("First-basket prices carry a large built-in sportsbook fee, so a price has to beat the fair odds by a wide margin "
                    "to be worth taking. These are model estimates, not guarantees.")
 
@@ -950,9 +1008,9 @@ def props_tab(M, g, odds, injuries, date, b2b):
     st.caption(f"Model's projection for this game (the {short(home)} are projected for {res['hp']:.0f} points and the {short(away)} for {res['ap']:.0f}). "
                "Players who are out are hidden, and their teammates' numbers already include the boost.")
     pcols = st.columns(2)
-    for col, team in zip(pcols, (home, away)):
+    for col, team, lg in zip(pcols, (home, away), (g.get("home_logo"), g.get("away_logo"))):
         with col:
-            st.markdown(f"**{team}**")
+            html(f'<div style="font-weight:700;margin:4px 0">{logo(lg)}{H(team)}</div>')
             cards = []
             for r in [x for x in rows if x["Team"] == short(team)][:6]:
                 stt = (badge(r["Status"], "bad" if r["Status"].lower() in ("out", "doubtful") else "lean") if r["Status"] else "")
@@ -1313,8 +1371,7 @@ def summarize_picks(df):
     return {"Picks": len(df), "Record (W-L-P)": record_line(df),
             "Win %": f"{wins / n * 100:.1f}%" if n else "-",
             "Break-even %": f"{d['odds'].astype(float).map(implied).mean() * 100:.1f}%" if n else "-",
-            "Profit ($100 per pick)": f"${df['profit'].astype(float).sum():,.0f}",
-            "ROI": f"{df['profit'].astype(float).sum() / (100 * n) * 100:+.1f}%" if n else "-"}
+            "Profit ($100 per pick)": f"${df['profit'].astype(float).sum():,.0f}"}
 
 
 def game_results_view():
@@ -1682,11 +1739,11 @@ def slate_tab(M, date, games, injuries, b2b):
         best = max(res["rows"], key=lambda r: r["edge"]) if res["rows"] else None
         has_val = bool(best and best["edge"] >= LEAN_MIN)
         cards.append({"res": res, "wp": wp, "edge": best["edge"] if has_val else -1.0, "val": has_val, "order": len(cards),
-                      "html": (f'<div class="nb-card"><div class="nb-top"><span class="nb-title">{H(short(g["away"]))} @ {H(short(g["home"]))}</span>'
+                      "html": (f'<div class="nb-card"><div class="nb-top"><span class="nb-title">{logo(g.get("away_logo"))}{H(short(g["away"]))} @ {logo(g.get("home_logo"))}{H(short(g["home"]))}</span>'
                                f'{value_badge(best["edge"]) if best else badge("No lines yet", "none")}</div>'
-                               f'<div class="nb-muted">Projected final score</div>'
-                               f'<div class="nb-big">{hi} – {lo}</div>'
-                               f'<div class="nb-bigsub">{H(short(win_team))} over {H(short(lose_team))}</div>'
+                               f'<div class="nb-muted">🏆 Predicted winner</div>'
+                               f'<div class="nb-winner">{logo(g.get("home_logo") if home_fav else g.get("away_logo"))}{H(win_team)}</div>'
+                               f'<div class="nb-fscore">{hi} – {lo} over {H(short(lose_team))}</div>'
                                + bar(f"{short(win_team)} win chance", wp, "var(--acc)")
                                + f'<div class="nb-chips"><span class="nb-chip">Spread: {H(short(g["home"]))} {-res["med_m"]:+.1f}</span>'
                                f'<span class="nb-chip">Total: {res["med_t"]:.0f}</span></div>'

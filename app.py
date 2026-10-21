@@ -2130,12 +2130,13 @@ LEG_STATS = ["Points", "Rebounds", "Assists", "3-pointers made", "Points + rebou
 TEAM_BETS = ["Moneyline (to win)", "Spread", "Game total over", "Game total under"]
 
 
-def _search_select(label, options, key):
+def _search_select(label, options, key, where=None):
+    where = where or st
     # A dropdown you can type into to filter; also accepts a name that isn't in the list when Streamlit supports it.
     try:
-        return st.selectbox(label, options, index=None, placeholder="Start typing...", key=key, accept_new_options=True)
+        return where.selectbox(label, options, index=None, placeholder="Start typing...", key=key, accept_new_options=True)
     except TypeError:
-        return st.selectbox(label, options, index=None, placeholder="Start typing...", key=key)
+        return where.selectbox(label, options, index=None, placeholder="Start typing...", key=key)
 
 
 def leg_builder(key):
@@ -2145,26 +2146,25 @@ def leg_builder(key):
     if kind == "Type it myself":
         return st.text_input("The bet", placeholder="e.g. Booker first basket", key=f"{key}_free").strip()
     if kind == "Player prop":
-        c1, c2 = st.columns([2, 2])
-        who = _search_select("Player", players, f"{key}_who")
+        c1, c2, c3, c4 = st.columns([3, 2.4, 1.3, 1.3])
+        who = _search_select("Player", players, f"{key}_who", c1)
         stat = c2.selectbox("Stat", LEG_STATS, key=f"{key}_stat")
         if stat in ("Double-double", "Triple-double"):
             return f"{who} {stat.lower()}" if who else ""
-        d1, d2 = st.columns(2)
-        side = d1.radio("Side", ["Over", "Under"], horizontal=True, key=f"{key}_side")
-        line = d2.number_input("Line", min_value=0.0, value=0.0, step=0.5, format="%.1f", key=f"{key}_line")
+        line = c3.number_input("Line", min_value=0.0, value=0.0, step=0.5, format="%.1f", key=f"{key}_line")
+        side = c4.selectbox("Over/Under", ["Over", "Under"], key=f"{key}_side")
         if not who or line <= 0:
             return ""
         return f"{who} {side.lower()} {line:g} {stat.lower().replace('3-pointers made', '3s made')}"
-    c1, c2 = st.columns(2)
-    team = _search_select("Team", teams, f"{key}_team")
+    c1, c2, c3 = st.columns([3, 2.4, 2.6])
+    team = _search_select("Team", teams, f"{key}_team", c1)
     what = c2.selectbox("Bet", TEAM_BETS, key=f"{key}_what")
     if what.startswith("Moneyline"):
         return f"{team} ML" if team else ""
     if what == "Spread":
-        sp = st.number_input("Spread (use - for favorite)", value=0.0, step=0.5, format="%.1f", key=f"{key}_sp")
+        sp = c3.number_input("Spread (- = favorite)", value=0.0, step=0.5, format="%.1f", key=f"{key}_sp")
         return f"{team} {sp:+g}" if team else ""
-    tot = st.number_input("Total points", min_value=0.0, value=0.0, step=0.5, format="%.1f", key=f"{key}_tot")
+    tot = c3.number_input("Total points", min_value=0.0, value=0.0, step=0.5, format="%.1f", key=f"{key}_tot")
     if not team or tot <= 0:
         return ""
     return f"{team} game total {'over' if 'over' in what else 'under'} {tot:g}"

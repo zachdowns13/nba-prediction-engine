@@ -15,7 +15,7 @@ NB_CSS = """
 <style>
 :root{--ok:#16a34a;--ok-bg:rgba(34,197,94,.16);--lean:#b7791f;--lean-bg:rgba(234,179,8,.18);--none-bg:rgba(128,128,128,.16);
 --bad:#dc2626;--bad-bg:rgba(239,68,68,.16);--acc:#3b82f6;--acc-bg:rgba(59,130,246,.16);--card:rgba(128,128,128,.07);--line:rgba(128,128,128,.28)}
-.block-container{padding-top:1.2rem;max-width:1250px}
+.block-container{padding-top:4.5rem !important;max-width:1250px}
 .nb-hero{border-radius:18px;padding:22px 26px;margin-bottom:14px;color:#fff;
 background:linear-gradient(120deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%)}
 .nb-hero h1{margin:0;font-size:2rem;color:#fff;padding:0}
@@ -28,7 +28,9 @@ background:linear-gradient(120deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%)}
 .nb-badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.76rem;font-weight:700;white-space:nowrap}
 .b-ok{background:var(--ok-bg);color:var(--ok)}.b-lean{background:var(--lean-bg);color:var(--lean)}
 .b-none{background:var(--none-bg);opacity:.85}.b-bad{background:var(--bad-bg);color:var(--bad)}.b-acc{background:var(--acc-bg);color:var(--acc)}
-.nb-win{font-size:1.25rem;font-weight:800;margin:2px 0}
+.nb-win{font-size:1.1rem;font-weight:700;margin:0 0 2px}
+.nb-big{font-size:2.4rem;font-weight:800;line-height:1.1;letter-spacing:.5px;margin:4px 0 0}
+.nb-bigsub{opacity:.75;font-size:.88rem;margin-bottom:6px}
 .nb-muted{opacity:.7;font-size:.84rem}
 .nb-bl{display:flex;justify-content:space-between;font-size:.82rem;margin:6px 0 2px}
 .nb-bar{height:10px;border-radius:6px;background:var(--none-bg);overflow:hidden}
@@ -46,7 +48,7 @@ background:linear-gradient(120deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%)}
 .nb-strip .w{background:var(--ok)}.nb-strip .l{background:var(--bad)}.nb-strip .p{background:rgba(128,128,128,.55)}
 [data-testid="stMetricValue"]{font-size:1.5rem}
 @media (max-width:640px){.nb-hero{padding:16px}.nb-hero h1{font-size:1.5rem}.nb-score .p{font-size:2rem}.nb-score .t{min-width:100px}
-.nb-grid{grid-template-columns:1fr}.block-container{padding-left:.8rem;padding-right:.8rem}}
+.nb-grid{grid-template-columns:1fr}.block-container{padding-left:.8rem;padding-right:.8rem;padding-top:4rem !important}}
 </style>
 """
 
@@ -934,6 +936,8 @@ def props_tab(M, g, odds, injuries, date, b2b):
         roster = set(get_roster(tid)) if tid else set()
         pr = project_team(team, logs, team_pts, proj_pts[team], out_probs, roster or None)
         for aid, p in sorted(pr.items(), key=lambda kv: -kv[1]["min"]):
+            if status.get(aid, "").lower().startswith("out"):
+                continue                                   # players who are out get no projection
             all_proj[(team, p["name"])] = {"p": p, "logs": logs[aid]["games"]}
             rows.append({"Team": short(team), "Player": p["name"], "Status": status.get(aid, ""), "Min": round(p["min"]),
                          "Pts": round(p["pts"], 1), "Reb": round(p["reb"], 1), "Ast": round(p["ast"], 1), "3PM": round(p["tpm"], 1),
@@ -944,7 +948,7 @@ def props_tab(M, g, odds, injuries, date, b2b):
     st.session_state.setdefault("props_proj", {})[f"{away} @ {home}"] = [r for r in rows]
     st.markdown("### Projected stat lines")
     st.caption(f"Model's projection for this game (the {short(home)} are projected for {res['hp']:.0f} points and the {short(away)} for {res['ap']:.0f}). "
-               "Players marked Out are shown for reference. Their teammates' numbers already include the boost.")
+               "Players who are out are hidden, and their teammates' numbers already include the boost.")
     pcols = st.columns(2)
     for col, team in zip(pcols, (home, away)):
         with col:
@@ -1673,15 +1677,18 @@ def slate_tab(M, date, games, injuries, b2b):
         home_fav = p_h >= 0.5
         wp = p_h if home_fav else 1 - p_h
         win_team = g["home"] if home_fav else g["away"]
+        lose_team = g["away"] if home_fav else g["home"]
+        hi, lo = sorted((round(res["hp"]), round(res["ap"])), reverse=True)       # higher score always shown first
         best = max(res["rows"], key=lambda r: r["edge"]) if res["rows"] else None
         has_val = bool(best and best["edge"] >= LEAN_MIN)
         cards.append({"res": res, "wp": wp, "edge": best["edge"] if has_val else -1.0, "val": has_val, "order": len(cards),
                       "html": (f'<div class="nb-card"><div class="nb-top"><span class="nb-title">{H(short(g["away"]))} @ {H(short(g["home"]))}</span>'
                                f'{value_badge(best["edge"]) if best else badge("No lines yet", "none")}</div>'
-                               f'<div class="nb-muted">Predicted winner</div><div class="nb-win">{H(win_team)}</div>'
-                               + bar("Win chance", wp, "var(--acc)")
-                               + f'<div class="nb-chips"><span class="nb-chip">📊 {H(short(g["away"]))} {res["ap"]:.0f} – {H(short(g["home"]))} {res["hp"]:.0f}</span>'
-                               f'<span class="nb-chip">Spread: {H(short(g["home"]))} {-res["med_m"]:+.1f}</span>'
+                               f'<div class="nb-muted">Projected final score</div>'
+                               f'<div class="nb-big">{hi} – {lo}</div>'
+                               f'<div class="nb-bigsub">{H(short(win_team))} over {H(short(lose_team))}</div>'
+                               + bar(f"{short(win_team)} win chance", wp, "var(--acc)")
+                               + f'<div class="nb-chips"><span class="nb-chip">Spread: {H(short(g["home"]))} {-res["med_m"]:+.1f}</span>'
                                f'<span class="nb-chip">Total: {res["med_t"]:.0f}</span></div>'
                                + (f'<div class="nb-muted" style="margin-top:2px">💰 Best spot: <b>{H(pick_name(best))}</b> ({H(best["market"])}, {best["edge"] * 100:+.1f} pts edge)</div>' if has_val else "")
                                + '</div>')})
@@ -1700,7 +1707,9 @@ def slate_tab(M, date, games, injuries, b2b):
     with st.expander("See predictions as a table"):
         st.dataframe(pd.DataFrame([{
             "Game": f"{short(c['res']['game']['away'])} @ {short(c['res']['game']['home'])}",
-            "Projected score": f"{short(c['res']['game']['away'])} {c['res']['ap']:.0f}, {short(c['res']['game']['home'])} {c['res']['hp']:.0f}",
+            "Projected score": (lambda r: f"{short(r['game']['home'] if r['p_home'] >= 0.5 else r['game']['away'])} over "
+                                f"{short(r['game']['away'] if r['p_home'] >= 0.5 else r['game']['home'])}, "
+                                + " – ".join(str(x) for x in sorted((round(r['hp']), round(r['ap'])), reverse=True)))(c["res"]),
             "Predicted winner": short(c["res"]["game"]["home"] if c["res"]["p_home"] >= 0.5 else c["res"]["game"]["away"]),
             "Win chance": pct(c["wp"]), "Model spread": f"{short(c['res']['game']['home'])} {-c['res']['med_m']:+.1f}",
             "Model total": f"{c['res']['med_t']:.0f}"} for c in cards]), hide_index=True)

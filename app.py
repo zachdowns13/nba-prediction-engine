@@ -158,9 +158,9 @@ hero = st.container()          # filled in below once the date and games are kno
 # =====================================================================
 # Rating model settings. Run the Colab notebook (NBA_Model_v2) and copy the "Chosen settings"
 # it prints into PARAMS. These defaults are sensible starting points, not tuned values.
-PARAMS = {"half_life": 120.0, "ridge": 30.0, "prev_w": 0.6}
-BETA_M, BETA_T = 0.30, 0.25      # how far the model may move the sportsbook's margin / total (from Colab, section 7)
-SD_M, SD_T = 13.0, 18.0          # typical miss on the margin / the total (from Colab)
+PARAMS = {"half_life": 90.0, "ridge": 10.0, "prev_w": 0.8}      # tuned in the Colab notebook on last season
+BETA_M, BETA_T = 0.10, 0.10      # how far the model may move the sportsbook's margin / total (Colab section 7 measured about 0%, so this is kept small)
+SD_M, SD_T = 13.6, 18.3          # typical miss on the margin / the total (about 1.25 x the average miss measured in Colab)
 SIMS = 10_000
 LEAN_MIN, LEAN_STRONG = 0.02, 0.04
 FB_HISTORY_GAMES = 10            # first-basket: team games used to estimate each player

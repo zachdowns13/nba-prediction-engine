@@ -2749,8 +2749,6 @@ def chat_stream(client, anthropic_mod, system, messages, model, use_web, sources
 
 
 def chat_tab(date, games, injuries):
-    st.caption("Ask about today's games, the model's projections, injuries or your saved results, or general NBA questions. It only sees today's "
-               "data this app has loaded (run the Full slate first for model numbers); anything else comes from its general knowledge, which can be out of date.")
     key = get_api_key()
     if not key:
         st.info("To turn on the chat, add your Claude API key. Create one at platform.claude.com/settings/keys, then in Streamlit Cloud "
@@ -2764,62 +2762,59 @@ def chat_tab(date, games, injuries):
         st.error("The `anthropic` package isn't installed. Add a line `anthropic` to requirements.txt and redeploy.")
         return
     msgs = st.session_state.setdefault("chat_msgs", [])
-    cm, cw = st.columns([2, 1])
+    cm, cw, cc = st.columns([3, 2, 1], vertical_alignment="bottom") if _has_valign() else st.columns([3, 2, 1])
     quality = cm.selectbox("AI model", list(CHAT_MODELS), key="chat_model")
     use_web = cw.checkbox("Search the web", value=True, key="chat_web",
                           help="Lets the AI look up exact stats, news and prop lines. Each search is billed to your API account.")
-    # Box at the TOP, newest answer directly under it, older questions further down.
-    with st.form("chat_form", clear_on_submit=True):
-        prompt = st.text_input("Ask about today's games, player props, stats, anything NBA", placeholder="e.g. Is Devin Booker over 25.5 points a good bet tonight?")
-        c1, c2 = st.columns([1, 1])
-        asked = c1.form_submit_button("Ask")
-        cleared = c2.form_submit_button("Clear chat")
-    if cleared:
+    if cc.button("🗑️ Clear", key="chat_clear", help="Start a new conversation"):
         st.session_state["chat_msgs"] = msgs = []
-    quick = st.session_state.pop("chat_quick", None)
-    if not msgs:
-        st.caption("Quick questions:")
-        qcols = st.columns(3)
-        for qc, q in zip(qcols, ("Which games does the model like most today?", "Who's injured that matters tonight?", "Explain the best value play in simple terms.")):
-            if qc.button(q, key=f"quick_{q[:12]}"):
-                st.session_state["chat_quick"] = q
-                st.rerun()
-    live = st.container()
-    history = st.container()
-    if quick:
-        asked, prompt = True, quick
-    prompt = (prompt or "").strip()
+        st.rerun()
 
     def show_sources(srcs):
         if srcs:
             st.caption("Sources: " + " · ".join(f"[{t}]({u})" for t, u in srcs[:8]))
 
-    if asked and prompt:
-        sources = []
-        with live:
+    # A normal chat layout: conversation scrolls inside a fixed box (oldest at the top, newest at the bottom), box to type in right under it.
+    box = st.container(height=520, border=True)
+    typed = st.chat_input("Ask about today's games, player props, stats, anything NBA")
+    quick = st.session_state.pop("chat_quick", None)
+    prompt = (quick or typed or "").strip()
+
+    with box:
+        if not msgs and not prompt:
+            st.markdown("#### 💬 Ask me anything about tonight's games")
+            st.caption("I can see the games, lines, injuries and model numbers loaded in this app. Run the Full slate first for model numbers. "
+                       "Anything else comes from general knowledge or a web search, so double-check anything important.")
+            for q in ("Which games does the model like most today?", "Who's injured that matters tonight?", "Explain the best value play in simple terms."):
+                if st.button(q, key=f"quick_{q[:12]}", use_container_width=True):
+                    st.session_state["chat_quick"] = q
+                    st.rerun()
+        for m in msgs:
+            with st.chat_message(m["role"]):
+                st.markdown(m["content"])
+                show_sources(m.get("sources"))
+        if prompt:
             with st.chat_message("user"):
                 st.markdown(prompt)
+            sources = []
             system = CHAT_SYSTEM + "\n\n<context>\n" + build_chat_context(date, games, injuries) + "\n</context>"
             client = anthropic.Anthropic(api_key=key)
             with st.chat_message("assistant"):
                 reply = st.write_stream(chat_stream(client, anthropic, system, msgs_for_api(msgs, prompt), CHAT_MODELS[quality], use_web, sources))
                 show_sources(sources)
-        reply = reply if isinstance(reply, str) else "".join(map(str, reply))
-        msgs.append({"role": "user", "content": prompt})
-        msgs.append({"role": "assistant", "content": reply, "sources": sources})
-        shown = msgs[:-2]
-    else:
-        shown = msgs
-    with history:
-        if not msgs:
-            st.caption("Try: “Which games does the model like most today?” · “What's the model's projection for the first player in the Suns game?” · "
-                       "“How many times has Devin Booker played the Trail Blazers in his career?”")
-        pairs = [shown[i:i + 2] for i in range(0, len(shown), 2)]
-        for pair in reversed(pairs):                      # newest first
-            for m in pair:
-                with st.chat_message(m["role"]):
-                    st.markdown(m["content"])
-                    show_sources(m.get("sources"))
+            reply = reply if isinstance(reply, str) else "".join(map(str, reply))
+            msgs.append({"role": "user", "content": prompt})
+            msgs.append({"role": "assistant", "content": reply, "sources": sources})
+    st.caption("Answers are model estimates and general knowledge, not guarantees.")
+
+
+def _has_valign():
+    # Older Streamlit versions don't have vertical_alignment on columns.
+    try:
+        import inspect
+        return "vertical_alignment" in inspect.signature(st.columns).parameters
+    except Exception:
+        return False
 
 
 def msgs_for_api(msgs, prompt):

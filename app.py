@@ -298,7 +298,6 @@ def parse_odds(comp, home_abbr):
     return out
 
 
-@st.cache_data(ttl=300, show_spinner=False)
 def _team_logo(team):
     url = team.get("logo")
     if not url and team.get("abbreviation"):
@@ -306,6 +305,7 @@ def _team_logo(team):
     return url or ""
 
 
+@st.cache_data(ttl=300, show_spinner=False)
 def get_slate(date_iso):
     d = dt.date.fromisoformat(date_iso)
     data = _get(f"{BASE}/scoreboard", {"dates": d.strftime("%Y%m%d")})

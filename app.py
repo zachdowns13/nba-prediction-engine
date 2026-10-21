@@ -2974,6 +2974,46 @@ def game_picker(tab):
 
 
 NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "💬 AI chat"]
+LOCKED_NAV = "🔒 Private"
+
+
+def get_passcode():
+    try:
+        pc = st.secrets.get("APP_PASSCODE")
+    except Exception:
+        pc = None
+    return str(pc or os.environ.get("APP_PASSCODE") or "")
+
+
+PASSCODE = get_passcode()
+private_ok = (not PASSCODE) or bool(st.session_state.get("unlocked"))
+menu = NAV if private_ok else NAV[:4] + [LOCKED_NAV]
+if "_goto" in st.session_state:                           # jump to a section after unlocking
+    st.session_state["main_nav"] = st.session_state.pop("_goto")
+if st.session_state.get("main_nav") not in menu:
+    st.session_state["main_nav"] = menu[0]
+
+
+def private_gate():
+    # Shown instead of the private sections until the right passcode is entered.
+    st.markdown("### 🔒 Private sections")
+    st.caption("Results, My bets and AI chat are only for the owner of this app. Enter the passcode to open them.")
+    with st.form("unlock_form"):
+        pw = st.text_input("Passcode", type="password")
+        go = st.form_submit_button("Unlock")
+    if go:
+        import hmac
+        if hmac.compare_digest(pw.encode(), PASSCODE.encode()):
+            st.session_state["unlocked"] = True
+            st.session_state["_goto"] = NAV[5]
+            st.rerun()
+        else:
+            st.error("That passcode isn't right.")
+
+
+def open_warning():
+    if not PASSCODE:
+        st.caption("⚠️ Anyone with this link can see this section. To hide it, add `APP_PASSCODE = \"your-passcode\"` in Streamlit Secrets.")
 st.markdown("""<style>
 .st-key-navbar{position:sticky;top:3.75rem;z-index:1000;background:var(--nb-bg,#ffffff);padding:.35rem 0 .45rem;margin-bottom:.5rem;
   border-bottom:1px solid rgba(128,128,128,.28)}
@@ -2990,7 +3030,7 @@ try:
 except TypeError:                                        # older Streamlit without container keys
     _nav_box = st.container()
 with _nav_box:
-    nav = st.radio("Section", NAV, horizontal=True, key="main_nav", label_visibility="collapsed")
+    nav = st.radio("Section", menu, horizontal=True, key="main_nav", label_visibility="collapsed")
 
 def terms_help():
   with st.expander("What do these terms mean?"):
@@ -3129,11 +3169,17 @@ if nav == NAV[3]:
     game_picker("fb")
     first_basket_tab(M, g, injuries, date)
 
-if nav == NAV[4]:
+if nav == LOCKED_NAV and not private_ok:
+    private_gate()
+
+if nav == NAV[4] and private_ok:
+    open_warning()
     results_tab()
 
-if nav == NAV[5]:
+if nav == NAV[5] and private_ok:
+    open_warning()
     bets_tab()
 
-if nav == NAV[6]:
+if nav == NAV[6] and private_ok:
+    open_warning()
     chat_tab(date, games, injuries)

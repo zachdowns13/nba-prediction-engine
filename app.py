@@ -2805,7 +2805,7 @@ def chat_tab(date, games, injuries):
     quick = st.session_state.pop("chat_quick", None)
     prompt = (quick or typed or "").strip()
 
-    live = st.container()
+    live = st.container(height=560, border=True)   # the conversation scrolls inside this box, not the whole page
     pairs = [msgs[i:i + 2] for i in range(0, len(msgs) - 1, 2)]
     if prompt:
         older, current = pairs, None
@@ -2838,14 +2838,14 @@ def chat_tab(date, games, injuries):
             msgs.append({"role": "user", "content": prompt})
             msgs.append({"role": "assistant", "content": reply, "sources": sources})
 
-    if older:
-        st.markdown("##### Earlier")
-        for pair in reversed(older):                       # newest first
-            q = pair[0]["content"]
-            with st.expander(q if len(q) <= 90 else q[:87] + "..."):
-                for m in pair[1:]:
-                    st.markdown(m["content"])
-                    show_sources(m.get("sources"))
+        if older:
+            st.markdown("##### Earlier")
+            for pair in reversed(older):                   # newest first
+                q = pair[0]["content"]
+                with st.expander(q if len(q) <= 90 else q[:87] + "..."):
+                    for m in pair[1:]:
+                        st.markdown(m["content"])
+                        show_sources(m.get("sources"))
     if msgs or prompt:
         st.caption("Answers are model estimates and general knowledge, not guarantees.")
 
@@ -3008,6 +3008,40 @@ def dropdown_toggle_fix():
               if (Date.now() - closing < 700 && inSelect(e)) { e.preventDefault(); e.stopPropagation(); }
             }, true);
           });
+        }
+        </script>
+        <script>
+        const pd_ = window.parent;
+        if (!pd_.__nbSticky) {
+          pd_.__nbSticky = true;
+          const sc = pd_.document.createElement('script');
+          sc.textContent = `(function () {
+            function bg() {
+              let el = document.querySelector('.stApp') || document.body;
+              while (el) {
+                const c = getComputedStyle(el).backgroundColor;
+                if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c;
+                el = el.parentElement;
+              }
+              return '#ffffff';
+            }
+            function apply() {
+              document.querySelectorAll('[data-baseweb="tabs"]').forEach(function (tabs) {
+                if (tabs.closest('[data-baseweb="tab-panel"]')) return;          // only the main tabs
+                const list = tabs.querySelector('[data-baseweb="tab-list"]');
+                if (!list) return;
+                let top = list;
+                while (top.parentElement && top.parentElement !== tabs) top = top.parentElement;
+                top.style.position = 'sticky';
+                top.style.top = '3.5rem';
+                top.style.zIndex = '100';
+                top.style.background = bg();
+              });
+            }
+            apply();
+            setInterval(apply, 1000);
+          })();`;
+          pd_.document.head.appendChild(sc);
         }
         </script>""", height=0)
     except Exception:

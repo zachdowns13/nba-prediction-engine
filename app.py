@@ -1,5 +1,6 @@
 import os
 import re
+import uuid
 import math
 import datetime as dt
 from concurrent.futures import ThreadPoolExecutor
@@ -1985,6 +1986,244 @@ def results_tab():
 
 
 # =====================================================================
+# MY BETS  (what you actually bet, and how it turned out)
+# =====================================================================
+BET_BOOKS = ["PrizePicks", "Underdog", "Kalshi", "Chalkboard", "Sleeper", "DraftKings", "Novig"]
+BET_LOG_PATH = "bets_log.csv"
+BET_COLS = ["id", "date", "book", "type", "desc", "legs", "stake", "payout", "result", "returned", "profit", "settled_at"]
+_BET_TXT = ("id", "date", "book", "type", "desc", "result", "settled_at")
+_BET_NUM = ("legs", "stake", "payout", "returned", "profit")
+
+
+def clean_bets(df):
+    df = df.reindex(columns=BET_COLS).copy()
+    for c in _BET_TXT:
+        df[c] = df[c].astype(object).where(df[c].notna(), "").astype(str)
+    for c in _BET_NUM:
+        df[c] = pd.to_numeric(df[c], errors="coerce").astype(float)
+    return df.reset_index(drop=True)
+
+
+def load_bets():
+    try:
+        return clean_bets(pd.read_csv(BET_LOG_PATH, dtype=str))
+    except Exception:
+        return st.session_state.get("bets_df", clean_bets(pd.DataFrame(columns=BET_COLS)))
+
+
+def save_bets(df):
+    st.session_state["bets_df"] = df
+    try:
+        df.to_csv(BET_LOG_PATH, index=False)
+        return True
+    except Exception:
+        return False
+
+
+def bet_odds(stake, payout):
+    # American odds equivalent of a stake / payout pair (used for the break-even figure).
+    if not stake or stake <= 0 or not payout or payout <= stake:
+        return np.nan
+    d = payout / stake
+    return (d - 1) * 100 if d >= 2 else -100 / (d - 1)
+
+
+def add_bet(row):
+    df = load_bets()
+    save_bets(clean_bets(pd.concat([df, pd.DataFrame([row])], ignore_index=True)))
+
+
+def settle_bet(bet_id, returned):
+    # returned = the total amount that came back to you (0 for a loss, the stake for a push, the payout for a win).
+    df = load_bets()
+    for i in df.index[df["id"] == bet_id]:
+        stake = float(df.at[i, "stake"])
+        df.at[i, "returned"] = float(returned)
+        df.at[i, "profit"] = float(returned) - stake
+        df.at[i, "result"] = "W" if returned > stake + 0.005 else ("P" if abs(returned - stake) <= 0.005 else "L")
+        df.at[i, "settled_at"] = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+    save_bets(df)
+
+
+def reopen_bet(bet_id):
+    df = load_bets()
+    for i in df.index[df["id"] == bet_id]:
+        df.at[i, "result"], df.at[i, "returned"], df.at[i, "profit"], df.at[i, "settled_at"] = "", np.nan, np.nan, ""
+    save_bets(df)
+
+
+def delete_bet(bet_id):
+    df = load_bets()
+    save_bets(clean_bets(df[df["id"] != bet_id]))
+
+
+def bet_item(r):
+    # One row for the pick_rows_html list.
+    kind = "Parlay" + (f" ({int(r['legs'])} legs)" if r["legs"] and r["legs"] >= 2 else "") if r["type"] == "Parlay" else "Straight"
+    return {"title": r["desc"] or "(no description)", "sub": f"{r['book']} · {kind} · {_nice_date(r['date'])} · ${r['stake']:,.2f} to win ${r['payout'] - r['stake']:,.2f}",
+            "odds": f"${r['stake']:,.0f} → ${r['payout']:,.0f}", "result": r["result"], "profit": r["profit"]}
+
+
+def bets_input_view():
+    st.caption("Log every bet you place, then mark it Won, Lost or Push when it settles. Your results show up in the **Results** tab here.")
+    n = st.session_state.setdefault("bet_form_n", 0)
+    k = lambda name: f"bet_{n}_{name}"
+    if st.session_state.get("bet_msg"):
+        st.success(st.session_state.pop("bet_msg"))
+    with st.container(border=True):
+        st.markdown("**Add a bet**")
+        c1, c2, c3 = st.columns(3)
+        placed = c1.date_input("Date", dt.date.today(), key=k("date"))
+        book = c2.selectbox("Book", BET_BOOKS + ["Other"], key=k("book"))
+        btype = c3.radio("Type", ["Straight", "Parlay"], horizontal=True, key=k("type"))
+        if btype == "Parlay":
+            d1, d2 = st.columns([4, 1])
+            desc = d1.text_input("The legs", placeholder="e.g. Booker over 26.5 pts + Maxey over 24.5 pts + Suns ML", key=k("desc"))
+            legs = d2.number_input("Legs", min_value=2, max_value=20, value=2, step=1, key=k("legs"))
+        else:
+            desc = st.text_input("The bet", placeholder="e.g. Devin Booker over 26.5 points", key=k("desc"))
+            legs = 1
+        e1, e2 = st.columns(2)
+        stake = e1.number_input("Amount you put in ($)", min_value=0.0, value=10.0, step=1.0, key=k("stake"))
+        payout = e2.number_input("Payout if it wins ($, the total you get back)", min_value=0.0, value=0.0, step=1.0, key=k("payout"))
+        if stake > 0 and payout > stake:
+            st.caption(f"Profit if it wins: **${payout - stake:,.2f}** · you'd need to win about **{stake / payout * 100:.0f}%** of bets like this to break even.")
+        if st.button("💾 Save bet", type="primary", key=k("save")):
+            if not str(desc).strip():
+                st.error("Add a short description of the bet.")
+            elif stake <= 0:
+                st.error("Enter how much you put in.")
+            elif payout <= stake:
+                st.error("The payout is the total you get back, so it has to be more than what you put in.")
+            else:
+                add_bet({"id": uuid.uuid4().hex[:8], "date": placed.isoformat(), "book": book, "type": btype, "desc": str(desc).strip(),
+                         "legs": int(legs), "stake": float(stake), "payout": float(payout), "result": "", "returned": np.nan,
+                         "profit": np.nan, "settled_at": ""})
+                st.session_state["bet_form_n"] = n + 1                  # clears the form
+                st.session_state["bet_msg"] = f"Saved: {str(desc).strip()} ({book}, ${stake:,.2f} to win ${payout - stake:,.2f})."
+                st.rerun()
+
+    df = load_bets()
+    open_ = df[df["result"] == ""].sort_values("date")
+    st.markdown(f'<div class="nb-sec">Open bets ({len(open_)})</div>', unsafe_allow_html=True)
+    if open_.empty:
+        st.caption("No open bets. Add one above.")
+    else:
+        st.caption(f"${open_['stake'].sum():,.2f} at risk. Tap a button when the bet settles.")
+        for _, r in open_.iterrows():
+            with st.container(border=True):
+                pick_rows_html([bet_item(r)])
+                b1, b2, b3, b4 = st.columns(4)
+                if b1.button("✅ Won", key=f"bw_{r['id']}"):
+                    settle_bet(r["id"], r["payout"])
+                    st.rerun()
+                if b2.button("❌ Lost", key=f"bl_{r['id']}"):
+                    settle_bet(r["id"], 0.0)
+                    st.rerun()
+                if b3.button("➖ Push", key=f"bp_{r['id']}"):
+                    settle_bet(r["id"], r["stake"])
+                    st.rerun()
+                if b4.button("🗑️ Delete", key=f"bd_{r['id']}"):
+                    delete_bet(r["id"])
+                    st.rerun()
+
+    if len(df):
+        with st.expander("Fix or delete a bet"):
+            labels = {f"{_nice_date(r['date'])} · {r['book']} · {r['desc'][:50]} · ${r['stake']:,.0f}": r["id"] for _, r in df.sort_values("date", ascending=False).iterrows()}
+            pick = st.selectbox("Choose a bet", list(labels), key="bet_fix_pick")
+            bid = labels[pick]
+            row = df[df["id"] == bid].iloc[0]
+            f1, f2 = st.columns(2)
+            amt = f1.number_input("It paid out ($, total back to you)", min_value=0.0, value=float(row["returned"]) if pd.notna(row["returned"]) else 0.0,
+                                  step=1.0, key=f"bet_fix_amt_{bid}")
+            st.caption("Use this for a cash-out or a partial payout. 0 counts as a loss, your stake back counts as a push, more than your stake as a win.")
+            g1, g2, g3 = st.columns(3)
+            if g1.button("Save this payout", key=f"bet_fix_save_{bid}"):
+                settle_bet(bid, amt)
+                st.rerun()
+            if g2.button("Mark as waiting again", key=f"bet_fix_open_{bid}"):
+                reopen_bet(bid)
+                st.rerun()
+            if g3.button("Delete this bet", key=f"bet_fix_del_{bid}"):
+                delete_bet(bid)
+                st.rerun()
+
+    with st.expander("My bets backup and restore"):
+        st.caption("On Streamlit Cloud the saved file can be erased when the app restarts or is redeployed, so download a backup now and then and "
+                   "upload it here to restore. Anyone who opens this site can see and change your bets.")
+        st.download_button("⬇️ Download my bets (CSV)", df.to_csv(index=False), file_name="bets_log.csv", mime="text/csv")
+        up = st.file_uploader("Restore from a saved bets file (CSV)", type="csv", key="bets_up")
+        if up is not None and st.button("Merge uploaded bets"):
+            try:
+                other = clean_bets(pd.read_csv(up, dtype=str))
+                merged = pd.concat([df, other], ignore_index=True)
+                merged["_g"] = merged["result"] != ""
+                merged = merged.sort_values("_g", ascending=False).drop_duplicates("id").drop(columns="_g")
+                save_bets(clean_bets(merged))
+                st.success(f"Bets restored: {len(merged)} saved.")
+            except Exception as e:
+                st.error(f"Could not read that file: {e}")
+        confirm = st.checkbox("I'm sure I want to erase all my bets", key="bets_erase_ok")
+        if st.button("🗑️ Erase all my bets") and confirm:
+            save_bets(clean_bets(pd.DataFrame(columns=BET_COLS)))
+            st.success("Bets erased.")
+
+
+def bets_results_view():
+    df = load_bets()
+    if df.empty:
+        st.info("No bets yet. Add one in the **My bets** subtab and your results will show up here.")
+        return
+    done = df[df["result"].isin(["W", "L", "P"])].copy()
+    open_ = df[df["result"] == ""]
+    if done.empty:
+        st.info(f"No settled bets yet. {len(open_)} open (${open_['stake'].sum():,.2f} at risk). Mark them Won, Lost or Push in the **My bets** subtab.")
+        return
+    done["odds"] = [bet_odds(a, b) for a, b in zip(done["stake"], done["payout"])]
+    s = pick_stats(done)
+    html('<div class="nb-tiles">'
+         + stat_tile("Profit", _signed_money(s["profit"]), f"on ${done['stake'].sum():,.0f} bet", _tone(s["profit"]))
+         + stat_tile("Record", s["rec"], f"{len(open_)} open (${open_['stake'].sum():,.0f} at risk)" if len(open_) else "all settled")
+         + stat_tile("Win rate", f"{s['win'] * 100:.0f}%" if s["win"] is not None else "-", "wins out of wins + losses")
+         + stat_tile("Biggest win", _signed_money(float(done["profit"].max())), "single bet")
+         + '</div>')
+    if 0 < s["n"] < 30:
+        st.caption(f"Early days: only {s['n']} settled bets so far, so these numbers can swing a lot.")
+    form_strip(done.sort_values(["date", "settled_at"])["result"])
+
+    st.markdown('<div class="nb-sec">By book</div>', unsafe_allow_html=True)
+    breakdown_html([(b, done[done["book"] == b]) for b in BET_BOOKS + ["Other"]])
+    st.markdown('<div class="nb-sec">Straight vs parlay</div>', unsafe_allow_html=True)
+    breakdown_html([("Straight bets", done[done["type"] == "Straight"]), ("Parlays", done[done["type"] == "Parlay"])])
+    st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
+    day_list(done)
+    if done["date"].nunique() > 1:
+        st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
+        profit_chart(done)
+
+    st.markdown('<div class="nb-sec">All my bets</div>', unsafe_allow_html=True)
+    opts = ["All", "Open", "Wins", "Losses", "Pushes", "Straight", "Parlays"] + BET_BOOKS
+    flt = st.selectbox("Show", opts, key="bet_filter", label_visibility="collapsed")
+    sel = {"All": df, "Open": df[df["result"] == ""], "Wins": df[df["result"] == "W"], "Losses": df[df["result"] == "L"],
+           "Pushes": df[df["result"] == "P"], "Straight": df[df["type"] == "Straight"], "Parlays": df[df["type"] == "Parlay"]}.get(flt, df[df["book"] == flt])
+    if sel.empty:
+        st.caption("Nothing to show for this filter yet.")
+    else:
+        sel = sel.sort_values(["date", "settled_at"], ascending=[False, False])
+        pick_rows_html([bet_item(r) for _, r in sel.head(60).iterrows()])
+        if len(sel) > 60:
+            st.caption(f"Showing the latest 60 of {len(sel)}. Download your bets from the My bets subtab for the full list.")
+
+
+def bets_tab():
+    t_in, t_res = st.tabs(["🧾 My bets", "📈 Results"])
+    with t_in:
+        bets_input_view()
+    with t_res:
+        bets_results_view()
+
+
+# =====================================================================
 # FULL SLATE
 # =====================================================================
 def pick_name(r):
@@ -2344,7 +2583,7 @@ else:
 gid = g["id"]
 
 st.caption("The game selector above applies to the Game odds, Player props and First basket tabs. Full slate and Results cover the whole date.")
-tab_game, tab_slate, tab_props, tab_fb, tab_results, tab_chat = st.tabs(["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💬 AI chat"])
+tab_game, tab_slate, tab_props, tab_fb, tab_results, tab_bets, tab_chat = st.tabs(["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "💬 AI chat"])
 
 with tab_game:
     if None in (odds["home_ml"], odds["away_ml"], odds["home_spread"], odds["total"]):
@@ -2399,6 +2638,9 @@ with tab_fb:
 
 with tab_results:
     results_tab()
+
+with tab_bets:
+    bets_tab()
 
 with tab_chat:
     chat_tab(date, games, injuries)

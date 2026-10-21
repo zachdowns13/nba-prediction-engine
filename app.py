@@ -3109,12 +3109,18 @@ def open_warning():
     if not PASSCODE:
         st.caption("⚠️ Anyone with this link can see this section. To hide it, add `APP_PASSCODE = \"your-passcode\"` in Streamlit Secrets.")
 st.markdown("""<style>
-.st-key-navbar{position:sticky;top:3.75rem;z-index:1000;background:var(--nb-bg,#ffffff);padding:.35rem 0 .45rem;margin-bottom:.5rem;
-  border-bottom:1px solid rgba(128,128,128,.28)}
-@media (prefers-color-scheme: dark){.st-key-navbar{background:var(--nb-bg,#0e1117)}}
+/* Pin the menu: the sticky element must be a direct child of the page's main column, so target the wrapper that holds the navbar */
+.block-container > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),
+.st-key-navbar{position:sticky;top:3.75rem;z-index:1000;background:var(--nb-bg,#ffffff)}
+@media (prefers-color-scheme: dark){
+  .block-container > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),
+  [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),
+  .st-key-navbar{background:var(--nb-bg,#0e1117)}}
+.st-key-navbar{padding:.35rem 0 .45rem;border-bottom:1px solid rgba(128,128,128,.28)}
 .st-key-navbar [role="radiogroup"]{gap:.15rem;flex-wrap:wrap}
 .st-key-navbar label{padding:.35rem .85rem;border-radius:8px;cursor:pointer;margin:0}
-.st-key-navbar label > div:first-child{display:none}
+.st-key-navbar label > *:not(:last-child):not(input){display:none}
 .st-key-navbar label:hover{background:rgba(128,128,128,.14)}
 .st-key-navbar label:has(input:checked){background:rgba(255,75,75,.16);color:#ff4b4b;font-weight:600}
 .st-key-navbar label p{font-size:.95rem}
@@ -3192,7 +3198,26 @@ def dropdown_toggle_fix():
             }
             return null;
           }
-          function setBg() { const c = bg(); if (c) doc.documentElement.style.setProperty('--nb-bg', c); }
+          function pin() {
+            const nav = doc.querySelector('.st-key-navbar');
+            if (!nav) return;
+            let el = nav;
+            while (el.parentElement && !(el.parentElement.matches('[data-testid="stVerticalBlock"]') &&
+                   el.parentElement.parentElement && el.parentElement.parentElement.matches('.block-container, [data-testid="stMainBlockContainer"]'))) {
+              el = el.parentElement;
+              if (el === doc.body) return;
+            }
+            el.style.position = 'sticky'; el.style.top = '3.75rem'; el.style.zIndex = '1000';
+            el.style.background = bg() || '';
+            let p = el.parentElement;
+            while (p && p !== doc.body) {
+              const cs = P.getComputedStyle(p);
+              if (p.matches('[data-testid="stMain"], section')) break;
+              if (cs.overflowY !== 'visible' || cs.overflowX !== 'visible') p.style.overflow = 'visible';
+              p = p.parentElement;
+            }
+          }
+          function setBg() { const c = bg(); if (c) doc.documentElement.style.setProperty('--nb-bg', c); pin(); }
           setBg();
           if (!P.__nbBg) { P.__nbBg = true; setInterval(setBg, 1500); }
         })();

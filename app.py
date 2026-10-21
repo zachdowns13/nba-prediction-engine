@@ -160,6 +160,7 @@ hero = st.container()          # filled in below once the date and games are kno
 # it prints into PARAMS. These defaults are sensible starting points, not tuned values.
 PARAMS = {"half_life": 90.0, "ridge": 10.0, "prev_w": 0.8}      # tuned in the Colab notebook on last season
 BETA_M, BETA_T = 0.10, 0.10      # how far the model may move the sportsbook's margin / total (Colab section 7 measured about 0%, so this is kept small)
+SD_RAW_M, SD_RAW_T = 14.6, 20.8    # typical miss of the model's own prediction (measured in Colab, section 6)
 SD_M, SD_T = 13.6, 18.3          # typical miss on the margin / the total (about 1.25 x the average miss measured in Colab)
 SIMS = 10_000
 LEAN_MIN, LEAN_STRONG = 0.02, 0.04
@@ -499,35 +500,45 @@ def analyze_game(M, g, o, h_inj, a_inj, b2b):
     m_mu = (-o["home_spread"]) + BETA_M * (raw_m - (-o["home_spread"])) if has_s else raw_m
     t_mu = o["total"] + BETA_T * (raw_t - o["total"]) if has_t else raw_t
     rng = np.random.default_rng()
-    margin = np.rint(rng.normal(m_mu, SD_M, SIMS))
-    total = np.rint(rng.normal(t_mu, SD_T, SIMS))
-    ties = margin == 0
-    margin[ties] = rng.choice([-1, 1], ties.sum())
-    rows = []
 
-    def add(mk, side, line, bo, mp, push, bp):
-        rows.append({"market": mk, "side": side, "line": line, "book_odds": bo, "model_p": mp, "book_p": bp,
-                     "edge": mp - bp, "ev": ev100(mp, push, bo)})
-    ph = float(np.mean(margin > 0))
-    if o["home_ml"] is not None and o["away_ml"] is not None:
-        nv = novig(o["home_ml"], o["away_ml"])
-        add("Moneyline", home, "", o["home_ml"], ph, 0, nv[0])
-        add("Moneyline", away, "", o["away_ml"], 1 - ph, 0, nv[1])
-    if has_s:
-        L = o["home_spread"]
-        ch, ca = float(np.mean(margin + L > 0)), float(np.mean(margin + L < 0))
-        nv = novig(o["home_spread_odds"], o["away_spread_odds"])
-        add("Spread", home, f"{L:+.1f}", o["home_spread_odds"], ch, 1 - ch - ca, nv[0])
-        add("Spread", away, f"{-L + 0.0:+.1f}", o["away_spread_odds"], ca, 1 - ch - ca, nv[1])
-    if has_t:
-        T_ = o["total"]
-        ov, un = float(np.mean(total > T_)), float(np.mean(total < T_))
-        nv = novig(o["over_odds"], o["under_odds"])
-        add("Total", "Over", f"{T_}", o["over_odds"], ov, 1 - ov - un, nv[0])
-        add("Total", "Under", f"{T_}", o["under_odds"], un, 1 - ov - un, nv[1])
+    def run(mm, tm, sdm, sdt):
+        # Simulates the game and prices every market. Returns the rows, the home win chance and the median margin / total.
+        margin = np.rint(rng.normal(mm, sdm, SIMS))
+        total = np.rint(rng.normal(tm, sdt, SIMS))
+        ties = margin == 0
+        margin[ties] = rng.choice([-1, 1], ties.sum())
+        rows = []
+
+        def add(mk, side, line, bo, mp, push, bp):
+            rows.append({"market": mk, "side": side, "line": line, "book_odds": bo, "model_p": mp, "book_p": bp,
+                         "edge": mp - bp, "ev": ev100(mp, push, bo)})
+        ph = float(np.mean(margin > 0))
+        if o["home_ml"] is not None and o["away_ml"] is not None:
+            nv = novig(o["home_ml"], o["away_ml"])
+            add("Moneyline", home, "", o["home_ml"], ph, 0, nv[0])
+            add("Moneyline", away, "", o["away_ml"], 1 - ph, 0, nv[1])
+        if has_s:
+            L = o["home_spread"]
+            ch, ca = float(np.mean(margin + L > 0)), float(np.mean(margin + L < 0))
+            nv = novig(o["home_spread_odds"], o["away_spread_odds"])
+            add("Spread", home, f"{L:+.1f}", o["home_spread_odds"], ch, 1 - ch - ca, nv[0])
+            add("Spread", away, f"{-L + 0.0:+.1f}", o["away_spread_odds"], ca, 1 - ch - ca, nv[1])
+        if has_t:
+            T_ = o["total"]
+            ov, un = float(np.mean(total > T_)), float(np.mean(total < T_))
+            nv = novig(o["over_odds"], o["under_odds"])
+            add("Total", "Over", f"{T_}", o["over_odds"], ov, 1 - ov - un, nv[0])
+            add("Total", "Under", f"{T_}", o["under_odds"], un, 1 - ov - un, nv[1])
+        return rows, ph, float(np.median(margin)), float(np.median(total))
+
+    # The model's OWN prediction (what you see) and a cautious version that leans on the sportsbook's line (what decides value flags).
+    raw_rows, raw_ph, raw_med_m, raw_med_t = run(raw_m, raw_t, SD_RAW_M, SD_RAW_T)
+    rows, ph, _, _ = run(m_mu, t_mu, SD_M, SD_T)
+    for r, rr in zip(rows, raw_rows):
+        r["raw_p"], r["raw_edge"], r["raw_ev"] = rr["model_p"], rr["edge"], rr["ev"]
     return {"game": g, "odds": o, "rows": rows, "raw_m": raw_m, "raw_t": raw_t,
-            "med_m": float(np.median(margin)), "med_t": float(np.median(total)),
-            "hp": (t_mu + m_mu) / 2, "ap": (t_mu - m_mu) / 2, "p_home": ph}
+            "med_m": raw_med_m, "med_t": raw_med_t,
+            "hp": (raw_t + raw_m) / 2, "ap": (raw_t - raw_m) / 2, "p_home": raw_ph, "p_home_cautious": ph}
 
 
 # =====================================================================
@@ -558,32 +569,36 @@ def market_info(res, market):
         return None
     a, b = rows
     g = res["game"]
-    top = a if a["model_p"] >= b["model_p"] else b                 # the side the model likes
+    top = a if a["raw_p"] >= b["raw_p"] else b                     # the side the model likes (its own prediction)
     book_top = a if a["book_p"] >= b["book_p"] else b              # the side the sportsbook likes
     best = a if a["edge"] >= b["edge"] else b                      # the side with the biggest edge
     lvl = strength(best["edge"], best["ev"])
     if market == "Moneyline":
         question = f"Chance the {short(top['side'])} win"
         fav = a if a["book_odds"] < b["book_odds"] else b
-        model = f"**{short(top['side'])}** have **{pct(top['model_p'])}** odds to win.\n\nFair odds: {fair_txt(top['model_p'])}"
+        model = f"**{short(top['side'])}** have **{pct(top['raw_p'])}** odds to win.\n\nFair odds: {fair_txt(top['raw_p'])}"
         book = f"**{short(fav['side'])}** are favored at **{fav['book_odds']:+d}**.\n\nThat implies **{pct(fav['book_p'])}** to win."
     elif market == "Spread":
         question = f"Chance the {short(top['side'])} {top['line']} cover"
-        model = (f"**{short(top['side'])} {top['line']}** have **{pct(top['model_p'])}** odds to cover.\n\n"
+        model = (f"**{short(top['side'])} {top['line']}** have **{pct(top['raw_p'])}** odds to cover.\n\n"
                  f"Model projects: {by_txt(g['home'], g['away'], res['med_m'])}")
         book = f"{short(a['side'])} {a['line']} at {a['book_odds']:+d}\n\n{short(b['side'])} {b['line']} at {b['book_odds']:+d}"
     else:
         question = f"Chance the game goes {top['side']} {top['line']}"
-        model = f"**{top['side']} {top['line']}** has **{pct(top['model_p'])}** odds to hit.\n\nModel projects: {res['med_t']:.0f} total points"
+        model = f"**{top['side']} {top['line']}** has **{pct(top['raw_p'])}** odds to hit.\n\nModel projects: {res['med_t']:.0f} total points"
         book = f"The total is set at **{top['line']}**.\n\nOver at {a['book_odds']:+d}\n\nUnder at {b['book_odds']:+d}"
-    verdict = (f"💰 Value: <b>{H(side_label(market, best))}</b>" if lvl else "⚪ No clear value")
-    if lvl and best is not top:
-        verdict += f'<div class="nb-muted" style="margin-top:2px">The model gives this side a higher chance ({pct(best["model_p"])}) than the sportsbook does ({pct(best["book_p"])}).</div>'
+    leans = max((r for r in (a, b)), key=lambda r: r["raw_edge"])             # the side where the model's own number beats the book most
+    if lvl:
+        verdict = f"💰 Value: <b>{H(side_label(market, best))}</b>"
+    elif leans["raw_edge"] >= LEAN_MIN:
+        verdict = f"⚪ Model leans {H(side_label(market, leans))}, but not enough to call value"
+    else:
+        verdict = "⚪ No clear value"
     card = (f'<div class="nb-card nb-mk"><div class="nb-top"><span class="nb-title">{H(market)}</span>{value_badge(best["edge"], best["ev"])}</div>'
             f'<div class="nb-pickrow"><span class="l">🤖 Model has</span><b>{H(side_label(market, top))}</b></div>'
             f'<div class="nb-pickrow"><span class="l">🏦 Book likes</span><b>{H(side_label(market, book_top))}</b></div>'
             f'<div style="font-weight:600;margin:12px 0 2px;font-size:.9rem">{H(question)}</div>'
-            + bar("Model", top["model_p"], "var(--acc)") + bar("Sportsbook", top["book_p"], "rgba(128,128,128,.75)")
+            + bar("Model", top["raw_p"], "var(--acc)") + bar("Sportsbook", top["book_p"], "rgba(128,128,128,.75)")
             + f'<div style="margin-top:auto;padding-top:12px;font-size:.9rem">{verdict}</div></div>')
     return {"card": card, "model": model, "book": book, "best": best, "lvl": lvl, "name": side_label(market, best)}
 
@@ -599,9 +614,9 @@ def render_markets(res):
     for m, inf in infos.items():
         if inf and inf["lvl"]:
             b_ = inf["best"]
-            gap = (b_["model_p"] - b_["book_p"]) * 100
-            msg = (f"{inf['lvl']}: **{inf['name']}** ({m})\n\nThe model gives it **{pct(b_['model_p'])}** and the sportsbook **{pct(b_['book_p'])}** "
-                   f"({gap:.1f} points higher). If the model is right, a {md_money(100)} bet wins about **{md_money(b_['ev'])}** on average over many bets.")
+            gap = (b_["raw_p"] - b_["book_p"]) * 100
+            msg = (f"{inf['lvl']}: **{inf['name']}** ({m})\n\nThe model gives it **{pct(b_['raw_p'])}** and the sportsbook **{pct(b_['book_p'])}** "
+                   f"({gap:.1f} points higher). If the model is right, a {md_money(100)} bet wins about **{md_money(b_['raw_ev'])}** on average over many bets.")
             (st.success if b_["edge"] >= LEAN_STRONG else st.warning)(msg)
     if not any(i and i["lvl"] for i in infos.values()):
         st.info("No clear value in any market. The model and the sportsbook roughly agree.")
@@ -626,13 +641,12 @@ def render_result(res):
          f'<div class="at">@</div>'
          f'<div class="t {"w" if home_wins else ""}">{logo(g.get("home_logo"), True)}<div class="n">{H(g["home"])}</div><div class="p">{res["hp"]:.0f}</div></div></div>'
          f'<div class="nb-muted" style="text-align:center">Projected score · {SIMS:,} simulations · lines from {H(res["odds"]["provider"])}</div></div>')
-    st.caption(f"Raw rating-based projection (before blending with the sportsbook line): "
-               f"{by_txt(g['home'], g['away'], res['raw_m'])}, {res['raw_t']:.0f} total points.")
+    st.caption("This is the model's own prediction. Value is only flagged when it still holds up after weighing the sportsbook's line.")
     best = max(res["rows"], key=lambda r: r["edge"]) if res["rows"] else None
     if best and strength(best["edge"], best["ev"]):
         label = best["side"] if best["market"] == "Moneyline" else f"{best['side']} {best['line']}"
         st.success(f"### ✅ Best value: {best['market']}: {label}\n"
-                   f"Model gives it **{pct(best['model_p'])}**, the sportsbook's odds only imply **{pct(best['book_p'])}**.")
+                   f"Model gives it **{pct(best['raw_p'])}**, the sportsbook's odds only imply **{pct(best['book_p'])}**.")
     elif res["rows"]:
         st.info("### No clear value\nThe model and the sportsbook roughly agree on all three markets.")
     note = (BACKTEST_NOTE + " ") if BACKTEST_NOTE else ""
@@ -2022,7 +2036,7 @@ def slate_tab(M, date, games, injuries, b2b):
         else:
             st.info("Nothing was saved: every game has already started or has no lines posted.")
     st.markdown("### 🏆 Predictions for every game")
-    st.caption("The model's projected score and winner for each game, before looking at any betting value.")
+    st.caption("The model's own projected score and winner for each game, before looking at any betting value.")
     cards = []
     for res in results:
         g = res["game"]
@@ -2043,7 +2057,7 @@ def slate_tab(M, date, games, injuries, b2b):
                                + bar(f"{short(win_team)} win chance", wp, "var(--acc)")
                                + f'<div class="nb-chips"><span class="nb-chip">Spread: {H(short(g["home"]))} {-res["med_m"]:+.1f}</span>'
                                f'<span class="nb-chip">Total: {res["med_t"]:.0f}</span></div>'
-                               + (f'<div class="nb-muted" style="margin-top:2px">💰 Best spot: <b>{H(pick_name(best))}</b> ({H(best["market"])}, {best["edge"] * 100:+.1f} pts edge)</div>' if has_val else "")
+                               + (f'<div class="nb-muted" style="margin-top:2px">💰 Best spot: <b>{H(pick_name(best))}</b> ({H(best["market"])}, {best["raw_edge"] * 100:+.1f} pts edge)</div>' if has_val else "")
                                + '</div>')})
     f1, f2 = st.columns(2)
     show = f1.radio("Show", ["All games", "Only games with value"], horizontal=True, key="slate_show")
@@ -2067,15 +2081,15 @@ def slate_tab(M, date, games, injuries, b2b):
             "Win chance": pct(c["wp"]), "Model spread": f"{short(c['res']['game']['home'])} {-c['res']['med_m']:+.1f}",
             "Model total": f"{c['res']['med_t']:.0f}"} for c in cards]), hide_index=True)
 
-    flagged = sorted([(res, r) for res in results for r in res["rows"] if strength(r["edge"], r["ev"])], key=lambda x: -x[1]["edge"])
+    flagged = sorted([(res, r) for res in results for r in res["rows"] if strength(r["edge"], r["ev"])], key=lambda x: -x[1]["raw_edge"])
     st.markdown("### 🎯 Best value plays")
     if not flagged:
         st.info("No value found: the model and the sportsbook agree across the slate (or no lines are posted yet).")
     else:
         st.dataframe(pd.DataFrame([{
             "Game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "Market": r["market"], "Pick": pick_name(r),
-            "Odds": f"{r['book_odds']:+d}", "Model chance": pct(r["model_p"]), "Sportsbook implies": pct(r["book_p"]),
-            "Edge (pts)": f"{r['edge'] * 100:+.1f}", "Profit per $100 if model is right": f"${r['ev']:,.0f}",
+            "Odds": f"{r['book_odds']:+d}", "Model chance": pct(r["raw_p"]), "Sportsbook implies": pct(r["book_p"]),
+            "Edge (pts)": f"{r['raw_edge'] * 100:+.1f}", "Profit per $100 if model is right": f"${r['raw_ev']:,.0f}",
             "Value": strength(r["edge"], r["ev"])} for res, r in flagged]), hide_index=True)
         st.caption("Sorted by edge. Large edges are worth double-checking against the latest injury news and confirmed lineups.")
 
@@ -2136,7 +2150,8 @@ def build_chat_context(date, games, injuries):
                 lines.append(f"    book: {short(g['home'])} spread {o.get('home_spread')}, total {o.get('total')}, ML home {o.get('home_ml')} / away {o.get('away_ml')}")
             for r in res["rows"]:
                 lab = f"{r['market']} {r['side']} {r['line']}".strip()
-                lines.append(f"    {lab}: model {r['model_p'] * 100:.1f}% vs book {r['book_p'] * 100:.1f}% (edge {r['edge'] * 100:+.1f} pts, odds {r['book_odds']:+d})")
+                lines.append(f"    {lab}: model {r['raw_p'] * 100:.1f}% vs book {r['book_p'] * 100:.1f}% (edge {r['raw_edge'] * 100:+.1f} pts, odds {r['book_odds']:+d}"
+                             + (f"; flagged as {strength(r['edge'], r['ev'])}" if strength(r["edge"], r["ev"]) else "") + ")")
     elif games:
         lines.append("Today's games (slate not run yet, so there are no model numbers): " + "; ".join(f"{g['away']} @ {g['home']}" for g in games))
     else:

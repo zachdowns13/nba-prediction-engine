@@ -703,13 +703,13 @@ def _fetch_box_raw(event_id):
 
 
 @st.cache_resource
-def box_store():
+def box_store_v2():
     return {}          # box scores already downloaded, shared by every tab and visitor
 
 
 def load_boxes(event_ids):
-    store = box_store()
-    missing = [e for e in event_ids if e not in store]
+    store = box_store_v2()
+    missing = [e for e in event_ids if e not in store or "tip" not in store[e]]     # older saved box scores have no tip info
     if missing:
         with st.spinner("Loading recent box scores (the first time takes a bit)..."):
             with ThreadPoolExecutor(8) as ex:
@@ -779,54 +779,22 @@ def player_params(aid, name, a):
             "fg": (a["fgm"] + 0.47 * 40) / (a["fga"] + 40)}
 
 
-def _nba_cdn_get(url):
-    r = requests.get(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json", "Referer": "https://www.nba.com/"}, timeout=25)
-    r.raise_for_status()
-    return r.json()
-
-
-def _same_team(sched_team, display_name):
-    city, name = str(sched_team.get("teamCity", "")), str(sched_team.get("teamName", ""))
-    return f"{city} {name}".strip().lower() == display_name.lower() or (name and display_name.lower().endswith(name.lower()))
-
-
 def tip_check(home, last_event, tip_all, tboxes):
-    # Troubleshooting view: shows what ESPN and NBA.com actually return for opening tips.
+    # Short status line. The raw plays are only shown if no tips are being found.
     found = sum(1 for e in tip_all if (tboxes.get(e) or {}).get("tip"))
     st.markdown(f"**Opening tips found in ESPN's play-by-play:** {found} of {len(tip_all)} recent games.")
+    if found:
+        st.caption("Tip data is working. Jumpers and their records come from these games.")
+        return
+    st.warning("No tips were found, so the tip is treated as 50/50. Here is what ESPN returned for the latest game, in case the wording is different:")
     if last_event:
         try:
             data = _get(f"{BASE}/summary", {"event": last_event}, tries=2)
             plays = data.get("plays") or []
-            st.markdown(f"**ESPN, first plays of the {short(home)}' latest game** ({len(plays)} plays returned):")
             st.dataframe(pd.DataFrame([{"Period": (p.get("period") or {}).get("number"), "Type": (p.get("type") or {}).get("text"),
-                                        "Text": p.get("text")} for p in plays[:10]]), hide_index=True)
-            names = {}
-            for t in (data.get("boxscore") or {}).get("players", []):
-                for grp in t.get("statistics", []):
-                    for a in grp.get("athletes", []):
-                        names[str((a.get("athlete") or {}).get("displayName", "")).lower()] = (t.get("team") or {}).get("displayName")
-            parsed = _parse_tip(plays, names)
-            st.markdown("Parsed as an opening tip: " + (f"✅ {parsed}" if parsed else "❌ no (the wording wasn't recognised, or there was no jump ball in the first plays)"))
+                                        "Text": p.get("text")} for p in plays[:6]]), hide_index=True)
         except Exception as e:
-            st.warning(f"Could not read ESPN's play-by-play: {e}")
-    if st.button("Check NBA.com as another source", key="tip_nba_check"):
-        try:
-            sched = _nba_cdn_get("https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json")
-            games = [gm for d in (sched.get("leagueSchedule") or {}).get("gameDates", []) for gm in d.get("games", [])]
-            mine = [gm for gm in games if gm.get("gameStatus") == 3 and (_same_team(gm.get("homeTeam") or {}, home) or _same_team(gm.get("awayTeam") or {}, home))]
-            if not mine:
-                st.warning("Could not find a finished game for this team on NBA.com's schedule.")
-            else:
-                gid = mine[-1]["gameId"]
-                pbp = _nba_cdn_get(f"https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{gid}.json")
-                acts = (pbp.get("game") or {}).get("actions", [])
-                st.markdown(f"**NBA.com play-by-play, game {gid}** ({len(acts)} actions). First actions:")
-                st.dataframe(pd.DataFrame([{k: a.get(k) for k in ("period", "actionType", "subType", "description", "personId", "teamTricode")} for a in acts[:10]]), hide_index=True)
-                jb = [a for a in acts if "jump" in str(a.get("actionType", "")).lower()][:4]
-                st.markdown("Jump ball actions: " + (str(jb) if jb else "none found"))
-        except Exception as e:
-            st.warning(f"Could not read NBA.com: {e}")
+            st.caption(f"Could not read ESPN's play-by-play: {e}")
 
 
 def tip_record(boxes, evs, name):
@@ -957,7 +925,7 @@ def first_basket_tab(M, g, injuries, now):
                 st.warning("Fewer than 5 games played this season, so this lineup is a GUESS from older games. "
                            "Set the real starting five above once lineups are announced (about 30 min before tip).")
     with st.expander("🔎 Tip data check (troubleshooting)"):
-        st.caption("Shows whether the opening-tip data is being found. If it says 0 tips found, send me what the tables below show and I'll fix the reader.")
+        st.caption("Shows whether the opening-tip data is being found.")
         tip_check(home, (tip_evs[home] or [None])[-1], tip_all, tboxes)
     odds_text = st.text_area("Your sportsbook's first-basket prices (optional), one per line, like: Jalen Brunson, 650",
                              key=f"fbo_{g['id']}")

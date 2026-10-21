@@ -2762,11 +2762,13 @@ def chat_tab(date, games, injuries):
         st.error("The `anthropic` package isn't installed. Add a line `anthropic` to requirements.txt and redeploy.")
         return
     msgs = st.session_state.setdefault("chat_msgs", [])
-    cm, cw, cc = st.columns([3, 2, 1], vertical_alignment="bottom") if _has_valign() else st.columns([3, 2, 1])
-    quality = cm.selectbox("AI model", list(CHAT_MODELS), key="chat_model")
-    use_web = cw.checkbox("Search the web", value=True, key="chat_web",
-                          help="Lets the AI look up exact stats, news and prop lines. Each search is billed to your API account.")
-    if cc.button("🗑️ Clear", key="chat_clear", help="Start a new conversation"):
+    cols = st.columns([8, 1.4, 1.4], vertical_alignment="center") if _has_valign() else st.columns([8, 1.4, 1.4])
+    cols[0].markdown("#### 💬 Ask about tonight's games")
+    with (cols[1].popover("⚙️ Settings") if hasattr(st, "popover") else cols[1].expander("⚙️ Settings")):
+        quality = st.selectbox("AI model", list(CHAT_MODELS), key="chat_model")
+        use_web = st.checkbox("Search the web", value=True, key="chat_web",
+                              help="Lets the AI look up exact stats, news and prop lines. Each search is billed to your API account.")
+    if cols[2].button("🗑️ Clear", key="chat_clear", help="Start a new conversation"):
         st.session_state["chat_msgs"] = msgs = []
         st.rerun()
 
@@ -2774,25 +2776,31 @@ def chat_tab(date, games, injuries):
         if srcs:
             st.caption("Sources: " + " · ".join(f"[{t}]({u})" for t, u in srcs[:8]))
 
-    # A normal chat layout: conversation scrolls inside a fixed box (oldest at the top, newest at the bottom), box to type in right under it.
-    box = st.container(height=520, border=True)
-    typed = st.chat_input("Ask about today's games, player props, stats, anything NBA")
+    # Type here (top of the tab). Your question and its answer appear right underneath; earlier questions fold away below.
+    typed = st.chat_input("Ask about games, player props, injuries, stats, anything NBA")
     quick = st.session_state.pop("chat_quick", None)
     prompt = (quick or typed or "").strip()
 
-    with box:
+    live = st.container()
+    pairs = [msgs[i:i + 2] for i in range(0, len(msgs) - 1, 2)]
+    if prompt:
+        older, current = pairs, None
+    else:
+        older, current = pairs[:-1], (pairs[-1] if pairs else None)
+
+    with live:
         if not msgs and not prompt:
-            st.markdown("#### 💬 Ask me anything about tonight's games")
-            st.caption("I can see the games, lines, injuries and model numbers loaded in this app. Run the Full slate first for model numbers. "
+            st.caption("I can see the games, lines, injuries and model numbers loaded in this app (run the Full slate first for model numbers). "
                        "Anything else comes from general knowledge or a web search, so double-check anything important.")
             for q in ("Which games does the model like most today?", "Who's injured that matters tonight?", "Explain the best value play in simple terms."):
                 if st.button(q, key=f"quick_{q[:12]}", use_container_width=True):
                     st.session_state["chat_quick"] = q
                     st.rerun()
-        for m in msgs:
-            with st.chat_message(m["role"]):
-                st.markdown(m["content"])
-                show_sources(m.get("sources"))
+        if current:
+            for m in current:
+                with st.chat_message(m["role"]):
+                    st.markdown(m["content"])
+                    show_sources(m.get("sources"))
         if prompt:
             with st.chat_message("user"):
                 st.markdown(prompt)
@@ -2805,7 +2813,17 @@ def chat_tab(date, games, injuries):
             reply = reply if isinstance(reply, str) else "".join(map(str, reply))
             msgs.append({"role": "user", "content": prompt})
             msgs.append({"role": "assistant", "content": reply, "sources": sources})
-    st.caption("Answers are model estimates and general knowledge, not guarantees.")
+
+    if older:
+        st.markdown("##### Earlier")
+        for pair in reversed(older):                       # newest first
+            q = pair[0]["content"]
+            with st.expander(q if len(q) <= 90 else q[:87] + "..."):
+                for m in pair[1:]:
+                    st.markdown(m["content"])
+                    show_sources(m.get("sources"))
+    if msgs or prompt:
+        st.caption("Answers are model estimates and general knowledge, not guarantees.")
 
 
 def _has_valign():
@@ -2945,18 +2963,27 @@ def dropdown_toggle_fix():
         import streamlit.components.v1 as components
         components.html("""<script>
         const d = window.parent.document;
-        if (!d.__arrowFix) {
-          d.__arrowFix = true;
+        if (!d.__arrowFix2) {
+          d.__arrowFix2 = true;
+          let closing = 0;
+          const inSelect = (e) => e.target.closest && e.target.closest('[data-baseweb="select"]');
           d.addEventListener('mousedown', function (e) {
-            const box = e.target.closest && e.target.closest('[data-baseweb="select"]');
+            const box = inSelect(e);
             if (!box || !e.target.closest('svg')) return;
             const inp = box.querySelector('input');
             if (inp && inp.getAttribute('aria-expanded') === 'true') {
+              closing = Date.now();
               e.preventDefault(); e.stopPropagation();
               inp.blur();
               if (d.activeElement && d.activeElement.blur) d.activeElement.blur();
             }
           }, true);
+          // swallow the rest of that same click so the list doesn't pop back open
+          ['pointerdown', 'pointerup', 'mouseup', 'click', 'touchstart', 'touchend'].forEach(function (t) {
+            d.addEventListener(t, function (e) {
+              if (Date.now() - closing < 700 && inSelect(e)) { e.preventDefault(); e.stopPropagation(); }
+            }, true);
+          });
         }
         </script>""", height=0)
     except Exception:

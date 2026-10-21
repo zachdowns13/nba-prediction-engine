@@ -1747,8 +1747,6 @@ def game_results_view():
         else:
             results_summary(gd, waiting)
             form_strip(gd.sort_values("date")["result"])
-            st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
-            profit_chart(gd)
             st.markdown('<div class="nb-sec">How each market is doing</div>', unsafe_allow_html=True)
             groups = [(mk, gd[gd["market"] == mk]) for mk in ("Moneyline", "Spread", "Total")]
             if view == "Value plays only":
@@ -1756,6 +1754,9 @@ def game_results_view():
             breakdown_html(groups)
             st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
             day_list(gd)
+            if gd['date'].nunique() > 1:
+                st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
+                profit_chart(gd)
 
         with st.expander(f"📋 See every pick ({len(base)})"):
             flt = st.selectbox("Show", ["All", "Wins", "Losses", "Waiting for the game"], key="res_pf", label_visibility="collapsed")
@@ -1928,8 +1929,6 @@ def props_results_view():
         else:
             results_summary(done, waiting)
             form_strip(done.sort_values("date")["result"])
-            st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
-            profit_chart(done)
             st.markdown('<div class="nb-sec">By stat</div>', unsafe_allow_html=True)
             breakdown_html([(k, done[done["stat"] == k]) for k in done["stat"].unique()])
             st.markdown('<div class="nb-sec">Over, under and value</div>', unsafe_allow_html=True)
@@ -1937,6 +1936,9 @@ def props_results_view():
                             ("Value picks (2+ pts edge)", done[_prop_value_mask(done)])])
             st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
             day_list(done)
+            if done['date'].nunique() > 1:
+                st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
+                profit_chart(done)
 
         st.markdown('<div class="nb-sec">All saved props</div>', unsafe_allow_html=True)
         view = st.selectbox("Show", ["All", "Waiting for the game", "Wins", "Losses", "Value picks (2+ pts edge)"], key="prop_filter",

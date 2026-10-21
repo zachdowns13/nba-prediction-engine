@@ -522,37 +522,39 @@ def market_card(res, market):
         top = a if a["model_p"] >= b["model_p"] else b
         best = a if a["edge"] >= b["edge"] else b
         html(f'<div class="nb-top"><span class="nb-title">{H(market)}</span>{value_badge(best["edge"])}</div>')
-        top_name = short(top["side"]) if market != "Total" else top["side"]
-        top_line = "" if market == "Moneyline" else f" {top['line']}"
-        html(bar(f"Model: {top_name}{top_line}", top["model_p"], "var(--acc)")
-             + bar(f"Sportsbook: {top_name}{top_line}", top["book_p"], "rgba(128,128,128,.75)"))
+        has_val = best["edge"] >= LEAN_MIN
+        pick = best if has_val else top                      # show the side with value, or else the side the model likes more
         if market == "Moneyline":
+            question = f"Chance the {short(pick['side'])} win"
             fav = a if a["book_odds"] < b["book_odds"] else b
             model = f"**{short(top['side'])}** have **{pct(top['model_p'])}** odds to win.\n\nFair odds: {fair_american(top['model_p'])}"
             book = f"**{short(fav['side'])}** are favored at **{fav['book_odds']:+d}**.\n\nThat implies **{pct(fav['book_p'])}** to win."
             name = f"{short(best['side'])} moneyline"
         elif market == "Spread":
+            question = f"Chance the {short(pick['side'])} {pick['line']} cover"
             model = (f"**{short(top['side'])} {top['line']}** have **{pct(top['model_p'])}** odds to cover.\n\n"
                      f"Model projects: {by_txt(g['home'], g['away'], res['med_m'])}")
             book = (f"{short(a['side'])} {a['line']} at {a['book_odds']:+d}\n\n{short(b['side'])} {b['line']} at {b['book_odds']:+d}")
             name = f"{short(best['side'])} {best['line']}"
         else:
+            question = f"Chance the game goes {pick['side']} {pick['line']}"
             model = f"**{top['side']} {top['line']}** has **{pct(top['model_p'])}** odds to hit.\n\nModel projects: {res['med_t']:.0f} total points"
             book = f"The total is set at **{top['line']}**.\n\nOver at {a['book_odds']:+d}\n\nUnder at {b['book_odds']:+d}"
             name = f"{best['side']} {best['line']}"
-        st.markdown("**🤖 Model says**")
-        st.markdown(model)
-        st.markdown("**🏦 Sportsbook says**")
-        st.markdown(book)
-        st.markdown("**💰 Is there value?**")
-        lab = strength(best["edge"])
-        if lab:
-            msg = (f"{lab}: **{name}**\n\nThe sportsbook's odds imply this hits **{pct(best['book_p'])}** of the time. "
-                   f"The model says **{pct(best['model_p'])}**.\n\nIf the model is right, a {md_money(100)} bet wins about "
-                   f"**{md_money(best['ev'])}** on average over many bets.")
+        html(f'<div style="font-weight:600;margin:2px 0 4px">{H(question)}</div>'
+             + bar("Model", pick["model_p"], "var(--acc)") + bar("Sportsbook", pick["book_p"], "rgba(128,128,128,.75)"))
+        gap = (pick["model_p"] - pick["book_p"]) * 100
+        if has_val:
+            msg = (f"{strength(best['edge'])}: **{name}**\n\nThe model rates this {gap:.1f} points higher than the sportsbook. "
+                   f"If the model is right, a {md_money(100)} bet wins about **{md_money(best['ev'])}** on average over many bets.")
             (st.success if best["edge"] >= LEAN_STRONG else st.warning)(msg)
         else:
-            st.markdown("⚪ **No value.** The model and sportsbook agree.")
+            st.caption("⚪ No clear value. The model and the sportsbook roughly agree.")
+        with st.expander("More detail"):
+            st.markdown("**🤖 Model says**")
+            st.markdown(model)
+            st.markdown("**🏦 Sportsbook says**")
+            st.markdown(book)
 
 
 def render_result(res):

@@ -2387,7 +2387,10 @@ def bets_input_view():
         st.markdown("**Add a bet**")
         c1, c2, c3 = st.columns(3)
         placed = c1.date_input("Date", dt.date.today(), key=k("date"))
-        book = c2.selectbox("Book", BET_BOOKS + ["Other"], key=k("book"))
+        books_ = BET_BOOKS + ["Other"]
+        _saved = load_bets()
+        last_book = st.session_state.get("last_book") or (_saved["book"].iloc[-1] if len(_saved) else None)   # the book you used last
+        book = c2.selectbox("Book", books_, index=books_.index(last_book) if last_book in books_ else 0, key=k("book"))
         btype = c3.radio("Type", ["Straight", "Parlay"], horizontal=True, key=k("type"))
         if btype == "Parlay":
             legs = int(st.number_input("How many legs?", min_value=2, max_value=15, value=2, step=1, key=k("legs")))
@@ -2421,6 +2424,7 @@ def bets_input_view():
                 add_bet({"id": uuid.uuid4().hex[:8], "date": placed.isoformat(), "book": book, "type": btype, "desc": str(desc).strip(),
                          "legs": int(legs), "stake": float(stake), "payout": float(payout), "result": "", "returned": np.nan,
                          "profit": np.nan, "settled_at": "", "leg_status": ""})
+                st.session_state["last_book"] = book
                 st.session_state["bet_form_n"] = n + 1                  # clears the form
                 st.session_state["bet_msg"] = f"Saved: {str(desc).strip()} ({book}, ${stake:,.2f} to win ${payout - stake:,.2f})."
                 st.rerun()

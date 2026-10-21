@@ -1278,25 +1278,40 @@ def chat_tab(date, games, injuries):
         st.error("The `anthropic` package isn't installed. Add a line `anthropic` to requirements.txt and redeploy.")
         return
     msgs = st.session_state.setdefault("chat_msgs", [])
-    for m in msgs:
-        with st.chat_message(m["role"]):
-            st.markdown(m["content"])
-    if not msgs:
-        st.caption("Try: “Which games does the model like the most today?” · “Why does the model like the underdog in the first game?” · "
-                   "“Who's injured that matters?”")
-    prompt = st.chat_input("Ask about today's games...")
-    if st.button("Clear chat", key="clear_chat") and msgs:
-        st.session_state["chat_msgs"] = []
-        st.rerun()
-    if prompt:
+    # Box at the TOP, newest answer directly under it, older questions further down.
+    with st.form("chat_form", clear_on_submit=True):
+        prompt = st.text_input("Ask about today's games", placeholder="e.g. Which games does the model like most today?")
+        c1, c2 = st.columns([1, 1])
+        asked = c1.form_submit_button("Ask")
+        cleared = c2.form_submit_button("Clear chat")
+    if cleared:
+        st.session_state["chat_msgs"] = msgs = []
+    live = st.container()
+    history = st.container()
+    prompt = (prompt or "").strip()
+    if asked and prompt:
+        with live:
+            with st.chat_message("user"):
+                st.markdown(prompt)
+            system = CHAT_SYSTEM + "\n\n<context>\n" + build_chat_context(date, games, injuries) + "\n</context>"
+            client = anthropic.Anthropic(api_key=key)
+            with st.chat_message("assistant"):
+                reply = st.write_stream(chat_stream(client, anthropic, system, msgs[-CHAT_HISTORY_LIMIT:] + [{"role": "user", "content": prompt}]))
+        reply = reply if isinstance(reply, str) else "".join(map(str, reply))
         msgs.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        system = CHAT_SYSTEM + "\n\n<context>\n" + build_chat_context(date, games, injuries) + "\n</context>"
-        client = anthropic.Anthropic(api_key=key)
-        with st.chat_message("assistant"):
-            reply = st.write_stream(chat_stream(client, anthropic, system, msgs[-CHAT_HISTORY_LIMIT:]))
-        msgs.append({"role": "assistant", "content": reply if isinstance(reply, str) else "".join(map(str, reply))})
+        msgs.append({"role": "assistant", "content": reply})
+        shown = msgs[:-2]
+    else:
+        shown = msgs
+    with history:
+        if not msgs:
+            st.caption("Try: \u201cWhich games does the model like the most today?\u201d \u00b7 \u201cWhy does the model like the underdog in the first game?\u201d \u00b7 "
+                       "\u201cWho's injured that matters?\u201d")
+        pairs = [shown[i:i + 2] for i in range(0, len(shown), 2)]
+        for pair in reversed(pairs):                      # newest first
+            for m in pair:
+                with st.chat_message(m["role"]):
+                    st.markdown(m["content"])
 
 
 # =====================================================================

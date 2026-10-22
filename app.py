@@ -3086,7 +3086,7 @@ def _week_label(d):
 def bets_recap(done, open_):
     # One big profit box across the row, with record / win rate / biggest win in smaller boxes under it.
     s = pick_stats(done)
-    big = stat_tile("Profit", _signed_money(s["profit"]), f"on ${done['stake'].sum():,.0f} bet", _tone(s["profit"])).replace('class="nb-tile"', 'class="nb-tile big"', 1)
+    big = stat_tile("Profit", _signed_money(s["profit"]), f"on ${done['stake'].sum():,.0f} in bets", _tone(s["profit"])).replace('class="nb-tile"', 'class="nb-tile big"', 1)
     html('<div class="nb-tiles" style="grid-template-columns:1fr;margin-bottom:12px">' + big + '</div>')
     html('<div class="nb-tiles" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))">'
          + stat_tile("Record", s["rec"], f"{len(open_)} open (${open_['stake'].sum():,.0f} at risk)" if len(open_) else "all settled")

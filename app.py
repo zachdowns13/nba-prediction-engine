@@ -2249,8 +2249,8 @@ def results_tab():
 # =====================================================================
 BET_BOOKS = ["Kalshi", "Underdog", "PrizePicks", "DraftKings", "Sleeper", "Novig", "Chalkboard"]
 BET_LOG_PATH = "bets_log.csv"
-BET_COLS = ["id", "date", "book", "type", "desc", "legs", "stake", "payout", "result", "returned", "profit", "settled_at", "leg_status"]
-_BET_TXT = ("id", "date", "book", "type", "desc", "result", "settled_at", "leg_status")
+BET_COLS = ["id", "date", "book", "type", "desc", "legs", "stake", "payout", "result", "returned", "profit", "settled_at", "leg_status", "cord"]
+_BET_TXT = ("id", "date", "book", "type", "desc", "result", "settled_at", "leg_status", "cord")
 _BET_NUM = ("legs", "stake", "payout", "returned", "profit")
 
 
@@ -2288,7 +2288,10 @@ def filter_sort_bets(df, key, books_label="Books"):
                                format_func=lambda b: f"{b} ({int(counts[b])})") or [])
     except AttributeError:
         picked = st.multiselect(books_label, present, key=kb, placeholder="All books", format_func=lambda b: f"{b} ({int(counts[b])})")
+    only_cord = st.checkbox("💬 Cord plays only", key=f"{key}_cord") if (df["cord"] == "Y").any() else False
     how = st.selectbox("Sort by", BET_SORTS, index=0 if key == "bo" else 1, key=f"{key}_sort")
+    if only_cord:
+        df = df[df["cord"] == "Y"]
     if picked:
         df = df[df["book"].isin(picked)]
     d = df.assign(_p=df["profit"].fillna(0.0))
@@ -2480,7 +2483,8 @@ def bet_item(r, controls=False):
     kind = "Parlay" + (f" ({int(r['legs'])} legs)" if r["legs"] and r["legs"] >= 2 else "") if r["type"] == "Parlay" else "Straight"
     legs = split_legs(r["desc"])
     ls = leg_states(r)
-    head = f'<div style="margin-bottom:4px">{book_chip(r["book"], 26)}<span class="nb-muted" style="vertical-align:middle">{H(r["book"])}</span></div>'
+    _cd = ' <span style="vertical-align:middle;font-size:.7rem;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(88,101,242,.18);color:#5865F2">💬 Cord play</span>' if r.get("cord") == "Y" else ""
+    head = f'<div style="margin-bottom:4px">{book_chip(r["book"], 26)}<span class="nb-muted" style="vertical-align:middle">{H(r["book"])}</span>{_cd}</div>'
     if controls and len(legs) > 1:
         body = f'<div style="font-weight:600">{"Parlay"} · {ls.count("H")} of {len(legs)} legs hit' + (f' · {ls.count("M")} missed' if "M" in ls else "") + (f' · {ls.count("P")} pushed' if "P" in ls else "") + "</div>"
     elif len(legs) > 1:
@@ -2680,6 +2684,7 @@ def bets_input_view():
         payout = num_box("Payout if it wins ($, the total you get back)", k("payout"), e2, "30")
         if stake > 0 and payout > stake:
             st.caption(f"Profit if it wins: **${payout - stake:,.2f}** · you'd need to win about **{stake / payout * 100:.0f}%** of bets like this to break even.")
+        cord = st.checkbox("💬 Also add to Cord plays", key=k("cord"), help="Tags this bet as a Cord play. It still counts in all your bets, and also shows in its own Cord plays section.")
         if st.button("💾 Save bet", type="primary", key=k("save")):
             if not str(desc).strip() or len(parts) < legs:
                 st.error("Fill in every leg of the bet first.")
@@ -2689,7 +2694,7 @@ def bets_input_view():
                 st.error("The payout is the total you get back, so it has to be more than what you put in.")
             else:
                 add_bet({"id": uuid.uuid4().hex[:8], "date": placed.isoformat(), "book": book, "type": btype, "desc": str(desc).strip(),
-                         "legs": int(legs), "stake": float(stake), "payout": float(payout), "result": "", "returned": np.nan,
+                         "legs": int(legs), "stake": float(stake), "payout": float(payout), "result": "", "returned": np.nan, "cord": "Y" if cord else "",
                          "profit": np.nan, "settled_at": "", "leg_status": ""})
                 st.session_state["last_book"] = book
                 st.session_state["bet_form_n"] = n + 1                  # clears the form
@@ -3195,12 +3200,14 @@ def bets_open_view():
             new_stake = num_box("Amount you put in ($)", kk("stake"), h4, init=f"{row['stake']:g}")
             new_pay = num_box("Payout if it wins ($)", kk("pay"), h5, init=f"{row['payout']:g}")
             new_legs = int(h6.number_input("Legs", min_value=1, max_value=20, value=max(1, int(row["legs"]) if pd.notna(row["legs"]) else 1), key=kk("legs")))
+            new_cord = st.checkbox("💬 Cord play", value=(row["cord"] == "Y"), key=kk("cord"))
             if st.button("💾 Save changes", key=kk("save"), type="primary"):
                 if not new_desc.strip() or new_stake <= 0 or new_pay <= new_stake:
                     st.error("Needs a description, a stake, and a payout bigger than the stake.")
                 else:
                     update_bet(bid, date=new_date.isoformat(), book=new_book, type=new_type, desc=new_desc.strip(),
-                               stake=float(new_stake), payout=float(new_pay), legs=1 if new_type == "Straight" else max(2, new_legs))
+                               stake=float(new_stake), payout=float(new_pay), legs=1 if new_type == "Straight" else max(2, new_legs),
+                               cord="Y" if new_cord else "")
                     st.success("Bet updated.")
                     st.rerun()
             st.markdown("**Settle or remove**")
@@ -3282,19 +3289,24 @@ def bets_results_view():
             st.caption(f"Early days: only {len(done)} settled bets here so far, so these numbers can swing a lot.")
         bets_recap(done, open_)
         st.markdown('<div class="nb-sec">By book</div>', unsafe_allow_html=True)
-        breakdown_html([(b, done[done["book"] == b]) for b in BET_BOOKS + ["Other"]])
+        breakdown_html([(b, done[done["book"] == b]) for b in BET_BOOKS + ["Other"]] + [("💬 Cord plays", done[done["cord"] == "Y"])])
         used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
-        tabs = st.tabs(["All books"] + used)
+        has_cord = (df["cord"] == "Y").any()
+        tabs = st.tabs(["All books"] + used + (["💬 Cord plays"] if has_cord else []))
         with tabs[0]:
             bets_stats_block(done, open_, "bs_all", recap=False)
         for t, b in zip(tabs[1:], used):
             with t:
                 bets_stats_block(done[done["book"] == b], open_[open_["book"] == b], f"bs_{b}")
+        if has_cord:
+            with tabs[-1]:
+                bets_stats_block(done[done["cord"] == "Y"], open_[open_["cord"] == "Y"], "bs_cord")
 
     st.markdown('<div class="nb-sec">All my bets</div>', unsafe_allow_html=True)
-    flt = st.selectbox("Show", ["All", "Open", "Wins", "Losses", "Pushes", "Straight", "Parlays"], key="bet_filter", label_visibility="collapsed")
+    flt = st.selectbox("Show", ["All", "Open", "Wins", "Losses", "Pushes", "Straight", "Parlays", "Cord plays"], key="bet_filter", label_visibility="collapsed")
     sel = {"All": df, "Open": df[df["result"] == ""], "Wins": df[df["result"] == "W"], "Losses": df[df["result"] == "L"],
-           "Pushes": df[df["result"] == "P"], "Straight": df[df["type"] == "Straight"], "Parlays": df[df["type"] == "Parlay"]}[flt]
+           "Pushes": df[df["result"] == "P"], "Straight": df[df["type"] == "Straight"], "Parlays": df[df["type"] == "Parlay"],
+           "Cord plays": df[df["cord"] == "Y"]}[flt]
     sel = filter_sort_bets(sel, "bh")
     if sel.empty:
         st.caption("Nothing to show for this filter yet.")

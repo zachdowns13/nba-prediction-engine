@@ -2628,9 +2628,9 @@ def leg_builder(key):
     if kind == "Type it myself":
         return st.text_input("The bet", placeholder="e.g. Booker first basket", key=f"{key}_free").strip()
     if kind == "Player prop":
-        c1, c2, c3, c4 = st.columns([3, 2.4, 1.3, 1.3])
-        who = norm_name(_search_select("Player", players, f"{key}_who", c1), players)
-        stat = c2.selectbox("Stat", LEG_STATS, key=f"{key}_stat")
+        who = norm_name(_search_select("Player", players, f"{key}_who"), players)      # stacked: player, then stat, then line + over/under
+        stat = st.selectbox("Stat", LEG_STATS, key=f"{key}_stat")
+        c3, c4 = st.columns(2)
         if stat in ("Double-double", "Triple-double"):
             return f"{who} {stat.lower()}" if who else ""
         line = num_box("Line", f"{key}_line", c3, "26.5")
@@ -2641,9 +2641,9 @@ def leg_builder(key):
     if kind == "First basket":
         who = norm_name(_search_select("Player", players, f"{key}_fbwho"), players)
         return f"{who} first basket" if who else ""
-    c1, c2, c3 = st.columns([3, 2.4, 2.6])
-    team = norm_name(_search_select("Team", teams, f"{key}_team", c1), teams)
-    what = c2.selectbox("Bet", TEAM_BETS, key=f"{key}_what")
+    c3 = None                                                     # stacked: team, then bet type, then the number
+    team = norm_name(_search_select("Team", teams, f"{key}_team"), teams)
+    what = st.selectbox("Bet", TEAM_BETS, key=f"{key}_what")
     # Opponent: filled in from the day's schedule when that team plays, otherwise pick it.
     guess = None
     for gm in globals().get("games", []) or []:

@@ -2003,9 +2003,10 @@ def game_results_view():
         model_period_view(log, graded, st.session_state["sel_date"].isoformat(), "sel")
 
 
-    with st.expander("➕ Add a moneyline that wasn't logged"):
-        st.caption("For a game you picked before tracking existed. It is added to your Results as a finished moneyline pick, using the odds you enter.")
+    with st.expander("➕ Add a pick that wasn't logged"):
+        st.caption("For a game you picked before tracking existed. It is added to your Results as a finished pick, using the odds you enter.")
         _teams = globals().get("teams", [])
+        man_mk = st.radio("Type of pick", ["Moneyline", "Spread", "Total"], horizontal=True, key="man_mk")
         m1, m2 = st.columns(2)
         man_date = m1.date_input("Game date", local_today(), key="man_date")
         man_res = m2.radio("Result", ["Won", "Lost", "Push"], horizontal=True, key="man_res")
@@ -2013,26 +2014,49 @@ def game_results_view():
         man_away = m3.selectbox("Away team", _teams, key="man_away", index=None, placeholder="Choose a team")
         man_home = m4.selectbox("Home team", _teams, key="man_home", index=None, placeholder="Choose a team")
         m5, m6 = st.columns(2)
-        man_pick = m5.selectbox("Your pick to win", [t for t in (man_away, man_home) if t], key="man_pick", index=None, placeholder="Choose the team you picked")
-        man_odds = num_box("Moneyline odds (like -150 or +130)", "man_odds", m6, placeholder="-110", default=0.0)
+        man_pick, man_line = None, 0.0
+        if man_mk == "Total":
+            man_pick = m5.radio("Your pick", ["Over", "Under"], horizontal=True, key="man_side")
+            man_line = num_box("Total line (like 224.5)", "man_tline", m6, placeholder="224.5", default=0.0)
+        else:
+            man_pick = m5.selectbox("Your pick" if man_mk == "Spread" else "Your pick to win", [t for t in (man_away, man_home) if t],
+                                    key="man_pick", index=None, placeholder="Choose the team you picked")
+            if man_mk == "Spread":
+                man_line = num_box("Spread you took (like -3.5 or +4)", "man_sline", m6, placeholder="-3.5", default=0.0)
+        man_odds = num_box("Odds (like -110, -150 or +130)", "man_odds", st, placeholder="-110", default=0.0)
         if st.button("Add this pick", key="man_add", type="primary"):
-            if not (man_away and man_home and man_pick) or man_away == man_home:
-                st.error("Choose both teams (different ones) and the team you picked.")
+            bad = None
+            if not (man_away and man_home) or man_away == man_home:
+                bad = "Choose both teams (different ones)."
+            elif man_mk != "Total" and not man_pick:
+                bad = "Choose the team you picked."
+            elif man_mk != "Moneyline" and man_line == 0:
+                bad = "Enter the line."
             elif abs(man_odds) < 100:
-                st.error("Enter the moneyline odds, like -150 or +130.")
+                bad = "Enter the odds, like -110 or +130."
+            if bad:
+                st.error(bad)
             else:
-                pick_home = man_pick == man_home
+                first = (man_pick == man_home) if man_mk != "Total" else (man_pick == "Over")      # side A is the home team / the over
                 p_pick = implied(man_odds)
-                p_oth = 1 - p_pick
-                o_oth = -100 * p_oth / (1 - p_oth) if p_oth >= 0.5 else 100 * (1 - p_oth) / p_oth
-                m_pick = min(p_pick + 0.001, 0.999)              # a hair above the book, so this is a pick but not a value play
-                win = "P" if man_res == "Push" else ("A" if (pick_home == (man_res == "Won")) else "B")
-                a_, b_ = ("a", "b") if pick_home else ("b", "a")
+                if man_mk == "Moneyline":
+                    p_oth = 1 - p_pick
+                    o_oth = round(-100 * p_oth / (1 - p_oth) if p_oth >= 0.5 else 100 * (1 - p_oth) / p_oth)
+                else:
+                    p_oth, o_oth = p_pick, man_odds                                                    # both sides priced the same
+                m_pick = min(p_pick + 0.001, 0.999)                                                   # a hair above the book: a pick, not a value play
+                win = "P" if man_res == "Push" else ("A" if (first == (man_res == "Won")) else "B")
+                a_, b_ = ("a", "b") if first else ("b", "a")
+                k_ = {"Moneyline": "ml", "Spread": "sp", "Total": "to"}[man_mk]
                 row = {"key": f"{man_date.isoformat()}|manual-{uuid.uuid4().hex[:8]}", "date": man_date.isoformat(),
                        "event_id": f"manual-{uuid.uuid4().hex[:6]}", "game": f"{man_away} @ {man_home}", "home": man_home, "away": man_away,
-                       "saved_at": local_now().isoformat(timespec="seconds"), "ml_win": win,
-                       f"ml_odds_{a_}": man_odds, f"ml_odds_{b_}": round(o_oth), f"ml_model_{a_}": m_pick, f"ml_model_{b_}": 1 - m_pick,
-                       f"ml_book_{a_}": p_pick, f"ml_book_{b_}": p_oth}
+                       "saved_at": local_now().isoformat(timespec="seconds"), f"{k_}_win": win,
+                       f"{k_}_odds_{a_}": man_odds, f"{k_}_odds_{b_}": o_oth, f"{k_}_model_{a_}": m_pick, f"{k_}_model_{b_}": 1 - m_pick,
+                       f"{k_}_book_{a_}": p_pick, f"{k_}_book_{b_}": p_oth}
+                if man_mk == "Spread":
+                    row["sp_line"] = man_line if man_pick == man_home else -man_line                  # stored as the home team's spread
+                elif man_mk == "Total":
+                    row["to_line"] = man_line
                 save_wide(clean_wide(pd.concat([wide, pd.DataFrame([row])], ignore_index=True)))
                 st.success("Added. Your record is updated.")
                 st.rerun()

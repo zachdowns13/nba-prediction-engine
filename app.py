@@ -1805,6 +1805,7 @@ def todays_markets(log, day):
         return
     nice = _nice_date(day)
     st.markdown(f'<div class="nb-sec">{H(nice)}: the model\'s picks by market</div>', unsafe_allow_html=True)
+    tiles, parts = [], []
     for mk, plural in (("Moneyline", "Moneylines"), ("Spread", "Spreads"), ("Total", "Totals")):
         m = d[d["market"] == mk].sort_values("game")
         if m.empty:
@@ -1812,14 +1813,15 @@ def todays_markets(log, day):
         w, l, p = int((m["result"] == "W").sum()), int((m["result"] == "L").sum()), int((m["result"] == "P").sum())
         wait = int((~m["result"].isin(["W", "L", "P"])).sum())
         prof = float(pd.to_numeric(m["profit"], errors="coerce").fillna(0).sum())
-        head = f"{plural}: {w}-{l}" + (f"-{p}" if p else "")
-        if w + l + p:
-            col_ = "green" if prof > 0.5 else ("red" if prof < -0.5 else "gray")
-            u_ = prof / 100
-            head += f" (:{col_}[{'+' if u_ > 0.005 else ('-' if u_ < -0.005 else '')}{abs(u_):.2f} units])"
-        if wait:
-            head += f" · {wait} waiting"
-        with st.expander(head):
+        u_ = prof / 100
+        units = f"{'+' if u_ > 0.005 else ('-' if u_ < -0.005 else '')}{abs(u_):.2f} units" if w + l + p else "no results yet"
+        sub = units + (f" · {wait} waiting" if wait else "")
+        tiles.append(stat_tile(plural, f"{w}-{l}" + (f"-{p}" if p else ""), sub, _tone(prof) if w + l + p else ""))
+        parts.append((plural, m))
+    html('<div class="nb-tiles">' + "".join(tiles) + '</div>')
+    with st.expander("See each pick"):
+        for plural, m in parts:
+            st.markdown(f"**{plural}**")
             pick_rows_html([{"title": pick_label(r), "sub": r["game"] + f" · model {pct(r['model_p'])} vs book {pct(r['book_p'])}",
                              "odds": f"{int(r['odds']):+d}" if pd.notna(r["odds"]) else "", "result": r["result"],
                              "profit": r["profit"]} for _, r in m.iterrows()])

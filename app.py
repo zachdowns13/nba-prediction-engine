@@ -2960,7 +2960,7 @@ def refresh_live_snapshot():
         pass
     games = live_games_for(open_) if len(open_) else []
     st.session_state["live_snap"] = (local_now(), games)
-    if games and st.session_state.get("auto_check_on", True):          # mark legs the live stats have already decided
+    if games:                                                         # mark legs the live stats have already decided
         for _, r in open_.iterrows():
             ls = leg_states(r)
             for i, leg in enumerate(split_legs(r["desc"])):
@@ -2972,7 +2972,13 @@ def refresh_live_snapshot():
                     set_leg(r["id"], i, {"hit": "H", "miss": "M", "push": "P"}[st_])
 
 
+def _want_refresh():
+    st.session_state["want_refresh"] = True
+
+
 def open_bets_list(refresh=False):
+    if st.session_state.pop("want_refresh", False):
+        refresh = True
     if refresh:
         refresh_live_snapshot()
     df = load_bets()
@@ -2980,8 +2986,13 @@ def open_bets_list(refresh=False):
     open_ = open_all
     _snap = st.session_state.get("live_snap")
     games = _snap[1] if _snap else []
-    head_ph = st.empty()
+    hc1, hc2 = st.columns([5, 1.4], vertical_alignment="bottom")
+    head_ph = hc1.empty()
     head_ph.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>', unsafe_allow_html=True)
+    try:
+        hc2.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, type="tertiary", use_container_width=True, help="Refresh the live stats")
+    except Exception:
+        hc2.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, use_container_width=True, help="Refresh the live stats")
     with st.container():
         if open_all.empty:
             st.caption("No open bets. Add one in the **Add a bet** tab.")
@@ -3177,17 +3188,7 @@ def bets_open_view():
             if u3.button("✕", key="undo_dismiss", help="Hide this"):
                 st.session_state.pop("last_deleted", None)
                 st.rerun()
-    with st.container(border=True, key="live_ctrls"):
-
-        def _flip_auto():
-            st.session_state["auto_check_on"] = not st.session_state.get("auto_check_on", True)
-        _a, t1, _b, t3, _c = st.columns([1, 2, 1, 2, 1])          # equal space left, middle and right; both buttons the same width
-        pressed = t1.button("🔄 Refresh live stats", key="live_refresh", use_container_width=True)
-        _on = st.session_state.get("auto_check_on", True)
-        t3.button("✅ Auto-check legs: On" if _on else "Auto-check legs: Off", key="live_auto_btn", use_container_width=True,
-                  type="primary" if _on else "secondary", on_click=_flip_auto,
-                  help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone. Tap to turn it on or off.")
-    open_bets_list(refresh=pressed or "live_snap" not in st.session_state)
+    open_bets_list(refresh="live_snap" not in st.session_state)
     if len(df):
         bulk_dates_section(df)
         with st.expander("✏️ Edit or delete a bet"):
@@ -3892,7 +3893,6 @@ st.markdown("""<style>
 .st-key-navbar{padding:.35rem 0 .45rem;border-bottom:1px solid rgba(128,128,128,.28)}
 .st-key-live_ctrls [data-testid="stVerticalBlock"],.st-key-bet_filters [data-testid="stVerticalBlock"],.st-key-res_ctrls [data-testid="stVerticalBlock"],.st-key-res_hist [data-testid="stVerticalBlock"]{gap:.35rem}
 .st-key-res_ctrls{margin-bottom:-.5rem}.st-key-res_hist{margin-bottom:-.45rem}
-.st-key-live_ctrls{margin-bottom:-.95rem}
 .st-key-bet_filters{margin-bottom:-.45rem}
 .block-container > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar){margin-bottom:-.7rem}

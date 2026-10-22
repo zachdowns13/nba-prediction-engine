@@ -2639,7 +2639,11 @@ def bets_input_view():
     with st.container(border=True):
         st.markdown("**Add a bet**")
         c1, c2, c3 = st.columns(3)
-        placed = c1.date_input("Date", local_today(), key=k("date"))
+        _dd_now = default_date()                                    # today, or tomorrow once tonight's games are all over
+        if st.session_state.get("bet_auto_date") is not None and st.session_state.get(k("date")) == st.session_state["bet_auto_date"]:
+            st.session_state[k("date")] = _dd_now                   # still on the automatic date, so follow it
+        st.session_state["bet_auto_date"] = _dd_now
+        placed = c1.date_input("Date", _dd_now, key=k("date"))
         books_ = BET_BOOKS + ["Other"]
         _saved = load_bets()
         last_book = st.session_state.get("last_book") or (_saved["book"].iloc[-1] if len(_saved) else None)   # the book you used last
@@ -3059,6 +3063,36 @@ def recent_settled_section():
             st.caption(f"Showing the 10 most recent of {len(done)}. For older ones use Edit or delete a bet below, then Mark as waiting again.")
 
 
+def bulk_dates_section(df):
+    # Move many bets to a new date at once.
+    with st.expander("📅 Change dates in bulk"):
+        st.caption("Placed a bunch of bets for tomorrow but they were dated today? Pick them and move them all at once.")
+        c1, c2 = st.columns(2)
+        stat = c1.radio("Which bets", ["Open bets", "All bets"], horizontal=True, key="bulk_stat")
+        pool = df if stat == "All bets" else df[~df["result"].isin(["W", "L", "P"])]
+        dates = sorted(pool["date"].dropna().unique(), reverse=True)
+        which = c2.selectbox("From date", ["Any date"] + list(dates), key="bulk_from", format_func=lambda d: d if d == "Any date" else _nice_date(d))
+        if which != "Any date":
+            pool = pool[pool["date"] == which]
+        ids = list(pool.sort_values("date", ascending=False)["id"])
+        label = {r["id"]: f"{_nice_date(r['date'])} · {r['book']} · {str(r['desc'])[:45]} · ${r['stake']:,.0f}" for _, r in pool.iterrows()}
+        st.session_state["bulk_pick"] = [i for i in st.session_state.get("bulk_pick", []) if i in label]
+
+        def _all():
+            st.session_state["bulk_pick"] = list(ids)
+        st.button(f"Select all {len(ids)} shown", key="bulk_all", on_click=_all, disabled=not ids)
+        picked = st.multiselect("Bets to move", ids, key="bulk_pick", format_func=lambda i: label.get(i, i))
+        new_d = st.date_input("Move them to", local_today() + dt.timedelta(days=1), key="bulk_new")
+        if st.button(f"Move {len(picked)} bet{'s' if len(picked) != 1 else ''} to {_nice_date(new_d.isoformat())}", key="bulk_go",
+                     type="primary", disabled=not picked):
+            allb = load_bets()
+            allb.loc[allb["id"].isin(picked), "date"] = new_d.isoformat()
+            save_bets(allb)
+            st.session_state["bulk_pick"] = []
+            st.success(f"Moved {len(picked)} bets.")
+            st.rerun()
+
+
 def trash_section():
     tr = load_trash()
     if tr.empty:
@@ -3107,6 +3141,7 @@ def bets_open_view():
     else:
         open_bets_list(refresh=pressed or "live_snap" not in st.session_state)
     if len(df):
+        bulk_dates_section(df)
         with st.expander("✏️ Edit or delete a bet"):
             fb = ["All books"] + [bk for bk in BET_BOOKS + ["Other"] if (df["book"] == bk).any()]
             fl = {k: (len(df) if k == "All books" else int((df["book"] == k).sum())) for k in fb}

@@ -3342,10 +3342,13 @@ def bets_results_view(cord_only=False):
 
     has_cord = (df["cord"] == "Y").any()                                         # checked over all time, so the toggle doesn't vanish on a quiet day
     # One toolbar: how far back, then which bets (all or Cord plays) and which book.
-    period = _seg("Time period", ["Today", "Last 7 days", "Last 30 days", "All time"], f"bet_period2{p}", "Today")
+    period = _seg("Time period", ["Today", "Yesterday", "7 days", "30 days", "All time"], f"bet_period3{p}", "Today")
     if period != "All time":
-        days = {"Today": 0, "Last 7 days": 6, "Last 30 days": 29}[period]
-        df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
+        if period == "Yesterday":
+            df = df[df["date"] == (today - dt.timedelta(days=1)).isoformat()]
+        else:
+            days = {"Today": 0, "7 days": 6, "30 days": 29}[period]
+            df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
     used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
     # Row 2: the book dropdown takes all the room it can, with the all / Cord toggle at the right end.
     t1, _t2 = st.columns([2.7, 2.3] if has_cord else [1, 0.001], vertical_alignment="center")

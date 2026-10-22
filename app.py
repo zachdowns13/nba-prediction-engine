@@ -75,6 +75,7 @@ background:linear-gradient(120deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%)}
 .nb-tile .l{opacity:.7;font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .nb-tile .v{font-size:2rem;font-weight:800;line-height:1.15;margin:4px 0 2px}
 .nb-tile .s{opacity:.65;font-size:.8rem}
+.nb-tile.big{padding:20px 22px}.nb-tile.big .v{font-size:3rem}.nb-tile.big .s{font-size:.95rem}
 .pos{color:var(--ok)}.neg{color:var(--bad)}
 .nb-brow{display:grid;grid-template-columns:1.3fr .9fr 1.7fr .9fr;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line)}
 .nb-brow.hd{opacity:.55;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;padding-bottom:4px}
@@ -1829,7 +1830,7 @@ def todays_markets(log, day):
 
 def alltime_cards(gd, waiting):
     # Brief all-time summary: overall plus each market, as one row of cards.
-    tiles = []
+    tiles, big = [], ""
     for label, d in (("Overall", gd), ("Moneylines", gd[gd["market"] == "Moneyline"]),
                      ("Spreads", gd[gd["market"] == "Spread"]), ("Totals", gd[gd["market"] == "Total"])):
         if d.empty:
@@ -1838,8 +1839,13 @@ def alltime_cards(gd, waiting):
         u_ = s_["profit"] / 100
         units = f"{'+' if u_ > 0.005 else ('-' if u_ < -0.005 else '')}{abs(u_):.2f} units"
         win = f"{s_['win'] * 100:.0f}%" if s_["win"] is not None else "-"
-        tiles.append(stat_tile(label, s_["rec"], f"{win} · {units}", _tone(s_["profit"])))
-    html('<div class="nb-tiles">' + "".join(tiles) + '</div>')
+        t_ = stat_tile(label, s_["rec"], f"{win} win rate · {units}", _tone(s_["profit"]))
+        if label == "Overall":
+            big = t_.replace('class="nb-tile"', 'class="nb-tile big"', 1)
+        else:
+            tiles.append(t_)
+    html('<div class="nb-tiles" style="grid-template-columns:1fr;margin-bottom:12px">' + big + '</div>' if big else "")
+    html('<div class="nb-tiles" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))">' + "".join(tiles) + '</div>')
     st.caption("All time, every saved day. Units: 1 unit = a $100 bet on each pick."
                + (f" {waiting} picks are still waiting on games." if waiting else ""))
 

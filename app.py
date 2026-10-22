@@ -2580,16 +2580,17 @@ def leg_live(parsed, games):
 _LIVE_BADGE = {"hit": ("✅ Hit", "ok"), "miss": ("❌ Missed", "bad"), "push": ("➖ Push", "none"), "live": ("🔴 Live", "acc"), "wait": ("⏳ Waiting", "none")}
 
 
-def live_leg_html(info):
+def live_leg_html(info, title=None):
     """Small progress line for one leg: status badge, current / line, game status and a bar."""
     word, tone = _LIVE_BADGE[info["status"]]
     cur = info["cur"]
     prog = (f'<b>{cur:g}</b> / {info["line"]:g}' + (f' {info["unit"]}' if info["unit"] else "")) if cur is not None else "-"
     w = 0 if cur is None or not info["line"] else max(0, min(100, cur / info["line"] * 100))
     color = {"hit": "var(--ok)", "miss": "#dc2626"}.get(info["status"], "var(--acc)")
-    return (f'<div class="nb-muted" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px">'
+    head = f'<div style="font-weight:600;margin:0 0 4px">{H(title)}</div>' if title else ""
+    return (head + f'<div class="nb-muted" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px">'
             f'<span>{badge(word, tone)} &nbsp;{prog}</span><span>{H(info["label"])}</span></div>'
-            f'<div class="nb-bar" style="height:6px;margin-bottom:6px"><div class="nb-fill" style="width:{w:.0f}%;background:{color}"></div></div>')
+            f'<div class="nb-bar" style="height:6px;margin-bottom:{16 if title else 6}px"><div class="nb-fill" style="width:{w:.0f}%;background:{color}"></div></div>')
 
 
 def live_games_for(open_df):
@@ -2677,12 +2678,12 @@ def open_bets_list(refresh=False):
                                 ls = leg_states(r)
                                 for i, leg in enumerate(legs):
                                     q = st.columns([3, 1.3])
-                                    q[0].markdown(f"{_leg_icon(ls[i])} {leg}")
                                     _pp = parse_leg(leg) if games else None
                                     if _pp:
-                                        _info = leg_live(_pp, games)
-                                        with q[0]:
-                                            html(live_leg_html(_info))
+                                        with q[0]:                       # name, live numbers and bar as one tight block
+                                            html(live_leg_html(leg_live(_pp, games), title=f"{_leg_icon(ls[i])} {leg}"))
+                                    else:
+                                        q[0].markdown(f"{_leg_icon(ls[i])} {leg}")
                                     try:
                                         pick_ = q[1].segmented_control("Leg result", ["✅", "❌"], default={"H": "✅", "M": "❌"}.get(ls[i]),
                                                                        key=f"seg_{r['id']}_{i}_{ls[i]}", label_visibility="collapsed")

@@ -3515,11 +3515,28 @@ def msgs_for_api(msgs, prompt):
 # =====================================================================
 # THE PAGE
 # =====================================================================
-st.session_state.setdefault("sel_date", local_today())
+def default_date():
+    # Today, unless every game today is already over, then tomorrow.
+    today = local_today()
+    try:
+        gs = get_slate(today.isoformat())
+        if gs and all(g["state"] == "post" for g in gs):
+            return today + dt.timedelta(days=1)
+    except Exception:
+        pass
+    return today
+
+
+_dd = default_date()
+st.session_state.setdefault("sel_date", _dd)
 _cur_nav = st.session_state.get("main_nav")
-if st.session_state.get("_last_nav") not in (None, _cur_nav):      # changed tabs: go back to today's date and its games
-    st.session_state["sel_date"] = local_today()
+if st.session_state.get("_last_nav") not in (None, _cur_nav):      # changed tabs: go back to the default date and its games
+    st.session_state["sel_date"] = _dd
     st.session_state.pop("sel_game", None)
+elif st.session_state.get("_auto_date") is not None and st.session_state["sel_date"] == st.session_state["_auto_date"] != _dd:
+    st.session_state["sel_date"] = _dd                                # still on the automatic date and the night's games just ended
+    st.session_state.pop("sel_game", None)
+st.session_state["_auto_date"] = _dd
 st.session_state["_last_nav"] = _cur_nav
 date = st.session_state["sel_date"]          # changed from the date box inside each tab
 M = fit_model(date.isoformat())
@@ -3588,10 +3605,11 @@ def date_picker(tab, where=None, label="Date"):
 
 def game_picker(tab):
     # Date + game selector, shown only in the tabs that work on one game.
-    date_picker(tab)
+    c1, c2 = st.columns(2)
+    date_picker(tab, c1)
     kg = f"gp_{tab}"
     st.session_state[kg] = st.session_state["sel_game"]
-    st.selectbox("Game", labels, key=kg, on_change=_sync, args=("gp_", "sel_game", kg))
+    c2.selectbox("Game", labels, key=kg, on_change=_sync, args=("gp_", "sel_game", kg))
     if st.session_state["sel_game"] == "✏️ Manual matchup":
         m1, m2 = st.columns(2)
         kh, ka = f"hp_{tab}", f"ap_{tab}"

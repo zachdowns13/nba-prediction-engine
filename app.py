@@ -1299,6 +1299,7 @@ def props_tab(M, g, odds, injuries, date, b2b):
     st.caption("Projects each player's points, rebounds, assists and more from his recent games, scaled to this game's projected score, "
                "and gives extra production to teammates when a starter is out. Sportsbook prop lines are not in ESPN's free data, "
                "so type the line from your sportsbook to see the model's over/under chance.")
+    proj_note = st.empty()
     evs = {t: recent_events(M["hist"], t, date.toordinal(), PROP_GAMES) for t in (home, away)}
     if not evs[home] and not evs[away]:
         st.info("No recent games found for these teams yet, so there is nothing to project from.")
@@ -1331,8 +1332,8 @@ def props_tab(M, g, odds, injuries, date, b2b):
     st.session_state.setdefault("props_proj", {})[f"{away} @ {home}"] = [r for r in rows]
     st.markdown('<div style="margin-top:-14px"></div>', unsafe_allow_html=True)
     st.markdown("<h3 style='text-align:center'>Projected player lines</h3>", unsafe_allow_html=True)
-    st.markdown(f"<div style='text-align:center;opacity:.65;font-size:.85rem;margin-bottom:8px'>Model's projection for this game (the {H(short(home))} are projected for {res['hp']:.0f} points and the {H(short(away))} for {res['ap']:.0f}). "
-                "Players who are out are hidden, and their teammates' numbers already include the boost.</div>", unsafe_allow_html=True)
+    proj_note.caption(f"Model's projection for this game (the {short(home)} are projected for {res['hp']:.0f} points and the {short(away)} for {res['ap']:.0f}). "
+                      "Players who are out are hidden, and their teammates' numbers already include the boost.")
     pcols = st.columns(2)
     for col, team, lg in zip(pcols, (home, away), (g.get("home_logo"), g.get("away_logo"))):
         with col:

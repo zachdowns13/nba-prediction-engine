@@ -2589,8 +2589,10 @@ def live_leg_html(info, title=None):
     color = {"hit": "var(--ok)", "miss": "#dc2626"}.get(info["status"], "var(--acc)")
     head = f'<div style="font-weight:600;margin:0 0 4px">{H(title)}</div>' if title else ""
     return (head + f'<div class="nb-muted" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px">'
-            f'<span>{H(info["label"])}</span><span>{prog} &nbsp;{badge(word, tone)}</span></div>'
-            f'<div class="nb-bar" style="height:6px;margin-bottom:{16 if title else 6}px"><div class="nb-fill" style="width:{w:.0f}%;background:{color}"></div></div>')
+            f'<span>{H(info["label"])}</span><span>{badge(word, tone)}</span></div>'
+            f'<div style="display:flex;align-items:center;gap:10px;margin:6px 0 {16 if title else 6}px">'
+            f'<div class="nb-bar" style="height:6px;flex:1;margin:0"><div class="nb-fill" style="width:{w:.0f}%;background:{color}"></div></div>'
+            f'<span style="white-space:nowrap;font-size:.9rem">{prog}</span></div>')
 
 
 def live_games_for(open_df):

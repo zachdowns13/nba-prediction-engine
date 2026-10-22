@@ -3257,22 +3257,29 @@ def _week_label(d):
         return d
 
 
-def bets_recap(done, open_):
-    # One clean card: the profit big on top, with record / win rate / biggest win in a quiet row underneath.
-    s = pick_stats(done)
-    big = stat_tile("Profit", _signed_money(s["profit"]), f"on ${done['stake'].sum():,.0f} in bets", _tone(s["profit"]))
-    big = big.replace('class="nb-tile"', 'class="nb-tile big" style="border:none;background:none;padding:0 0 10px;text-align:center"', 1)
-
-    def mini(label, value, sub=""):
-        return (f'<div style="text-align:center;flex:1"><div class="nb-muted" style="font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">{H(label)}</div>'
-                f'<div style="font-size:1.3rem;font-weight:800;line-height:1.3">{H(value)}</div><div class="nb-muted" style="font-size:.75rem">{H(sub)}</div></div>')
-    win = f"{s['win'] * 100:.0f}%" if s["win"] is not None else "-"
-    html('<div class="nb-card" style="padding:16px 20px">' + big
-         + '<div style="display:flex;gap:8px;border-top:1px solid var(--line);padding-top:12px">'
-         + mini("Record", s["rec"], f"{len(open_)} open" if len(open_) else "all settled")
-         + mini("Win rate", win)
-         + mini("Biggest win", _signed_money(float(done["profit"].max())))
-         + '</div></div>')
+def bets_recap(done, open_, cdone=None, copen=None):
+    # One card. Left: all plays. Right (once you have Cord plays): Cord plays. Each side is a pyramid: profit big on top, record and win rate under it.
+    def side(title, d, o):
+        head = f'<div class="nb-muted" style="font-size:.8rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">{H(title)}</div>'
+        if d.empty:
+            return f'<div style="flex:1;text-align:center">{head}<div class="nb-muted" style="margin-top:14px">No settled bets yet</div></div>'
+        s_ = pick_stats(d)
+        win = f"{s_['win'] * 100:.0f}%" if s_["win"] is not None else "-"
+        mini = lambda lab, val, sub="": (f'<div style="flex:1"><div class="nb-muted" style="font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">{H(lab)}</div>'
+                                         f'<div style="font-size:1.25rem;font-weight:800;line-height:1.3">{H(val)}</div>'
+                                         f'<div class="nb-muted" style="font-size:.72rem">{H(sub)}</div></div>')
+        return (f'<div style="flex:1;text-align:center;min-width:0">{head}'
+                f'<div class="{_tone(s_["profit"])}" style="font-size:2.4rem;font-weight:800;line-height:1.15;margin:4px 0 0">{H(_signed_money(s_["profit"]))}</div>'
+                f'<div class="nb-muted" style="font-size:.8rem;margin-bottom:10px">on ${d["stake"].sum():,.0f} in bets</div>'
+                f'<div style="display:flex;gap:6px;border-top:1px solid var(--line);padding-top:10px">'
+                + mini("Record", s_["rec"], f"{len(o)} open" if len(o) else "all settled") + mini("Win rate", win) + '</div></div>')
+    if cdone is None:
+        html('<div class="nb-card" style="padding:16px 20px">' + side("Profit", done, open_) + '</div>')
+        return
+    html('<div class="nb-card" style="padding:16px 20px;display:flex;gap:0">'
+         + side("All plays", done, open_)
+         + '<div style="width:1px;background:var(--line);margin:0 16px"></div>'
+         + side("💬 Cord plays", cdone, copen) + '</div>')
 
 
 def bets_stats_block(done, open_, key, recap=True):
@@ -3309,6 +3316,7 @@ def bets_results_view():
     if period != "All time":
         days = {"Today": 0, "Last 7 days": 6, "Last 30 days": 29}[period]
         df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
+    df_period = df
     if _has_cord:
         which = p2.radio("Bets", ["All my bets", "💬 Cord plays"], horizontal=True, key="bet_scope", label_visibility="collapsed")
         if which == "💬 Cord plays":
@@ -3321,7 +3329,12 @@ def bets_results_view():
         done["odds"] = [bet_odds(a, b) for a, b in zip(done["stake"], done["payout"])]
         if 0 < len(done) < 30:
             st.caption(f"Early days: only {len(done)} settled bets here so far, so these numbers can swing a lot.")
-        bets_recap(done, open_)
+        _dp = df_period[df_period["result"].isin(["W", "L", "P"])]
+        _op = df_period[df_period["result"] == ""]
+        if _has_cord:
+            bets_recap(_dp, _op, _dp[_dp["cord"] == "Y"], _op[_op["cord"] == "Y"])
+        else:
+            bets_recap(_dp, _op)
         used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
         if len(used) > 1:
             st.markdown('<div class="nb-sec">By book</div>', unsafe_allow_html=True)

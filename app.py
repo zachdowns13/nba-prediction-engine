@@ -2283,6 +2283,7 @@ def filter_sort_bets(df, key, books_label="Books", right=None):
     if isinstance(st.session_state.get(kb), list):
         st.session_state[kb] = [b for b in st.session_state[kb] if b in present]
     # Book buttons you tap on and off (no dropdown to open or close). None selected = all books.
+    st.caption("Filter by book")
     try:
         picked = list(st.pills(books_label, present, selection_mode="multi", key=kb, label_visibility="collapsed",
                                format_func=lambda b: f"{b} ({int(counts[b])})") or [])
@@ -2970,7 +2971,8 @@ def open_bets_list(refresh=False):
     open_ = open_all
     _snap = st.session_state.get("live_snap")
     games = _snap[1] if _snap else []
-    st.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>', unsafe_allow_html=True)
+    head_ph = st.empty()
+    head_ph.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>', unsafe_allow_html=True)
     with st.container():
         if open_all.empty:
             st.caption("No open bets. Add one in the **Add a bet** tab.")
@@ -2988,8 +2990,11 @@ def open_bets_list(refresh=False):
                     st.session_state["legs_open"], st.session_state["legs_ver"] = False, st.session_state["legs_ver"] + 1
                     st.rerun()
             _has_parlay = any(len(split_legs(x)) > 1 for x in open_all["desc"])
-            open_ = filter_sort_bets(open_all, "bo", right=_leg_buttons if _has_parlay else None)
-            st.caption(f"${open_all['stake'].sum():,.2f} at risk overall" + (f" · showing {len(open_)} of {len(open_all)}" if len(open_) != len(open_all) else "") + ". Tap a button when the bet settles.")
+            with st.container(border=True):
+                open_ = filter_sort_bets(open_all, "bo", right=_leg_buttons if _has_parlay else None)
+            head_ph.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>'
+                             f'<div class="nb-muted" style="margin:-6px 0 8px">${open_all["stake"].sum():,.2f} at risk'
+                             + (f" · showing {len(open_)} of {len(open_all)}" if len(open_) != len(open_all) else "") + '</div>', unsafe_allow_html=True)
             by_book = st.session_state.get("bo_sort") == BOOK_SORT
             last_book = None
             for _, r in open_.iterrows():
@@ -3164,12 +3169,15 @@ def bets_open_view():
             if u3.button("✕", key="undo_dismiss", help="Hide this"):
                 st.session_state.pop("last_deleted", None)
                 st.rerun()
-    t1, t2, t3 = st.columns([1.2, 2, 3.4])
-    pressed = t1.button("🔄 Refresh live stats", key="live_refresh")
-    if hasattr(st, "toggle"):
-        t2.toggle(f"Auto-refresh every {LIVE_REFRESH_SECONDS}s", key="live_auto_refresh", value=False)
-    t3.checkbox("Auto-check legs once the live stats decide them", value=True, key="live_auto",
-                help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone.")
+    with st.container(border=True):
+        t1, t2, t3 = st.columns([1.3, 1, 1])
+        pressed = t1.button("🔄 Refresh live stats", key="live_refresh", use_container_width=True)
+        if hasattr(st, "toggle"):
+            t2.toggle(f"Auto-refresh ({LIVE_REFRESH_SECONDS}s)", key="live_auto_refresh", value=False)
+            t3.toggle("Auto-check legs", value=True, key="live_auto",
+                      help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone.")
+        else:
+            t3.checkbox("Auto-check legs", value=True, key="live_auto")
     if st.session_state.get("live_auto_refresh", False):
         open_bets_list_auto()
     else:

@@ -2137,7 +2137,7 @@ def filter_sort_bets(df, key, books_label="Books"):
         d = d.sort_values("_p")
     elif how == "Closest to hitting":
         sc = [leg_score(r) for _, r in d.iterrows()]
-        d = d.assign(_s=sc).sort_values(["_s", "date"], ascending=[True, True]).drop(columns="_s")
+        d = d.assign(_s=sc).sort_values(["_s", "date", "id"], ascending=[True, True, True], kind="mergesort").drop(columns="_s")
     elif how == BOOK_SORT:
         rank = {b: i for i, b in enumerate(sorted(present, key=lambda b: (-int(counts[b]), BET_BOOKS.index(b) if b in BET_BOOKS else 99)))}
         d = d.assign(_r=d["book"].map(rank).fillna(99)).sort_values(["_r", "date"], ascending=[True, False]).drop(columns="_r")
@@ -2237,11 +2237,11 @@ def leg_states(r):
 
 
 def leg_score(r):
-    # Lower = closer to hitting. A slip with a missed leg sinks to the bottom.
+    # Lower = closer to hitting: the fewest legs still to go. A slip with a missed leg sinks to the bottom.
     ls = leg_states(r)
     if "M" in ls:
-        return 10 + ls.count("M")
-    return (len(ls) - ls.count("H")) / len(ls) - ls.count("H") * 0.001
+        return 1000 + ls.count("M")
+    return len(ls) - ls.count("H")
 
 
 def set_leg(bet_id, idx, val):
@@ -2613,8 +2613,7 @@ def open_bets_list():
     open_all = df[df["result"] == ""]
     open_ = open_all
     games = live_games_for(open_all) if len(open_all) else []
-    auto = st.checkbox("Auto-check legs once they're decided by the live stats", value=True, key="live_auto",
-                       help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone.") if games else False
+    auto = bool(st.session_state.get("live_auto", True)) and bool(games)
     changed = False
     st.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>', unsafe_allow_html=True)
     with st.container():
@@ -2694,18 +2693,25 @@ def open_bets_list():
                         delete_bet(r["id"])
                         st.rerun()
     if games:
-        st.caption(f"Live stats updated {dt.datetime.now().strftime('%-I:%M:%S %p')}, refreshing about every {LIVE_REFRESH_SECONDS} seconds. "
-                   "They come from ESPN's live box score, which can run about a minute behind the broadcast.")
+        st.caption(f"Live stats as of {dt.datetime.now().strftime('%-I:%M:%S %p')}. They come from ESPN's live box score, which can run about a minute behind the broadcast.")
     if changed:
         st.rerun()
 
 
-open_bets_list = _refreshing(open_bets_list)
+open_bets_list_auto = _refreshing(open_bets_list)
 
 
 def bets_open_view():
     df = load_bets()
-    open_bets_list()
+    t1, t2, t3 = st.columns([1.2, 2, 3.4])
+    t1.button("🔄 Refresh live stats", key="live_refresh")
+    t2.toggle(f"Auto-refresh every {LIVE_REFRESH_SECONDS}s", key="live_auto_refresh", value=True) if hasattr(st, "toggle") else None
+    t3.checkbox("Auto-check legs once the live stats decide them", value=True, key="live_auto",
+                help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone.")
+    if st.session_state.get("live_auto_refresh", True):
+        open_bets_list_auto()
+    else:
+        open_bets_list()
     if len(df):
         with st.expander("✏️ Edit or delete a bet"):
             labels = {f"{_nice_date(r['date'])} · {r['book']} · {r['desc'][:50]} · ${r['stake']:,.0f}": r["id"] for _, r in df.sort_values("date", ascending=False).iterrows()}

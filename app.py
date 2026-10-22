@@ -3224,6 +3224,29 @@ def trash_section():
             st.rerun()
 
 
+def cord_summary_text(df):
+    # Open Cord plays as a plain list, grouped by book, with units (1 unit = $100) for every play, every book and the total.
+    cd = df[(df["cord"] == "Y") & (df["result"] == "")]
+    if cd.empty:
+        return ""
+    u = lambda x: f"{x / 100:.2f}".rstrip("0").rstrip(".") + (" unit" if abs(x / 100 - 1) < 0.005 else " units")
+    out = [f"CORD PLAYS - {len(cd)} active - {u(cd['stake'].sum())} at stake", ""]
+    for bk in BET_BOOKS + ["Other"]:
+        g = cd[cd["book"] == bk]
+        if g.empty:
+            continue
+        out.append(f"{bk.upper()} - {len(g)} play{'s' if len(g) != 1 else ''} - {u(g['stake'].sum())} at stake")
+        for i, (_, r) in enumerate(g.sort_values("date").iterrows(), 1):
+            legs = split_legs(r["desc"])
+            win = float(r["payout"]) - float(r["stake"])
+            out.append(f"{i}. {'Parlay (' + str(len(legs)) + ' legs)' if len(legs) > 1 else 'Straight'} - {u(r['stake'])} to win {u(win)}")
+            for lg in legs:
+                out.append(f"     - {lg}")
+        out.append("")
+    out.append(f"TOTAL: {len(cd)} plays - {u(cd['stake'].sum())} at stake - {u(float((cd['payout'] - cd['stake']).sum()))} to win")
+    return "\n".join(out)
+
+
 def bets_open_view():
     df = load_bets()
     _ld = st.session_state.get("last_deleted")
@@ -3240,6 +3263,11 @@ def bets_open_view():
                 st.session_state.pop("last_deleted", None)
                 st.rerun()
     open_bets_list(refresh="live_snap" not in st.session_state)
+    _cs = cord_summary_text(df)
+    if _cs:
+        with st.expander("📋 Cord plays summary (by book, in units)"):
+            st.code(_cs, language=None)
+            st.download_button("Download as text", _cs, file_name="cord_plays.txt", key="cord_sum_dl")
     if len(df):
         bulk_dates_section(df)
         with st.expander("✏️ Edit or delete a bet"):
@@ -3970,7 +3998,7 @@ st.markdown("""<style>
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{min-width:0 !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(3){flex:1 1 0 !important;width:auto !important;min-width:0 !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(3) :is([data-testid="stVerticalBlock"],[data-testid="stTextInput"],[data-testid="stTextInput"]>div,input){width:100% !important;max-width:none !important}
-[class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(3) [data-testid="stElementContainer"]{width:calc(100% + 3.25rem) !important;max-width:none !important}
+[class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]:has(>[data-testid="stColumn"]:nth-child(4))>[data-testid="stColumn"]:nth-child(3) [data-testid="stElementContainer"]{width:calc(100% + 3.25rem) !important;max-width:none !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(4){flex:0 0 calc(20% - 1.132rem) !important;width:calc(20% - 1.132rem) !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(2){flex:0 0 calc(33.333% - .227rem) !important;width:calc(33.333% - .227rem) !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:first-child{flex:0 0 calc(33.333% - .887rem) !important;width:calc(33.333% - .887rem) !important}

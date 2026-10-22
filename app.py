@@ -1047,7 +1047,7 @@ def first_basket_tab(M, g, injuries, now):
     odds_text = st.text_area("Your sportsbook's first-basket prices (optional), one per line, like: Jalen Brunson, 650",
                              key=f"fbo_{g['id']}")
     with btn_box:
-        clicked = st.button("🏀 Simulate first basket (10,000x)", type="primary", key=f"fbb_{g['id']}")
+        clicked = st.button("🏀 Simulate first basket", type="primary", key=f"fbb_{g['id']}")
     if clicked and (len(chosen[home]) != 5 or len(chosen[away]) != 5):
         with btn_box:
             st.error("Pick exactly 5 starters for each team.")
@@ -2970,7 +2970,7 @@ def slate_tab(M, date, games, injuries, b2b):
         st.info("No games on this date.")
         return
     key = f"slate_{date.isoformat()}"
-    if st.button("🔥 Run full slate (10,000x per game)", type="primary", key="run_slate"):
+    if st.button("🔥 Run full slate", type="primary", key="run_slate"):
         with st.spinner(f"Simulating {len(games)} games..."):
             res_list = [analyze_game(M, g, g["odds"], team_injury_pts(M, g["home"], injuries, date),
                                      team_injury_pts(M, g["away"], injuries, date), b2b) for g in games]
@@ -3585,7 +3585,7 @@ if nav == NAV[0]:
                 st.caption(f"Estimated impact: **-{inj_pts[team]:.1f} pts**")
 
     st.markdown("---")
-    if st.button("🔥 Simulate game (10,000x)", type="primary", key=f"sim_{gid}"):
+    if st.button("🔥 Simulate game", type="primary", key=f"sim_{gid}"):
         if g["home"] == g["away"]:
             st.error("A team can't play itself.")
         else:

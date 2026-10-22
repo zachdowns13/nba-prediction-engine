@@ -2060,6 +2060,19 @@ def game_results_view():
                 save_wide(clean_wide(pd.concat([wide, pd.DataFrame([row])], ignore_index=True)))
                 st.success("Added. Your record is updated.")
                 st.rerun()
+        manual = wide[wide["event_id"].astype(str).str.startswith("manual")]
+        if len(manual):
+            st.markdown("**Picks you added by hand**")
+            for _, mr in manual.sort_values("date", ascending=False).iterrows():
+                lab = []
+                for k_, nm in (("ml", "Moneyline"), ("sp", "Spread"), ("to", "Total")):
+                    if pd.notna(mr[f"{k_}_odds_a"]) and mr[f"{k_}_win"] in ("A", "B", "P"):
+                        lab.append(nm)
+                mc1, mc2 = st.columns([4, 1])
+                mc1.markdown(f"{_nice_date(mr['date'])} · {mr['game']} · {', '.join(lab) or 'pick'}")
+                if mc2.button("🗑️ Delete", key=f"mandel_{mr['key']}"):
+                    save_wide(clean_wide(wide[wide["key"] != mr["key"]]))
+                    st.rerun()
 
     with st.expander("My saved games, backup and restore"):
         st.caption("One line per game: the model's pick in each market (✅ win, ❌ loss, ➖ push, ⏳ waiting) and, where it differs or is flagged, "

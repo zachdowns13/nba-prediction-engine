@@ -2681,22 +2681,24 @@ def bets_input_view():
         st.success(st.session_state.pop("bet_msg"))
     with st.container(border=True):
         st.markdown("**Add a bet**")
-        c1, c2, c3, c4 = st.columns(4)
+        books_ = BET_BOOKS + ["Other"]
+        _saved = load_bets()
+        last_book = st.session_state.get("last_book") or (_saved["book"].iloc[-1] if len(_saved) else None)   # the book you used last
+        if k("type") not in st.session_state:                            # Kalshi and Novig are usually singles, the rest parlays
+            st.session_state[k("type")] = "Straight" if last_book in ("Kalshi", "Novig") else "Parlay"
+
+        def _book_changed():
+            st.session_state[k("type")] = "Straight" if st.session_state.get(k("book")) in ("Kalshi", "Novig") else "Parlay"
+        btype = st.radio("Type", ["Straight", "Parlay"], horizontal=True, key=k("type"))
+        c1, c2, c3 = st.columns(3)
         _dd_now = default_date()                                    # today, or tomorrow once tonight's games are all over
         if st.session_state.get("bet_auto_date") is not None and st.session_state.get(k("date")) == st.session_state["bet_auto_date"]:
             st.session_state[k("date")] = _dd_now                   # still on the automatic date, so follow it
         st.session_state["bet_auto_date"] = _dd_now
         placed = c1.date_input("Date", _dd_now, key=k("date"))
-        books_ = BET_BOOKS + ["Other"]
-        _saved = load_bets()
-        last_book = st.session_state.get("last_book") or (_saved["book"].iloc[-1] if len(_saved) else None)   # the book you used last
-        book = c2.selectbox("Book", books_, index=books_.index(last_book) if last_book in books_ else 0, key=k("book"))
-        if st.session_state.get(k("book_prev")) != book:                 # a new book (or a fresh form): Kalshi and Novig are usually singles, the rest parlays
-            st.session_state[k("type")] = "Straight" if book in ("Kalshi", "Novig") else "Parlay"
-            st.session_state[k("book_prev")] = book
-        btype = c3.radio("Type", ["Straight", "Parlay"], horizontal=True, key=k("type"))
+        book = c2.selectbox("Book", books_, index=books_.index(last_book) if last_book in books_ else 0, key=k("book"), on_change=_book_changed)
         if btype == "Parlay":
-            legs = int(c4.number_input("Legs", min_value=2, max_value=15, value=2, step=1, key=k("legs")))
+            legs = int(c3.number_input("Legs", min_value=2, max_value=15, value=2, step=1, key=k("legs")))
         else:
             legs = 1
         parts = []
@@ -3918,7 +3920,7 @@ st.markdown("""<style>
 [class*="st-key-scope_right"] [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}
 [class*="st-key-scope_right"] [data-testid="stVerticalBlock"]{width:100% !important;align-items:flex-end !important}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"]{justify-content:flex-end !important;float:right}
-[class*="st-key-bet_"][class*="_type"] [role="radiogroup"]{justify-content:center !important;width:100%}
+[class*="st-key-bet_"][class*="_type"] [role="radiogroup"]{justify-content:flex-start !important}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}

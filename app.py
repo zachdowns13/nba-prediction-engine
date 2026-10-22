@@ -2588,9 +2588,9 @@ def flip_side(key, where):
         if st.session_state.get(k) is None:
             st.session_state[k] = st.session_state.get(k + "_last", "Over")
     try:
-        v = where.segmented_control("Over/Under", ["Over", "Under"], key=k, on_change=_keep)
+        v = where.segmented_control("Over/Under", ["Over", "Under"], key=k, on_change=_keep, label_visibility="hidden")
     except AttributeError:
-        v = where.radio("Over/Under", ["Over", "Under"], horizontal=True, key=k)
+        v = where.radio("Over/Under", ["Over", "Under"], horizontal=True, key=k, label_visibility="hidden")
     v = v or st.session_state.get(k + "_last", "Over")
     st.session_state[k + "_last"] = v
     return v
@@ -3957,6 +3957,9 @@ st.markdown("""<style>
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stMarkdownContainer"] p{margin-left:.35rem;margin-top:.3rem}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button{display:flex !important;align-items:center !important;justify-content:center !important;text-align:center !important}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button *,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button *{text-align:center !important;justify-content:center !important;margin:0 auto !important}
+[class*="st-key-bet_"][class*="_sideval"],[class*="st-key-bet_"][class*="_sideval"]>div{width:100% !important}
+[class*="st-key-bet_"][class*="_sideval"] [data-testid="stButtonGroup"],[class*="st-key-bet_"][class*="_sideval"] [data-testid="stButtonGroup"]>div{display:flex !important;width:100% !important;gap:.3rem}
+[class*="st-key-bet_"][class*="_sideval"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;min-width:0;height:2.5rem;min-height:2.5rem;display:flex;align-items:center;justify-content:center}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}

@@ -2286,13 +2286,15 @@ def filter_sort_bets(df, key, books_label="Books", right=None, compact=False, so
     if isinstance(st.session_state.get(kb), list):
         st.session_state[kb] = [b for b in st.session_state[kb] if b in present]
     # Book buttons you tap on and off (no dropdown to open or close). None selected = all books.
-    if not compact:
+    if compact:
+        picked = []                       # the Results page has its own book picker at the top
+    else:
         st.caption("Filter by book")
-    try:
-        picked = list(st.pills(books_label, present, selection_mode="multi", key=kb, label_visibility="collapsed",
-                               format_func=lambda b: f"{b} ({int(counts[b])})") or [])
-    except AttributeError:
-        picked = st.multiselect(books_label, present, key=kb, placeholder="All books", format_func=lambda b: f"{b} ({int(counts[b])})")
+        try:
+            picked = list(st.pills(books_label, present, selection_mode="multi", key=kb, label_visibility="collapsed",
+                                   format_func=lambda b: f"{b} ({int(counts[b])})") or [])
+        except AttributeError:
+            picked = st.multiselect(books_label, present, key=kb, placeholder="All books", format_func=lambda b: f"{b} ({int(counts[b])})")
     only_cord = st.checkbox("💬 Cord plays only", key=f"{key}_cord") if (not compact and (df["cord"] == "Y").any()) else False
     if right:                                       # sort dropdown on the left, a matching-width block of buttons on the right
         sc1, sc2 = st.columns(2)
@@ -3306,58 +3308,62 @@ def bets_stats_block(done, open_, key, recap=True):
         profit_chart(done)
 
 
+def _seg(label, options, key, default, where=None):
+    # Tappable choices in a row (falls back to a plain radio on older Streamlit).
+    where = where or st
+    try:
+        return where.segmented_control(label, options, default=default, key=key, label_visibility="collapsed") or default
+    except AttributeError:
+        return where.radio(label, options, index=options.index(default), horizontal=True, key=key, label_visibility="collapsed")
+
+
 def bets_results_view():
     df = load_bets()
     if df.empty:
         st.info("No bets yet. Add one in the **Add a bet** tab and your results will show up here.")
         return
     today = local_today()
-    _has_cord = (df["cord"] == "Y").any()
-    p1, p2 = st.columns([3, 2] if _has_cord else [1, 0.001])
-    period = p1.radio("Time period", ["Today", "Last 7 days", "Last 30 days", "All time"], index=0, horizontal=True, key="bet_period", label_visibility="collapsed")
+    has_cord = (df["cord"] == "Y").any()
+
+    # One toolbar: how far back, then which bets (all or Cord plays) and which book.
+    period = _seg("Time period", ["Today", "Last 7 days", "Last 30 days", "All time"], "bet_period2", "Today")
     if period != "All time":
         days = {"Today": 0, "Last 7 days": 6, "Last 30 days": 29}[period]
         df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
-    df_period = df
-    if _has_cord:
-        which = p2.radio("Bets", ["All my bets", "💬 Cord plays"], horizontal=True, key="bet_scope", label_visibility="collapsed")
-        if which == "💬 Cord plays":
-            df = df[df["cord"] == "Y"]
-    done = df[df["result"].isin(["W", "L", "P"])].copy()
-    open_ = df[df["result"] == ""]
+    used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
+    t1, t2 = st.columns(2)
+    which = _seg("Bets", ["All plays", "💬 Cord plays"], "bet_scope2", "All plays", t1) if has_cord else "All plays"
+    book = t2.selectbox("Book", ["All books"] + used, key="bet_book", label_visibility="collapsed") if len(used) > 1 else "All books"
+    if book not in ["All books"] + used:
+        book = "All books"
+    dfb = df if book == "All books" else df[df["book"] == book]                  # period + book
+    dfs = dfb[dfb["cord"] == "Y"] if which == "💬 Cord plays" else dfb           # ...and the all / Cord choice
+    done = dfs[dfs["result"].isin(["W", "L", "P"])].copy()
+    open_ = dfs[dfs["result"] == ""]
     if done.empty:
-        st.info(f"No settled bets in this period. {len(open_)} open (${open_['stake'].sum():,.2f} at risk). Mark them Won, Lost or Push in the **Open bets** tab.")
+        st.info(f"No settled bets here yet. {len(open_)} open (${open_['stake'].sum():,.2f} at risk). Mark them Won, Lost or Push in the **Open bets** tab.")
     else:
         done["odds"] = [bet_odds(a, b) for a, b in zip(done["stake"], done["payout"])]
         if 0 < len(done) < 30:
             st.caption(f"Early days: only {len(done)} settled bets here so far, so these numbers can swing a lot.")
-        _dp = df_period[df_period["result"].isin(["W", "L", "P"])]
-        _op = df_period[df_period["result"] == ""]
-        if _has_cord:
+        _dp = dfb[dfb["result"].isin(["W", "L", "P"])]
+        _op = dfb[dfb["result"] == ""]
+        if has_cord:
             bets_recap(_dp, _op, _dp[_dp["cord"] == "Y"], _op[_op["cord"] == "Y"])
         else:
             bets_recap(_dp, _op)
-        used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
-        if len(used) > 1:
+        if len(used) > 1 and book == "All books":
+            _sc = df[df["cord"] == "Y"] if which == "💬 Cord plays" else df
+            _sd = _sc[_sc["result"].isin(["W", "L", "P"])]
             st.markdown('<div class="nb-sec">By book</div>', unsafe_allow_html=True)
-            breakdown_html([(b, done[done["book"] == b]) for b in BET_BOOKS + ["Other"]])
-        view_b = "All books"
-        if len(used) > 1:
-            st.markdown("<div style='height:.9rem'></div>", unsafe_allow_html=True)
-            try:
-                view_b = st.pills("Details for", ["All books"] + used, default="All books", key="bet_detail_book", label_visibility="collapsed") or "All books"
-            except AttributeError:
-                view_b = st.radio("Details for", ["All books"] + used, horizontal=True, key="bet_detail_book", label_visibility="collapsed")
-        d_ = done if view_b == "All books" else done[done["book"] == view_b]
-        o_ = open_ if view_b == "All books" else open_[open_["book"] == view_b]
-        bets_stats_block(d_, o_, "bs_view", recap=False)
+            breakdown_html([(b, _sd[_sd["book"] == b]) for b in BET_BOOKS + ["Other"]])
+        bets_stats_block(done, open_, "bs_view", recap=False)
 
     st.markdown('<div class="nb-sec">All my bets</div>', unsafe_allow_html=True)
     h1, h2 = st.columns(2)
-    flt = h1.selectbox("Show", ["All", "Open", "Wins", "Losses", "Pushes", "Straight", "Parlays", "Cord plays"], key="bet_filter")
-    sel = {"All": df, "Open": df[df["result"] == ""], "Wins": df[df["result"] == "W"], "Losses": df[df["result"] == "L"],
-           "Pushes": df[df["result"] == "P"], "Straight": df[df["type"] == "Straight"], "Parlays": df[df["type"] == "Parlay"],
-           "Cord plays": df[df["cord"] == "Y"]}[flt]
+    flt = h1.selectbox("Show", ["All", "Open", "Wins", "Losses", "Pushes", "Straight", "Parlays"], key="bet_filter")
+    sel = {"All": dfs, "Open": dfs[dfs["result"] == ""], "Wins": dfs[dfs["result"] == "W"], "Losses": dfs[dfs["result"] == "L"],
+           "Pushes": dfs[dfs["result"] == "P"], "Straight": dfs[dfs["type"] == "Straight"], "Parlays": dfs[dfs["type"] == "Parlay"]}[flt]
     sel = filter_sort_bets(sel, "bh", compact=True, sort_where=h2)
     if sel.empty:
         st.caption("Nothing to show for this filter yet.")

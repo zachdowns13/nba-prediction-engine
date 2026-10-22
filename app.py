@@ -2990,7 +2990,7 @@ def open_bets_list(refresh=False):
                     st.session_state["legs_open"], st.session_state["legs_ver"] = False, st.session_state["legs_ver"] + 1
                     st.rerun()
             _has_parlay = any(len(split_legs(x)) > 1 for x in open_all["desc"])
-            with st.container(border=True):
+            with st.container(border=True, key="bet_filters"):
                 open_ = filter_sort_bets(open_all, "bo", right=_leg_buttons if _has_parlay else None)
             head_ph.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>'
                              f'<div class="nb-muted" style="margin:-6px 0 8px">${open_all["stake"].sum():,.2f} at risk'
@@ -3169,7 +3169,7 @@ def bets_open_view():
             if u3.button("✕", key="undo_dismiss", help="Hide this"):
                 st.session_state.pop("last_deleted", None)
                 st.rerun()
-    with st.container(border=True):
+    with st.container(border=True, key="live_ctrls"):
         t1, t2, t3 = st.columns([1.3, 1, 1])
         pressed = t1.button("🔄 Refresh live stats", key="live_refresh", use_container_width=True)
         if hasattr(st, "toggle"):
@@ -3857,6 +3857,9 @@ st.markdown("""<style>
   [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),
   .st-key-navbar{background:var(--nb-bg,#0e1117)}}
 .st-key-navbar{padding:.35rem 0 .45rem;border-bottom:1px solid rgba(128,128,128,.28)}
+.st-key-live_ctrls [data-testid="stVerticalBlock"],.st-key-bet_filters [data-testid="stVerticalBlock"]{gap:.35rem}
+.st-key-live_ctrls{margin-bottom:-.55rem}
+.st-key-bet_filters{margin-bottom:-.45rem}
 .block-container > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar){margin-bottom:-.7rem}
 .st-key-navbar [role="radiogroup"]{gap:.15rem;flex-wrap:wrap}

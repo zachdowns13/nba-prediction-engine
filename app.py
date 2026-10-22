@@ -3964,7 +3964,7 @@ st.markdown("""<style>
 [class*="_sidewrap"]{width:100% !important;position:relative !important;top:1.7rem}
 [class*="_sidewrap"] [data-testid="stElementContainer"],[class*="_sidewrap"] [data-testid="stButtonGroup"]{width:100% !important}
 [class*="_sidewrap"] [data-testid="stButtonGroup"],[class*="_sidewrap"] [data-testid="stButtonGroup"]>div{display:flex !important;flex-direction:row !important;gap:.3rem;width:100% !important}
-[class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]{flex-wrap:nowrap !important;gap:.8rem}
+[class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]{flex-wrap:nowrap !important;gap:1rem}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{min-width:0 !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:first-child{flex:0 0 calc(33.333% - .887rem) !important;width:calc(33.333% - .887rem) !important}
 [class*="_sidewrap"] [data-testid="stButtonGroup"] button *{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:none !important}

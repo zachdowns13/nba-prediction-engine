@@ -4005,6 +4005,21 @@ except TypeError:                                        # older Streamlit witho
 with _nav_box:
     nav = st.radio("Section", menu, horizontal=True, key="main_nav", label_visibility="collapsed")
 
+# Explain the purpose of each section before its controls. This is intentionally
+# presentation-only: it does not alter routing, session state, or calculations.
+SECTION_INTROS = {
+    NAV[0]: ("Game odds", "Run a matchup simulation, review projected scores, and compare model estimates with available sportsbook lines."),
+    NAV[1]: ("Full slate", "Scan the day’s matchups in one place and focus on the games where the model sees a meaningful difference from the market."),
+    NAV[2]: ("Player props", "Explore player markets with the available projections and compare estimated probabilities with the listed prices."),
+    NAV[3]: ("First basket", "Review first-basket probabilities and player-level projections for the selected matchup."),
+    NAV[4]: ("Results", "Review tracked picks, grading, and historical performance to evaluate how the model has performed over time."),
+    NAV[5]: ("My bets", "Record wagers, track open bets, and review settled results in one place."),
+    NAV[6]: ("AI assistant", "Ask questions about the slate, projections, and app features. Treat responses as analysis, not guaranteed outcomes."),
+    LOCKED_NAV: ("Private sections", "Unlock owner-only results and bet tracking using the app’s configured passcode."),
+}
+_section_title, _section_description = SECTION_INTROS.get(nav, ("NBA analytics", "Explore NBA projections and simulation tools."))
+html(f'<div class="nb-section-head"><div><span class="nb-section-kicker">NBA ANALYTICS WORKSPACE</span><h2>{H(_section_title)}</h2><p>{H(_section_description)}</p></div></div>')
+
 def terms_help():
   with st.expander("What do these terms mean?"):
       st.markdown(
@@ -4322,6 +4337,64 @@ POLISH_CSS = """
 # Inject after legacy layout helpers so these tokens and component styles win
 # in the cascade without changing any Streamlit widgets or their state.
 st.markdown(POLISH_CSS, unsafe_allow_html=True)
+
+# A final, small product-level layer: consistent surfaces, readable controls,
+# and responsive navigation. Keep this separate from feature-specific styles.
+PRODUCT_CSS = """
+<style>
+:root {
+    --nb-radius-sm: 10px;
+    --nb-radius-lg: 18px;
+    --nb-shadow: 0 10px 30px rgba(15, 23, 42, .07);
+}
+[data-testid="stAppViewContainer"] {
+    background-image: radial-gradient(ellipse at 50% -12%, rgba(59,130,246,.075), transparent 48%);
+}
+[data-testid="stMainBlockContainer"] { padding-bottom: 3.5rem; }
+[data-testid="stMarkdownContainer"] p { line-height: 1.6; }
+[data-testid="stMarkdownContainer"] h1,
+[data-testid="stMarkdownContainer"] h2,
+[data-testid="stMarkdownContainer"] h3 { scroll-margin-top: 6rem; }
+.nb-hero { isolation: isolate; }
+.nb-hero:after { z-index: -1; }
+.nb-section-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 1rem; padding: .35rem 0 1rem; margin: .1rem 0 1rem;
+    border-bottom: 1px solid var(--nb-border);
+}
+.nb-section-head h2 { margin: 0; font-size: clamp(1.25rem, 2.2vw, 1.65rem); font-weight: 780; letter-spacing: -.035em; }
+.nb-section-head p { margin: .3rem 0 0; opacity: .72; font-size: .92rem; max-width: 760px; }
+.nb-section-kicker { display: block; margin-bottom: .35rem; color: var(--nb-accent); font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .13em; }
+.nb-card, .nb-tile, .nb-pod, [data-testid="stMetric"] { transition: border-color .16s ease, box-shadow .16s ease; }
+.nb-card:hover, .nb-tile:hover, .nb-pod:hover { border-color: rgba(59,130,246,.34); box-shadow: var(--nb-shadow); }
+[data-testid="stButton"] button, [data-testid="stDownloadButton"] button,
+[data-testid="stFormSubmitButton"] button { min-height: 2.55rem; }
+[data-testid="stButton"] button:focus-visible,
+[data-testid="stDownloadButton"] button:focus-visible,
+[data-testid="stFormSubmitButton"] button:focus-visible,
+[data-testid="stTextInput"] input:focus-visible,
+[data-testid="stNumberInput"] input:focus-visible,
+[data-testid="stDateInput"] input:focus-visible { outline: 2px solid var(--nb-accent) !important; outline-offset: 2px; }
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input,
+[data-testid="stDateInput"] input,
+[data-testid="stSelectbox"] [role="combobox"],
+[data-testid="stMultiSelect"] [role="combobox"] { min-height: 2.65rem; }
+[data-testid="stAlert"] { border-radius: var(--nb-radius-sm); }
+[data-testid="stTabs"] [role="tab"] { font-weight: 650; }
+.st-key-navbar label { min-height: 2.4rem; display: inline-flex; align-items: center; }
+.st-key-navbar label:focus-within { outline: 2px solid var(--nb-accent); outline-offset: 2px; }
+@media (max-width: 640px) {
+    .nb-section-head { padding-bottom: .75rem; margin-bottom: .8rem; }
+    .nb-section-head p { font-size: .86rem; }
+    .st-key-navbar label { flex: 1 1 auto; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .nb-card, .nb-tile, .nb-pod, [data-testid="stMetric"] { transition: none !important; }
+}
+</style>
+"""
+st.markdown(PRODUCT_CSS, unsafe_allow_html=True)
 
 if nav == NAV[0]:
     game_picker("game")

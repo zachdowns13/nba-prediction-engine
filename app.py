@@ -2999,7 +2999,8 @@ def open_bets_list(refresh=False):
     open_ = open_all
     _snap = st.session_state.get("live_snap")
     games = _snap[1] if _snap else []
-    hc1, hc2 = st.columns([3.2, 1.1], vertical_alignment="top")          # heading on the left, Refresh at the far right
+    _oh = st.container(key="open_head")                                   # pulled up to remove the space above
+    hc1, hc2 = _oh.columns([3.2, 1.1], vertical_alignment="top")          # heading on the left, Refresh at the far right
     with hc2:
         with st.container(key="refresh_right"):
             try:
@@ -3910,9 +3911,10 @@ st.markdown("""<style>
 .st-key-live_ctrls [data-testid="stVerticalBlock"],.st-key-bet_filters [data-testid="stVerticalBlock"],.st-key-res_ctrls [data-testid="stVerticalBlock"],.st-key-res_hist [data-testid="stVerticalBlock"]{gap:.35rem}
 [class*="st-key-scope_right"] [data-testid="stElementContainer"]{display:flex;justify-content:flex-end}
 [class*="st-key-scope_right"] [data-testid="stVerticalBlock"]{align-items:flex-end}
-.st-key-refresh_right,.st-key-refresh_right>div{width:100%}
-.st-key-refresh_right [data-testid="stElementContainer"]{width:100%;display:flex;justify-content:flex-end}
-.st-key-refresh_right{margin-top:-.2rem;margin-right:-.4rem}
+.st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
+.st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
+.st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}
+.st-key-refresh_right button{margin-left:auto !important;margin-top:.9rem}
 .st-key-refresh_right button{min-height:1.6rem;padding-top:0;padding-bottom:0}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"],[class*="st-key-scope_right"] [data-testid="stButtonGroup"]>div{width:100%}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"] button{flex:1 1 0;min-width:0;white-space:nowrap;overflow:visible;padding-left:.25rem;padding-right:.25rem}

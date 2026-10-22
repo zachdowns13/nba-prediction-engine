@@ -3966,6 +3966,8 @@ st.markdown("""<style>
 [class*="_sidewrap"] [data-testid="stButtonGroup"],[class*="_sidewrap"] [data-testid="stButtonGroup"]>div{display:flex !important;flex-direction:row !important;gap:.3rem;width:100% !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]{flex-wrap:nowrap !important;gap:1rem}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{min-width:0 !important}
+[class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(3){flex:0 0 calc(13.333% - .754rem) !important;width:calc(13.333% - .754rem) !important}
+[class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(4){flex:0 0 calc(20% - 1.132rem) !important;width:calc(20% - 1.132rem) !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(2){flex:0 0 calc(33.333% - .227rem) !important;width:calc(33.333% - .227rem) !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:first-child{flex:0 0 calc(33.333% - .887rem) !important;width:calc(33.333% - .887rem) !important}
 [class*="_sidewrap"] [data-testid="stButtonGroup"] button *{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:none !important}

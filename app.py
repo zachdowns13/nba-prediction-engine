@@ -3689,6 +3689,8 @@ st.markdown("""<style>
   [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),
   .st-key-navbar{background:var(--nb-bg,#0e1117)}}
 .st-key-navbar{padding:.35rem 0 .45rem;border-bottom:1px solid rgba(128,128,128,.28)}
+.block-container > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar){margin-bottom:-.7rem}
 .st-key-navbar [role="radiogroup"]{gap:.15rem;flex-wrap:wrap}
 .st-key-navbar label{padding:.35rem .85rem;border-radius:8px;cursor:pointer;margin:0}
 .st-key-navbar label > *:not(:last-child):not(input){display:none}

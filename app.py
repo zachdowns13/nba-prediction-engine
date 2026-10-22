@@ -3933,7 +3933,10 @@ st.markdown("""<style>
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"]{justify-content:flex-end !important;float:right}
 [class*="st-key-bet_"][class*="_type"] [role="radiogroup"]{justify-content:flex-start !important}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"],[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"]>div{width:100% !important}
-[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;min-width:0;white-space:nowrap}
+[class*="st-key-bet_"][class*="_type"]{width:100% !important}
+[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"]{display:grid !important;grid-template-columns:1fr 1fr;gap:.4rem}
+[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button{width:100% !important;min-width:0;white-space:nowrap;overflow:visible !important;text-overflow:clip !important;padding-left:.6rem !important;padding-right:.6rem !important}
+[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button *{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:none !important}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}

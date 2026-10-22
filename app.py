@@ -3957,7 +3957,7 @@ st.markdown("""<style>
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"],[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"]>div,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"],[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"]>div{display:flex !important;flex-direction:row !important;flex-wrap:nowrap !important;gap:.4rem;width:100% !important}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;width:auto !important;min-width:0;white-space:nowrap;overflow:visible !important;text-overflow:clip !important;padding-left:.6rem !important;padding-right:.6rem !important}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button *,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button *{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:none !important}
-[class*="st-key-bet_"][class*="_legbox"]{border-radius:14px !important;padding:.35rem 0 .6rem !important;margin-bottom:.15rem}
+[class*="st-key-bet_"][class*="_legbox"]{border-radius:14px !important;padding:.35rem .6rem .6rem !important;margin-bottom:.15rem}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stMarkdownContainer"] p{margin-left:.35rem;margin-top:.3rem}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button{display:flex !important;align-items:center !important;justify-content:center !important;text-align:center !important}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button *,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button *{text-align:center !important;justify-content:center !important;margin:0 auto !important}
@@ -3968,6 +3968,7 @@ st.markdown("""<style>
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{min-width:0 !important}
 [class*="_sidewrap"] [data-testid="stButtonGroup"] button *{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:none !important}
 [class*="_sidewrap"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;min-width:0;padding-left:.2rem !important;padding-right:.2rem !important;white-space:nowrap;overflow:visible;height:2.5rem !important;min-height:2.5rem !important;display:flex;align-items:center;justify-content:center}
+[class*="st-key-bet_"][class*="_book"]:not(.st-key-bet_book):not(.st-key-bet_book_c){margin-left:.66rem;width:calc(100% - .66rem) !important}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}

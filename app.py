@@ -3967,6 +3967,7 @@ st.markdown("""<style>
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]{flex-wrap:nowrap !important;gap:1rem}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{min-width:0 !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(3){flex:1 1 0 !important;width:auto !important;min-width:0 !important}
+[class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(3) :is([data-testid="stVerticalBlock"],[data-testid="stElementContainer"],[data-testid="stTextInput"],[data-testid="stTextInput"]>div,input){width:100% !important;max-width:none !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(4){flex:0 0 calc(20% - 1.132rem) !important;width:calc(20% - 1.132rem) !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(2){flex:0 0 calc(33.333% - .227rem) !important;width:calc(33.333% - .227rem) !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:first-child{flex:0 0 calc(33.333% - .887rem) !important;width:calc(33.333% - .887rem) !important}

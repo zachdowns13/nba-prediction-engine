@@ -2283,7 +2283,8 @@ BET_SORTS = ["Closest to hitting", "Newest", "Oldest", "Biggest stake", "Biggest
 
 
 def filter_sort_bets(df, key, books_label="Books", right=None, compact=False, sort_where=None, top_right=None):
-    counts = df["book"].value_counts()
+    _cdf = df[df["cord"] == "Y"] if (not compact and st.session_state.get(f"{key}_cord")) else df      # with "Cord plays only" on, the book counts are the Cord play counts
+    counts = _cdf["book"].value_counts()
     present = [b for b in BET_BOOKS + ["Other"] if counts.get(b, 0) > 0]
     kb = f"{key}_books"
     if isinstance(st.session_state.get(kb), list):

@@ -2119,9 +2119,10 @@ def filter_sort_bets(df, key, books_label="Books"):
         st.session_state[kb] = [b for b in st.session_state[kb] if b in present]
     # Book buttons you tap on and off (no dropdown to open or close). None selected = all books.
     try:
-        picked = list(st.pills(books_label, present, selection_mode="multi", key=kb, label_visibility="collapsed") or [])
+        picked = list(st.pills(books_label, present, selection_mode="multi", key=kb, label_visibility="collapsed",
+                               format_func=lambda b: f"{b} ({int(counts[b])})") or [])
     except AttributeError:
-        picked = st.multiselect(books_label, present, key=kb, placeholder="All books")
+        picked = st.multiselect(books_label, present, key=kb, placeholder="All books", format_func=lambda b: f"{b} ({int(counts[b])})")
     how = st.selectbox("Sort by", BET_SORTS, index=0 if key == "bo" else 1, key=f"{key}_sort")
     if picked:
         df = df[df["book"].isin(picked)]

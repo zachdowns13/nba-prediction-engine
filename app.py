@@ -2293,7 +2293,8 @@ def filter_sort_bets(df, key, books_label="Books", right=None, compact=False, so
     only_cord = st.checkbox("💬 Cord plays only", key=f"{key}_cord") if (not compact and (df["cord"] == "Y").any()) else False
     if right:                                       # sort dropdown on the left, a matching-width block of buttons on the right
         sc1, sc2 = st.columns(2)
-        how = sc1.selectbox("Sort by", BET_SORTS, index=0 if key == "bo" else 1, key=f"{key}_sort")
+        how = sc1.selectbox("Sort by", BET_SORTS, index=0 if key == "bo" else 1, key=f"{key}_sort",
+                            format_func=lambda o: f"Sort by: {o}", label_visibility="collapsed")      # no label, so it lines up with the buttons beside it
         with sc2:
             right()
     else:
@@ -2670,8 +2671,8 @@ def bets_input_view():
         _saved = load_bets()
         last_book = st.session_state.get("last_book") or (_saved["book"].iloc[-1] if len(_saved) else None)   # the book you used last
         book = c2.selectbox("Book", books_, index=books_.index(last_book) if last_book in books_ else 0, key=k("book"))
-        if st.session_state.get(k("book_prev")) != book:                 # a new book (or a fresh form): Kalshi is usually a single, the rest parlays
-            st.session_state[k("type")] = "Straight" if book == "Kalshi" else "Parlay"
+        if st.session_state.get(k("book_prev")) != book:                 # a new book (or a fresh form): Kalshi and Novig are usually singles, the rest parlays
+            st.session_state[k("type")] = "Straight" if book in ("Kalshi", "Novig") else "Parlay"
             st.session_state[k("book_prev")] = book
         btype = c3.radio("Type", ["Straight", "Parlay"], horizontal=True, key=k("type"))
         if btype == "Parlay":
@@ -2982,7 +2983,6 @@ def open_bets_list(refresh=False):
             st.session_state.setdefault("legs_ver", 0)
 
             def _leg_buttons():
-                st.markdown("<div style='height:1.7rem'></div>", unsafe_allow_html=True)
                 z1, z2 = st.columns(2)
                 if z1.button("▾ Expand all", key="legs_expand_all", use_container_width=True):
                     st.session_state["legs_open"], st.session_state["legs_ver"] = True, st.session_state["legs_ver"] + 1

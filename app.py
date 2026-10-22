@@ -2647,7 +2647,7 @@ def leg_builder(key):
     if kind == "Type it myself":
         return st.text_input("The bet", placeholder="e.g. Booker first basket", key=f"{key}_free").strip()
     if kind == "Player prop":
-        c1, c2, c3, c4 = st.columns([2.65, 2.65, 1.8, 1.9])
+        c1, c2, c3, c4 = st.columns([2.9, 2.9, 1.4, 1.9])
         who = norm_name(_search_select("Player", players, f"{key}_who", c1), players)
         stat = c2.selectbox("Stat", LEG_STATS, key=f"{key}_stat")
         if stat in ("Double-double", "Triple-double"):

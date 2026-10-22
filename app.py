@@ -2101,14 +2101,14 @@ def props_results_view():
 
 def results_day():
     # The day to filter results to, or None for everything.
-    return st.session_state["sel_date"].isoformat() if st.session_state.get("res_scope") == "Just the day picked" else None
+    return st.session_state["sel_date"].isoformat() if st.session_state.get("res_scope") == "Selected date" else None
 
 
 def results_tab():
     c1, c2 = st.columns([1, 3])
     date_picker("results", c1)
     c2.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
-    c2.radio("Stats below cover", ["All time", "Just the day picked"], horizontal=True, key="res_scope")
+    c2.radio("Stats below cover", ["Selected date", "All time"], index=1, horizontal=True, key="res_scope")
     t_games, t_props = st.tabs(["🏀 Games", "🎯 Player props"])
     with t_games:
         game_results_view()

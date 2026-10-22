@@ -2105,59 +2105,13 @@ def props_table(df):
 
 
 def props_results_view():
-    st.caption("Every prop you save from the Player props tab is graded automatically from the real box scores once the game is final. "
-               "Profit assumes a flat $100 on each pick at the odds you entered. A player who doesn't play voids the bet.")
+    # The props recap is hidden; saved props are still graded here and can be backed up or restored.
     df = load_props()
     if len(df):
         with st.spinner("Checking box scores..."):
             df, n_new = grade_props(df)
         if n_new:
             save_props(df)
-            st.success(f"Graded {n_new} new props.")
-    full = df
-    st.radio("Stats below cover", ["All time", "Selected date"], index=0, horizontal=True, key="res_scope")
-    _day = results_day()
-    if _day:
-        df = df[df["date"].astype(str).str[:10] == _day]
-    if df.empty:
-        st.info("Nothing saved for this day." if _day else "Nothing saved yet. Open the **Player props** tab, check a prop, and press **Save** to start tracking it here.")
-    else:
-        done = df[df["result"].isin(["W", "L", "P"])]
-        waiting = int((df["result"] == "").sum())
-        if done.empty:
-            st.info(f"No graded props yet. {waiting} are waiting for their games to finish." if waiting else "No graded props yet.")
-        else:
-            results_summary(done, waiting)
-            form_strip(done.sort_values("date")["result"])
-            st.markdown('<div class="nb-sec">By stat</div>', unsafe_allow_html=True)
-            breakdown_html([(k, done[done["stat"] == k]) for k in done["stat"].unique()])
-            st.markdown('<div class="nb-sec">Over, under and value</div>', unsafe_allow_html=True)
-            breakdown_html([("Overs", done[done["side"] == "Over"]), ("Unders", done[done["side"] == "Under"]),
-                            ("Value picks (2+ pts edge)", done[_prop_value_mask(done)])])
-            st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
-            day_list(done, True)
-            if done['date'].nunique() > 1:
-                st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
-                profit_chart(done, True)
-
-        st.markdown('<div class="nb-sec">All saved props</div>', unsafe_allow_html=True)
-        view = st.selectbox("Show", ["All", "Waiting for the game", "Wins", "Losses", "Value picks (2+ pts edge)"], key="prop_filter",
-                            label_visibility="collapsed")
-        shown = {"All": df, "Waiting for the game": df[df["result"] == ""], "Wins": df[df["result"] == "W"],
-                 "Losses": df[df["result"] == "L"], "Value picks (2+ pts edge)": df[_prop_value_mask(df)]}[view]
-        if shown.empty:
-            st.caption("Nothing to show for this filter yet.")
-        else:
-            shown = shown.sort_values(["date", "game", "player"], ascending=[False, True, True])
-            pick_rows_html([{"title": f"{r['player']} {r['side'].lower()} {r['line']:g} {r['stat'].lower()}",
-                             "sub": f"{r['game']} · {_nice_date(r['date'])} · model {pct(r['model_p'])} vs book {pct(r['book_p'])}"
-                                    + (f" · projected {r['proj']:.1f}, actual {r['actual']:g}" if pd.notna(r["actual"]) else f" · projected {r['proj']:.1f}"),
-                             "odds": f"{r['odds']:+.0f}" if pd.notna(r["odds"]) else "", "result": r["result"], "profit": r["profit"]}
-                            for _, r in shown.head(60).iterrows()])
-            if len(shown) > 60:
-                st.caption(f"Showing the latest 60 of {len(shown)}. Download the props file below for the full list.")
-
-    df = full
     with st.expander("My saved props, backup and restore"):
         st.caption("On Streamlit Cloud the saved file can be erased when the app restarts or is redeployed, so download a backup now and "
                    "then and upload it here to restore. Anyone who opens this site can see and change the log.")
@@ -2185,13 +2139,9 @@ def results_day():
 
 
 def results_tab():
-    c1, _c2 = st.columns([1, 3])
-    date_picker("results", c1)
-    t_games, t_props = st.tabs(["🏀 Games", "🎯 Player props"])
-    with t_games:
-        game_results_view()
-    with t_props:
-        props_results_view()
+    date_picker("results")
+    game_results_view()
+    props_results_view()
 
 
 # =====================================================================
@@ -3638,11 +3588,10 @@ def date_picker(tab, where=None, label="Date"):
 
 def game_picker(tab):
     # Date + game selector, shown only in the tabs that work on one game.
-    c1, c2 = st.columns([1, 3])
-    date_picker(tab, c1)
+    date_picker(tab)
     kg = f"gp_{tab}"
     st.session_state[kg] = st.session_state["sel_game"]
-    c2.selectbox("Game", labels, key=kg, on_change=_sync, args=("gp_", "sel_game", kg))
+    st.selectbox("Game", labels, key=kg, on_change=_sync, args=("gp_", "sel_game", kg))
     if st.session_state["sel_game"] == "✏️ Manual matchup":
         m1, m2 = st.columns(2)
         kh, ka = f"hp_{tab}", f"ap_{tab}"

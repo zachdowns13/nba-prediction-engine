@@ -136,13 +136,16 @@ def result_strip(results):
     return f'<div class="nb-strip">{sq}</div>' if sq else ""
 
 
-def profit_chart(df):
+def profit_chart(df, units=False):
     # Running profit over time from a graded picks table (needs date + profit columns).
     d = df[df["result"].isin(["W", "L", "P"])]
     if d.empty:
         return
     by_day = d.groupby("date")["profit"].sum().astype(float).sort_index().cumsum()
-    st.line_chart(by_day.rename("Profit ($100 per pick)"))
+    if units:
+        st.line_chart((by_day / 100).rename("Profit (units)"))
+    else:
+        st.line_chart(by_day.rename("Profit ($100 per pick)"))
 
 
 METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, losses and pushes (a push is a tie with the line: your stake is returned).",
@@ -1701,6 +1704,11 @@ def _signed_money(x):
     return "$0" if abs(x) < 0.5 else (f"+${x:,.0f}" if x > 0 else f"-${-x:,.0f}")
 
 
+def _signed_units(x):
+    u = x / 100
+    return "0 units" if abs(u) < 0.005 else (f"+{u:.2f} units" if u > 0 else f"-{-u:.2f} units")
+
+
 def _tone(x):
     return "pos" if x > 0.5 else ("neg" if x < -0.5 else "")
 
@@ -1762,7 +1770,7 @@ def pick_rows_html(items):
         cls = {"W": "w", "L": "l"}.get(res, "")
         b = it["badge"] if "badge" in it else {"W": badge("Win", "ok"), "L": badge("Loss", "bad"), "P": badge("Push", "none"), "V": badge("Didn't play", "none")}.get(res, badge("Waiting", "acc"))
         prof = it.get("profit")
-        ptxt = f'<b class="{_tone(prof)}">{_signed_money(prof)}</b>' if prof is not None and pd.notna(prof) and res in ("W", "L", "P") else ""
+        ptxt = f'<b class="{_tone(prof)}">{_signed_units(prof) if it.get("units") else _signed_money(prof)}</b>' if prof is not None and pd.notna(prof) and res in ("W", "L", "P") else ""
         odds = f'<div class="o">{H(it["odds"])}</div>' if it.get("odds") else ""
         out.append(f'<div class="nb-prow {cls}"><div class="m"><b>{it.get("chip", "")}{it["title_html"] if "title_html" in it else H(it["title"])}</b><div class="nb-muted">{H(it["sub"])}</div></div>{odds}'
                    f'<div class="r">{b}<div>{ptxt}</div></div></div>')
@@ -1776,17 +1784,17 @@ def _nice_date(d):
         return str(d)
 
 
-def day_rows(d):
+def day_rows(d, units=False):
     items = []
     for day in sorted(d["date"].dropna().unique(), reverse=True):
         s = pick_stats(d[d["date"] == day])
         items.append({"title": _nice_date(day), "sub": f"{s['rec']} on {s['picks']} picks", "badge": "",
-                      "result": "W" if s["profit"] > 0.5 else ("L" if s["profit"] < -0.5 else "P"), "profit": s["profit"]})
+                      "result": "W" if s["profit"] > 0.5 else ("L" if s["profit"] < -0.5 else "P"), "profit": s["profit"], "units": units})
     return items
 
 
-def day_list(d):
-    items = day_rows(d)
+def day_list(d, units=False):
+    items = day_rows(d, units)
     pick_rows_html(items[:7])
     if len(items) > 7:
         with st.expander(f"Show {len(items) - 7} older days"):
@@ -1896,10 +1904,10 @@ def game_results_view():
             else:
                 alltime_cards(gd, waiting)
             st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
-            day_list(gd)
+            day_list(gd, True)
             if gd['date'].nunique() > 1:
                 st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
-                profit_chart(gd)
+                profit_chart(gd, True)
 
         with st.expander(f"📋 See every pick ({len(base)})"):
             flt = st.selectbox("Show", ["All", "Wins", "Losses", "Waiting for the game"], key="res_pf", label_visibility="collapsed")
@@ -2082,10 +2090,10 @@ def props_results_view():
             breakdown_html([("Overs", done[done["side"] == "Over"]), ("Unders", done[done["side"] == "Under"]),
                             ("Value picks (2+ pts edge)", done[_prop_value_mask(done)])])
             st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
-            day_list(done)
+            day_list(done, True)
             if done['date'].nunique() > 1:
                 st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
-                profit_chart(done)
+                profit_chart(done, True)
 
         st.markdown('<div class="nb-sec">All saved props</div>', unsafe_allow_html=True)
         view = st.selectbox("Show", ["All", "Waiting for the game", "Wins", "Losses", "Value picks (2+ pts edge)"], key="prop_filter",

@@ -1815,41 +1815,6 @@ def day_list(d, units=False):
             pick_rows_html(items[7:])
 
 
-def todays_markets(log, day):
-    # Three dropdowns (moneylines, spreads, totals) for one day, each headed by how those picks did.
-    if log.empty:
-        return
-    ds = log["date"].astype(str).str[:10]
-    if day is None:
-        today = local_today().isoformat()
-        day = today if (ds == today).any() else str(ds.max())
-    d = log[(ds == day) & log["is_pick"]]
-    if d.empty:
-        return
-    nice = _nice_date(day)
-    st.markdown(f'<div class="nb-sec">{H(nice)}: the model\'s picks by market</div>', unsafe_allow_html=True)
-    tiles, parts = [], []
-    for mk, plural in (("Moneyline", "Moneylines"), ("Spread", "Spreads"), ("Total", "Totals")):
-        m = d[d["market"] == mk].sort_values("game")
-        if m.empty:
-            continue
-        w, l, p = int((m["result"] == "W").sum()), int((m["result"] == "L").sum()), int((m["result"] == "P").sum())
-        wait = int((~m["result"].isin(["W", "L", "P"])).sum())
-        prof = float(pd.to_numeric(m["profit"], errors="coerce").fillna(0).sum())
-        u_ = prof / 100
-        units = f"{'+' if u_ > 0.005 else ('-' if u_ < -0.005 else '')}{abs(u_):.2f} units" if w + l + p else "no results yet"
-        sub = units + (f" · {wait} waiting" if wait else "")
-        tiles.append(stat_tile(plural, f"{w}-{l}" + (f"-{p}" if p else ""), sub, _tone(prof) if w + l + p else ""))
-        parts.append((plural, m))
-    html('<div class="nb-tiles">' + "".join(tiles) + '</div>')
-    cols = st.columns(len(parts)) if parts else []
-    sym = {"W": "✅", "L": "❌", "P": "➖"}
-    for col, (plural, m) in zip(cols, parts):
-        with col.expander(f"{plural} picks"):
-            lines = [f"{sym.get(r['result'], '⏳')} {pick_label(r).replace('$', chr(92) + '$')}" for _, r in m.iterrows()]
-            st.markdown("  \n".join(lines))
-
-
 VALUE_RESET_PATH = "value_reset.txt"
 VALUE_RESET_DEFAULT = "2026-10-22"   # value plays from before this day are left out of the value-play record
 
@@ -1873,26 +1838,61 @@ def set_value_cutoff(day):
         pass
 
 
-def alltime_cards(gd, waiting):
-    # Brief all-time summary: overall plus each market, as one row of cards.
-    tiles, big = [], ""
-    for label, d in (("Overall", gd), ("Moneylines", gd[gd["market"] == "Moneyline"]),
-                     ("Spreads", gd[gd["market"] == "Spread"]), ("Totals", gd[gd["market"] == "Total"])):
+def _units_txt(prof):
+    u = prof / 100
+    return f"{'+' if u > 0.005 else ('-' if u < -0.005 else '')}{abs(u):.2f} units"
+
+
+def model_cards(base, note):
+    # A big overall card (record + units) with Moneylines / Spreads / Totals in smaller cards under it.
+    big, tiles = "", []
+    for label, d in (("Overall", base), ("Moneylines", base[base["market"] == "Moneyline"]),
+                     ("Spreads", base[base["market"] == "Spread"]), ("Totals", base[base["market"] == "Total"])):
         if d.empty:
             continue
-        s_ = pick_stats(d)
-        u_ = s_["profit"] / 100
-        units = f"{'+' if u_ > 0.005 else ('-' if u_ < -0.005 else '')}{abs(u_):.2f} units"
-        win = f"{s_['win'] * 100:.0f}%" if s_["win"] is not None else "-"
-        t_ = stat_tile(label, s_["rec"], f"{win} win rate · {units}", _tone(s_["profit"]))
+        g_ = d[d["result"].isin(["W", "L", "P"])]
+        wait = len(d) - len(g_)
+        if g_.empty:
+            t_ = stat_tile(label, "0-0", f"{wait} waiting" if wait else "no results yet")
+        else:
+            s_ = pick_stats(g_)
+            win = f"{s_['win'] * 100:.0f}% win rate · " if s_["win"] is not None else ""
+            t_ = stat_tile(label, s_["rec"], f"{win}{_units_txt(s_['profit'])}" + (f" · {wait} waiting" if wait else ""), _tone(s_["profit"]))
         if label == "Overall":
             big = t_.replace('class="nb-tile"', 'class="nb-tile big"', 1)
         else:
             tiles.append(t_)
-    html('<div class="nb-tiles" style="grid-template-columns:1fr;margin-bottom:12px">' + big + '</div>' if big else "")
-    html('<div class="nb-tiles" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))">' + "".join(tiles) + '</div>')
-    st.caption("All time, every saved day. Units: 1 unit = a $100 bet on each pick."
-               + (f" {waiting} picks are still waiting on games." if waiting else ""))
+    if big:
+        html('<div class="nb-tiles" style="grid-template-columns:1fr;margin-bottom:12px">' + big + '</div>')
+    html('<div class="nb-tiles" style="grid-template-columns:repeat(3,1fr)">' + "".join(tiles) + '</div>')
+    st.caption(note + " Units: 1 unit = a $100 bet on each pick.")
+
+
+def market_dropdowns(base, by_date):
+    # Three dropdowns under the cards. For one day: each pick with its result. For all time: the W-L record of each day.
+    sym = {"W": "✅", "L": "❌", "P": "➖"}
+    cols = st.columns(3)
+    for col, (mk, plural) in zip(cols, (("Moneyline", "Moneylines"), ("Spread", "Spreads"), ("Total", "Totals"))):
+        m = base[base["market"] == mk]
+        if m.empty:
+            continue
+        with col.expander(f"{plural} by date" if by_date else f"{plural} picks"):
+            if by_date:
+                lines = []
+                for day in sorted(m["date"].astype(str).str[:10].unique(), reverse=True):
+                    d = m[m["date"].astype(str).str[:10] == day]
+                    g_ = d[d["result"].isin(["W", "L", "P"])]
+                    w, l, p = int((g_["result"] == "W").sum()), int((g_["result"] == "L").sum()), int((g_["result"] == "P").sum())
+                    prof = float(pd.to_numeric(g_["profit"], errors="coerce").fillna(0).sum())
+                    txt = f"**{_nice_date(day)}:** {w}-{l}" + (f"-{p}" if p else "")
+                    if len(g_):
+                        txt += f" ({_units_txt(prof)})"
+                    if len(d) > len(g_):
+                        txt += f" · {len(d) - len(g_)} waiting"
+                    lines.append(txt)
+            else:
+                lines = [f"{sym.get(r['result'], '⏳')} {pick_label(r).replace('$', chr(92) + '$')}" for _, r in m.sort_values("game").iterrows()]
+            st.markdown("  \n".join(lines))
 
 
 def game_results_view():
@@ -1909,17 +1909,19 @@ def game_results_view():
     graded = log[log["result"].isin(["W", "L", "P"])].copy()
     for c in ("odds", "model_p", "book_p", "edge", "profit"):
         graded[c] = pd.to_numeric(graded[c])
-    _day = results_day()
+    sec = st.radio("Period", ["Today", "All time", "Selected date"], horizontal=True, key="res_sec_games", label_visibility="collapsed")
+    _day = local_today().isoformat() if sec == "Today" else (st.session_state["sel_date"].isoformat() if sec == "Selected date" else None)
     if _day and not log.empty:
         log = log[log["date"].astype(str).str[:10] == _day]
         graded = graded[graded["date"].astype(str).str[:10] == _day]
 
     if log.empty:
-        st.info("Nothing saved yet. Open the **Full slate** tab and press **Run full slate** before games start. "
-                "Every moneyline, spread and total is saved automatically.")
-    else:
         if _day:
-            todays_markets(log, _day)
+            st.info(f"No picks were saved for {_nice_date(_day)}. Run the **Full slate** tab before that day's games start and they will show up here.")
+        else:
+            st.info("Nothing saved yet. Open the **Full slate** tab and press **Run full slate** before games start. "
+                    "Every moneyline, spread and total is saved automatically.")
+    else:
         view = st.radio("Show", ["All picks", "Value plays only"], horizontal=True, key="res_view", label_visibility="collapsed")
         st.caption("**All picks:** the side the model liked in every moneyline, spread and total that was saved. "
                    if view == "All picks" else "**Value plays:** only the picks the app flagged as value (the model's chance beat the sportsbook's by enough to matter). ")
@@ -1934,26 +1936,22 @@ def game_results_view():
             if st.button("🔄 Start the value-play record over from today", key="val_reset_btn"):
                 set_value_cutoff(local_today().isoformat())
                 st.rerun()
-        waiting = int((~base["result"].isin(["W", "L", "P"])).sum())
-        if gd.empty:
-            st.info(f"No graded picks yet. {waiting} are waiting for their games to finish." if waiting else "No graded picks yet.")
+        if base.empty:
+            st.info("Nothing to show for this period yet.")
         else:
-            if _day:
-                st.caption(f"Record, win rate and profit below are for **{_nice_date(_day)}**.")
-                results_summary(gd, waiting)
-                form_strip(gd.sort_values("date")["result"])
-                st.markdown('<div class="nb-sec">How each market is doing</div>', unsafe_allow_html=True)
-                groups = [(mk, gd[gd["market"] == mk]) for mk in ("Moneyline", "Spread", "Total")]
-                if view == "Value plays only":
-                    groups += [(f"{k} value", gd[gd["strength"] == k]) for k in gd["strength"].dropna().unique() if str(k)]
-                breakdown_html(groups)
-            else:
-                alltime_cards(gd, waiting)
-            st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
-            day_list(gd, True)
-            if gd['date'].nunique() > 1:
-                st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
-                profit_chart(gd, True)
+            model_cards(base, f"For {_nice_date(_day)}." if _day else "All time, every saved day.")
+            market_dropdowns(base, by_date=not _day)
+            if view == "Value plays only" and not gd.empty:
+                groups = [(f"{k} value", gd[gd["strength"] == k]) for k in gd["strength"].dropna().unique() if str(k)]
+                if groups:
+                    st.markdown('<div class="nb-sec">Strong vs slight value</div>', unsafe_allow_html=True)
+                    breakdown_html(groups)
+            if not _day and not gd.empty:
+                st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
+                day_list(gd, True)
+                if gd['date'].nunique() > 1:
+                    st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
+                    profit_chart(gd, True)
 
         with st.expander(f"📋 See every pick ({len(base)})"):
             flt = st.selectbox("Show", ["All", "Wins", "Losses", "Waiting for the game"], key="res_pf", label_visibility="collapsed")
@@ -2117,6 +2115,7 @@ def props_results_view():
             save_props(df)
             st.success(f"Graded {n_new} new props.")
     full = df
+    st.radio("Stats below cover", ["All time", "Selected date"], index=0, horizontal=True, key="res_scope")
     _day = results_day()
     if _day:
         df = df[df["date"].astype(str).str[:10] == _day]
@@ -2186,10 +2185,8 @@ def results_day():
 
 
 def results_tab():
-    c1, c2 = st.columns([1, 3])
+    c1, _c2 = st.columns([1, 3])
     date_picker("results", c1)
-    c2.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
-    c2.radio("Stats below cover", ["All time", "Selected date"], index=0, horizontal=True, key="res_scope")
     t_games, t_props = st.tabs(["🏀 Games", "🎯 Player props"])
     with t_games:
         game_results_view()

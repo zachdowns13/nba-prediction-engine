@@ -2662,6 +2662,9 @@ def bets_input_view():
         _saved = load_bets()
         last_book = st.session_state.get("last_book") or (_saved["book"].iloc[-1] if len(_saved) else None)   # the book you used last
         book = c2.selectbox("Book", books_, index=books_.index(last_book) if last_book in books_ else 0, key=k("book"))
+        if st.session_state.get(k("book_prev")) != book:                 # a new book (or a fresh form): Kalshi is usually a single, the rest parlays
+            st.session_state[k("type")] = "Straight" if book == "Kalshi" else "Parlay"
+            st.session_state[k("book_prev")] = book
         btype = c3.radio("Type", ["Straight", "Parlay"], horizontal=True, key=k("type"))
         if btype == "Parlay":
             legs = int(st.number_input("How many legs?", min_value=2, max_value=15, value=2, step=1, key=k("legs")))
@@ -3941,6 +3944,38 @@ def dropdown_toggle_fix():
           function setBg() { const c = bg(); if (c) doc.documentElement.style.setProperty('--nb-bg', c); pin(); }
           setBg();
           if (!P.__nbBg) { P.__nbBg = true; setInterval(setBg, 1500); }
+        })();
+        </script>
+        <script>
+        (function () {
+          // If clicking into a box makes the page rerun and drop the click, put the cursor back in the box you clicked.
+          const P = window.parent, doc = P.document;
+          if (P.__nbFocusFix) return;
+          P.__nbFocusFix = true;
+          let want = null;
+          const same = (label) => Array.from(doc.querySelectorAll('input, textarea')).filter(function (x) { return x.getAttribute('aria-label') === label; });
+          doc.addEventListener('mousedown', function (e) {
+            const t = e.target && e.target.closest ? e.target.closest('input, textarea') : null;
+            if (!t || t.closest('[data-baseweb="select"]')) { want = null; return; }
+            const label = t.getAttribute('aria-label');
+            if (!label) { want = null; return; }
+            want = { label: label, idx: same(label).indexOf(t), t: Date.now() };
+          }, true);
+          setInterval(function () {
+            if (!want) return;
+            if (Date.now() - want.t > 2500) { want = null; return; }
+            const a = doc.activeElement;
+            if (a && a !== doc.body && a.tagName !== 'HTML') {
+              if (Date.now() - want.t > 300) want = null;      // focus landed somewhere on its own, so leave it
+              return;
+            }
+            const el = same(want.label)[want.idx];
+            if (el) {
+              el.focus();
+              try { const n = el.value.length; el.setSelectionRange(n, n); } catch (err) {}
+              want = null;
+            }
+          }, 120);
         })();
         </script>""", height=0)
     except Exception:

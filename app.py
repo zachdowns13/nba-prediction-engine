@@ -3348,7 +3348,7 @@ def bets_results_view(cord_only=False):
         df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
     used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
     # Row 2: the book dropdown takes all the room it can, with the all / Cord toggle at the right end.
-    t1, _t2 = st.columns([3.3, 1.7] if has_cord else [1, 0.001], vertical_alignment="center")
+    t1, _t2 = st.columns([2.7, 2.3] if has_cord else [1, 0.001], vertical_alignment="center")
     book = t1.selectbox("Book", ["All books"] + used, key=f"bet_book{p}", label_visibility="collapsed") if len(used) > 1 else "All books"
     which = "All plays"
     if has_cord:
@@ -3918,9 +3918,10 @@ st.markdown("""<style>
 .st-key-refresh_right button>div,.st-key-refresh_right button p{text-align:right !important;justify-content:flex-end !important}
 .st-key-refresh_right button{min-height:1.6rem;padding-top:0;padding-bottom:0}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"],[class*="st-key-scope_right"] [data-testid="stButtonGroup"]>div{width:100%}
-[class*="st-key-scope_right"] [data-testid="stButtonGroup"] button{flex:1 1 0;min-width:0;white-space:nowrap;overflow:visible;padding-left:.1rem !important;padding-right:.1rem !important}
-[class*="st-key-scope_right"] [data-testid="stButtonGroup"] button *{white-space:nowrap;overflow:visible;text-overflow:clip;font-size:.74rem !important;letter-spacing:-.01em}
+[class*="st-key-scope_right"] [data-testid="stButtonGroup"] button{flex:1 1 0;min-width:0;white-space:nowrap;overflow:visible;padding-left:.8rem !important;padding-right:.8rem !important}
+[class*="st-key-scope_right"] [data-testid="stButtonGroup"] button *{white-space:nowrap;overflow:visible;text-overflow:clip}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"]{gap:0 !important}
+[class*="st-key-scope_right"] [data-testid="stButtonGroup"],[class*="st-key-scope_right"] [data-testid="stButtonGroup"]>div{width:max-content !important;margin-left:auto !important;display:grid !important;grid-auto-flow:column;grid-auto-columns:1fr}
 .st-key-res_ctrls{margin-bottom:-.5rem}.st-key-res_hist{margin-bottom:-.45rem}
 .st-key-bet_filters{margin-bottom:-.45rem}
 .block-container > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),

@@ -2219,9 +2219,56 @@ def reopen_bet(bet_id):
     save_bets(df)
 
 
+TRASH_PATH = "bets_trash.csv"
+TRASH_DAYS = 30
+
+
+def clean_trash(df):
+    base = clean_bets(df)
+    da = df.reset_index(drop=True)["deleted_at"] if "deleted_at" in df.columns else pd.Series([""] * len(df))
+    base["deleted_at"] = da.astype(object).where(da.notna(), "").astype(str).values
+    return base
+
+
+def load_trash():
+    try:
+        tr = clean_trash(pd.read_csv(TRASH_PATH, dtype=str))
+    except Exception:
+        tr = st.session_state.get("trash_df", clean_trash(pd.DataFrame(columns=BET_COLS + ["deleted_at"])))
+    cutoff = (dt.datetime.now() - dt.timedelta(days=TRASH_DAYS)).strftime("%Y-%m-%d %H:%M")
+    return tr[(tr["deleted_at"] == "") | (tr["deleted_at"] >= cutoff)].reset_index(drop=True)      # old ones fall off after 30 days
+
+
+def save_trash(tr):
+    st.session_state["trash_df"] = tr
+    try:
+        tr.to_csv(TRASH_PATH, index=False)
+    except Exception:
+        pass
+
+
 def delete_bet(bet_id):
+    # Moves the bet to "Recently deleted" (kept 30 days) instead of erasing it for good.
     df = load_bets()
+    gone = df[df["id"] == bet_id]
+    if len(gone):
+        gone = gone.assign(deleted_at=dt.datetime.now().strftime("%Y-%m-%d %H:%M"))
+        save_trash(clean_trash(pd.concat([load_trash(), gone], ignore_index=True)))
+        st.session_state["last_deleted"] = bet_id
     save_bets(clean_bets(df[df["id"] != bet_id]))
+
+
+def restore_bet(bet_id):
+    tr = load_trash()
+    row = tr[tr["id"] == bet_id]
+    if len(row):
+        back = row.drop(columns="deleted_at")
+        df = load_bets()
+        if bet_id not in set(df["id"]):
+            save_bets(clean_bets(pd.concat([df, back], ignore_index=True)))
+        save_trash(clean_trash(tr[tr["id"] != bet_id]))
+    if st.session_state.get("last_deleted") == bet_id:
+        st.session_state.pop("last_deleted", None)
 
 
 def split_legs(desc, tidy=True):
@@ -2490,8 +2537,11 @@ def bets_input_view():
                 st.error(f"Could not read that file: {e}")
         confirm = st.checkbox("I'm sure I want to erase all my bets", key="bets_erase_ok")
         if st.button("🗑️ Erase all my bets") and confirm:
+            _all = load_bets()
+            if len(_all):                                   # even "erase all" goes to Recently deleted first
+                save_trash(clean_trash(pd.concat([load_trash(), _all.assign(deleted_at=dt.datetime.now().strftime("%Y-%m-%d %H:%M"))], ignore_index=True)))
             save_bets(clean_bets(pd.DataFrame(columns=BET_COLS)))
-            st.success("Bets erased.")
+            st.success("Bets erased. You can bring them back from Recently deleted in the Open bets tab for 30 days.")
 
 
 # =====================================================================
@@ -2808,8 +2858,43 @@ def _open_bets_list_auto_body():
 open_bets_list_auto = _refreshing(_open_bets_list_auto_body)
 
 
+def trash_section():
+    tr = load_trash()
+    if tr.empty:
+        return
+    with st.expander(f"🗑️ Recently deleted ({len(tr)})"):
+        st.caption(f"Deleted bets are kept for {TRASH_DAYS} days, so you can bring one back.")
+        for _, r in tr.sort_values("deleted_at", ascending=False).iterrows():
+            with st.container(border=True):
+                pick_rows_html([bet_item(r, controls=False)])
+                st.caption(f"Deleted {r['deleted_at']}" + (f" · it was already marked {'Won' if r['result'] == 'W' else 'Lost' if r['result'] == 'L' else 'Push'}" if r["result"] else ""))
+                c1, c2, _x = st.columns([1.2, 1.4, 4])
+                if c1.button("↩️ Restore", key=f"tr_restore_{r['id']}"):
+                    restore_bet(r["id"])
+                    st.rerun()
+                if c2.button("Delete forever", key=f"tr_forever_{r['id']}"):
+                    save_trash(clean_trash(tr[tr["id"] != r["id"]]))
+                    st.rerun()
+        if st.button("Empty recently deleted", key="tr_empty"):
+            save_trash(clean_trash(pd.DataFrame(columns=BET_COLS + ["deleted_at"])))
+            st.rerun()
+
+
 def bets_open_view():
     df = load_bets()
+    _ld = st.session_state.get("last_deleted")
+    if _ld:
+        _tr = load_trash()
+        _row = _tr[_tr["id"] == _ld]
+        if len(_row):
+            u1, u2, u3 = st.columns([5, 1.3, 1])
+            u1.info(f"Deleted: {_row.iloc[0]['desc'][:80]}")
+            if u2.button("↩️ Undo delete", key="undo_delete"):
+                restore_bet(_ld)
+                st.rerun()
+            if u3.button("✕", key="undo_dismiss", help="Hide this"):
+                st.session_state.pop("last_deleted", None)
+                st.rerun()
     t1, t2, t3 = st.columns([1.2, 2, 3.4])
     pressed = t1.button("🔄 Refresh live stats", key="live_refresh")
     if hasattr(st, "toggle"):
@@ -2863,6 +2948,7 @@ def bets_open_view():
             if g3.button("Delete this bet", key=kk("del")):
                 delete_bet(bid)
                 st.rerun()
+    trash_section()
 
 
 def _week_label(d):

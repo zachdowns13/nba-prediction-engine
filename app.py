@@ -2608,13 +2608,36 @@ def _refreshing(fn):
         return fn
 
 
-def open_bets_list():
+def refresh_live_snapshot():
+    """Fetches the live stats once and keeps them. The list below only ever reads this saved copy, so nothing waits on ESPN while you use the page."""
+    df = load_bets()
+    open_ = df[df["result"] == ""]
+    try:
+        live_scores.clear()
+    except Exception:
+        pass
+    games = live_games_for(open_) if len(open_) else []
+    st.session_state["live_snap"] = (dt.datetime.now(), games)
+    if games and st.session_state.get("live_auto", True):          # mark legs the live stats have already decided
+        for _, r in open_.iterrows():
+            ls = leg_states(r)
+            for i, leg in enumerate(split_legs(r["desc"])):
+                p = parse_leg(leg)
+                if not p or ls[i] != "-":
+                    continue
+                st_ = leg_live(p, games)["status"]
+                if st_ == "hit" or (st_ == "miss" and p["kind"] == "stat"):
+                    set_leg(r["id"], i, "H" if st_ == "hit" else "M")
+
+
+def open_bets_list(refresh=False):
+    if refresh:
+        refresh_live_snapshot()
     df = load_bets()
     open_all = df[df["result"] == ""]
     open_ = open_all
-    games = live_games_for(open_all) if len(open_all) else []
-    auto = bool(st.session_state.get("live_auto", True)) and bool(games)
-    changed = False
+    _snap = st.session_state.get("live_snap")
+    games = _snap[1] if _snap else []
     st.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>', unsafe_allow_html=True)
     with st.container():
         if open_all.empty:
@@ -2659,9 +2682,6 @@ def open_bets_list():
                                         _info = leg_live(_pp, games)
                                         with q[0]:
                                             html(live_leg_html(_info))
-                                        if auto and ls[i] == "-" and _info["status"] in ("hit", "miss") and (_pp["kind"] == "stat" or _info["status"] == "hit"):
-                                            set_leg(r["id"], i, "H" if _info["status"] == "hit" else "M")
-                                            changed = True
                                     try:
                                         pick_ = q[1].segmented_control("Leg result", ["✅", "❌"], default={"H": "✅", "M": "❌"}.get(ls[i]),
                                                                        key=f"seg_{r['id']}_{i}_{ls[i]}", label_visibility="collapsed")
@@ -2693,25 +2713,27 @@ def open_bets_list():
                         delete_bet(r["id"])
                         st.rerun()
     if games:
-        st.caption(f"Live stats as of {dt.datetime.now().strftime('%-I:%M:%S %p')}. They come from ESPN's live box score, which can run about a minute behind the broadcast.")
-    if changed:
-        st.rerun()
+        st.caption(f"Live stats as of {_snap[0].strftime('%-I:%M:%S %p')}. Tap Refresh live stats to update. They come from ESPN's live box score, which can run about a minute behind the broadcast.")
 
 
-open_bets_list_auto = _refreshing(open_bets_list)
+def _open_bets_list_auto_body():
+    open_bets_list(refresh=True)
+
+
+open_bets_list_auto = _refreshing(_open_bets_list_auto_body)
 
 
 def bets_open_view():
     df = load_bets()
     t1, t2, t3 = st.columns([1.2, 2, 3.4])
-    t1.button("🔄 Refresh live stats", key="live_refresh")
+    pressed = t1.button("🔄 Refresh live stats", key="live_refresh")
     t2.toggle(f"Auto-refresh every {LIVE_REFRESH_SECONDS}s", key="live_auto_refresh", value=False) if hasattr(st, "toggle") else None
     t3.checkbox("Auto-check legs once the live stats decide them", value=True, key="live_auto",
                 help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone.")
     if st.session_state.get("live_auto_refresh", False):
         open_bets_list_auto()
     else:
-        open_bets_list()
+        open_bets_list(refresh=pressed or "live_snap" not in st.session_state)
     if len(df):
         with st.expander("✏️ Edit or delete a bet"):
             labels = {f"{_nice_date(r['date'])} · {r['book']} · {r['desc'][:50]} · ${r['stake']:,.0f}": r["id"] for _, r in df.sort_values("date", ascending=False).iterrows()}

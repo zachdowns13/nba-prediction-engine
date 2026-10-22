@@ -3255,15 +3255,21 @@ def _week_label(d):
 
 
 def bets_recap(done, open_):
-    # One big profit box across the row, with record / win rate / biggest win in smaller boxes under it.
+    # One clean card: the profit big on top, with record / win rate / biggest win in a quiet row underneath.
     s = pick_stats(done)
-    big = stat_tile("Profit", _signed_money(s["profit"]), f"on ${done['stake'].sum():,.0f} in bets", _tone(s["profit"])).replace('class="nb-tile"', 'class="nb-tile big"', 1)
-    html('<div class="nb-tiles" style="grid-template-columns:1fr;margin-bottom:12px">' + big + '</div>')
-    html('<div class="nb-tiles" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))">'
-         + stat_tile("Record", s["rec"], f"{len(open_)} open (${open_['stake'].sum():,.0f} at risk)" if len(open_) else "all settled")
-         + stat_tile("Win rate", f"{s['win'] * 100:.0f}%" if s["win"] is not None else "-", "wins out of wins + losses")
-         + stat_tile("Biggest win", _signed_money(float(done["profit"].max())), "single bet")
-         + '</div>')
+    big = stat_tile("Profit", _signed_money(s["profit"]), f"on ${done['stake'].sum():,.0f} in bets", _tone(s["profit"]))
+    big = big.replace('class="nb-tile"', 'class="nb-tile big" style="border:none;background:none;padding:0 0 10px"', 1)
+
+    def mini(label, value, sub=""):
+        return (f'<div style="text-align:center;flex:1"><div class="nb-muted" style="font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">{H(label)}</div>'
+                f'<div style="font-size:1.3rem;font-weight:800;line-height:1.3">{H(value)}</div><div class="nb-muted" style="font-size:.75rem">{H(sub)}</div></div>')
+    win = f"{s['win'] * 100:.0f}%" if s["win"] is not None else "-"
+    html('<div class="nb-card" style="padding:16px 20px">' + big
+         + '<div style="display:flex;gap:8px;border-top:1px solid var(--line);padding-top:12px">'
+         + mini("Record", s["rec"], f"{len(open_)} open" if len(open_) else "all settled")
+         + mini("Win rate", win)
+         + mini("Biggest win", _signed_money(float(done["profit"].max())))
+         + '</div></div>')
 
 
 def bets_stats_block(done, open_, key, recap=True):
@@ -3313,15 +3319,19 @@ def bets_results_view():
         if 0 < len(done) < 30:
             st.caption(f"Early days: only {len(done)} settled bets here so far, so these numbers can swing a lot.")
         bets_recap(done, open_)
-        st.markdown('<div class="nb-sec">By book</div>', unsafe_allow_html=True)
-        breakdown_html([(b, done[done["book"] == b]) for b in BET_BOOKS + ["Other"]])
         used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
-        tabs = st.tabs(["All books"] + used)
-        with tabs[0]:
-            bets_stats_block(done, open_, "bs_all", recap=False)
-        for t, b in zip(tabs[1:], used):
-            with t:
-                bets_stats_block(done[done["book"] == b], open_[open_["book"] == b], f"bs_{b}")
+        if len(used) > 1:
+            st.markdown('<div class="nb-sec">By book</div>', unsafe_allow_html=True)
+            breakdown_html([(b, done[done["book"] == b]) for b in BET_BOOKS + ["Other"]])
+        view_b = "All books"
+        if len(used) > 1:
+            try:
+                view_b = st.pills("Details for", ["All books"] + used, default="All books", key="bet_detail_book", label_visibility="collapsed") or "All books"
+            except AttributeError:
+                view_b = st.radio("Details for", ["All books"] + used, horizontal=True, key="bet_detail_book", label_visibility="collapsed")
+        d_ = done if view_b == "All books" else done[done["book"] == view_b]
+        o_ = open_ if view_b == "All books" else open_[open_["book"] == view_b]
+        bets_stats_block(d_, o_, "bs_view", recap=False)
 
     st.markdown('<div class="nb-sec">All my bets</div>', unsafe_allow_html=True)
     h1, h2 = st.columns(2)

@@ -1814,7 +1814,8 @@ def todays_markets(log, day):
         prof = float(pd.to_numeric(m["profit"], errors="coerce").fillna(0).sum())
         head = f"{plural}: {w}-{l}" + (f"-{p}" if p else "")
         if w + l + p:
-            head += f" ({_signed_money(prof)} on $100 each)"
+            col_ = "green" if prof > 0.5 else ("red" if prof < -0.5 else "gray")
+            head += f" (:{col_}[{_signed_money(prof).replace('$', chr(92) + '$')}] on \\$100 each)"
         if wait:
             head += f" · {wait} waiting"
         with st.expander(head):

@@ -2619,7 +2619,17 @@ def cap_leg(leg):
 def leg_builder(key):
     # Builds the bet text for one leg from dropdowns, e.g. "Devin Booker over 23.5 points".
     players, teams = all_nba_names()
-    kind = st.radio("Leg type", LEG_KINDS, horizontal=True, key=f"{key}_kind", label_visibility="collapsed")
+    def _keep_kind():                                                    # tapping the chosen one again would blank it, so put it back
+        if st.session_state.get(f"{key}_kind") is None:
+            st.session_state[f"{key}_kind"] = st.session_state.get(f"{key}_kind_last", LEG_KINDS[0])
+    _kn = {"Player prop": "Player prop", "Team bet": "Team bet", "First basket": "First basket", "NFL play": "NFL play", "Type it myself": "Custom"}
+    try:
+        st.session_state.setdefault(f"{key}_kind", LEG_KINDS[0])
+        kind = st.segmented_control("Leg type", LEG_KINDS, key=f"{key}_kind", format_func=_kn.get, on_change=_keep_kind, label_visibility="collapsed")
+    except AttributeError:
+        kind = st.radio("Leg type", LEG_KINDS, horizontal=True, key=f"{key}_kind", label_visibility="collapsed")
+    kind = kind or st.session_state.get(f"{key}_kind_last", LEG_KINDS[0])
+    st.session_state[f"{key}_kind_last"] = kind
     if kind == "NFL play":
         txt = st.text_input("Name the NFL play however you like", placeholder="e.g. Mahomes over 275.5 passing yards", key=f"{key}_nfl").strip()
         txt = re.sub(r"^nfl\s*:\s*", "", txt, flags=re.I).replace(" + ", " & ")
@@ -3933,10 +3943,10 @@ st.markdown("""<style>
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"]{justify-content:flex-end !important;float:right}
 [class*="st-key-bet_"][class*="_type"] [role="radiogroup"]{justify-content:flex-start !important}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"],[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"]>div{width:100% !important}
-[class*="st-key-bet_"][class*="_type"]{width:100% !important}
-[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"],[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"]>div{display:flex !important;flex-direction:row !important;flex-wrap:nowrap !important;gap:.4rem;width:100% !important}
-[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;width:auto !important;min-width:0;white-space:nowrap;overflow:visible !important;text-overflow:clip !important;padding-left:.6rem !important;padding-right:.6rem !important}
-[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button *{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:none !important}
+[class*="st-key-bet_"][class*="_type"],[class*="st-key-bet_"][class*="_kind"]{width:100% !important}
+[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"],[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"]>div,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"],[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"]>div{display:flex !important;flex-direction:row !important;flex-wrap:nowrap !important;gap:.4rem;width:100% !important}
+[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;width:auto !important;min-width:0;white-space:nowrap;overflow:visible !important;text-overflow:clip !important;padding-left:.6rem !important;padding-right:.6rem !important}
+[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button *,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button *{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:none !important}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}

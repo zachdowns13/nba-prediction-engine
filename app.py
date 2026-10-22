@@ -1815,7 +1815,8 @@ def todays_markets(log, day):
         head = f"{plural}: {w}-{l}" + (f"-{p}" if p else "")
         if w + l + p:
             col_ = "green" if prof > 0.5 else ("red" if prof < -0.5 else "gray")
-            head += f" (:{col_}[{_signed_money(prof).replace('$', chr(92) + '$')}] on \\$100 each)"
+            u_ = prof / 100
+            head += f" (:{col_}[{'+' if u_ > 0.005 else ('-' if u_ < -0.005 else '')}{abs(u_):.2f} units])"
         if wait:
             head += f" · {wait} waiting"
         with st.expander(head):

@@ -2579,72 +2579,43 @@ def leg_live(parsed, games):
 _LIVE_BADGE = {"hit": ("✅ Hit", "ok"), "miss": ("❌ Missed", "bad"), "push": ("➖ Push", "none"), "live": ("🔴 Live", "acc"), "wait": ("⏳ Waiting", "none")}
 
 
-def live_tracker_body():
-    df = load_bets()
-    open_ = df[df["result"] == ""]
-    cards = []
-    for _, r in open_.iterrows():
-        parts = [(i, leg, parse_leg(leg)) for i, leg in enumerate(split_legs(r["desc"]))]
-        if any(p for _, _, p in parts):
-            cards.append((r, parts))
-    if not cards:
-        st.caption("No open bets with player stats to track yet. Bets like “Devin Booker over 26.5 points” show up here live.")
-        return
-    today = dt.date.today()
-    dates = tuple(sorted({r["date"] for r, _ in cards if r["date"] <= today.isoformat()} | {today.isoformat()}))[-3:]
-    games = live_scores(dates)
-    auto = st.session_state.get("live_auto", True)
-    changed = False
-    for r, parts in cards:
-        ls = leg_states(r)
-        rows, hits = [], 0
-        for i, leg, parsed in parts:
-            if not parsed:
-                rows.append(f'<div class="nb-muted" style="margin:6px 0">{H(leg)} · not tracked live</div>')
-                continue
-            info = leg_live(parsed, games)
-            word, tone = _LIVE_BADGE[info["status"]]
-            hits += info["status"] == "hit"
-            cur = info["cur"]
-            prog = (f'<b>{cur:g}</b> / {info["line"]:g}' + (f' {info["unit"]}' if info["unit"] else "")) if cur is not None else "-"
-            w = 0 if cur is None or not info["line"] else max(0, min(100, cur / info["line"] * 100))
-            color = {"hit": "var(--ok)", "miss": "#dc2626"}.get(info["status"], "var(--acc)")
-            rows.append(f'<div style="margin:10px 0 2px;display:flex;justify-content:space-between;gap:8px"><span style="font-weight:600">{H(leg)}</span>'
-                        f'<span>{badge(word, tone)}</span></div>'
-                        f'<div class="nb-muted" style="display:flex;justify-content:space-between"><span>{prog}</span><span>{H(info["label"])}</span></div>'
-                        f'<div class="nb-bar" style="height:7px"><div class="nb-fill" style="width:{w:.0f}%;background:{color}"></div></div>')
-            if auto and ls[i] == "-" and info["status"] in ("hit", "miss") and (parsed["kind"] == "stat" or info["status"] == "hit"):
-                set_leg(r["id"], i, "H" if info["status"] == "hit" else "M")
-                changed = True
-        n = len(parts)
-        html(f'<div class="nb-card" style="margin-bottom:10px"><div style="margin-bottom:2px">{book_chip(r["book"], 24)}<b style="vertical-align:middle">{H(r["book"])}</b>'
-             f'<span class="nb-muted" style="vertical-align:middle"> · {hits} of {n} hitting · ${r["stake"]:,.0f} to win ${r["payout"] - r["stake"]:,.0f}</span></div>'
-             + "".join(rows) + '</div>')
-    st.caption(f"Updated {dt.datetime.now().strftime('%-I:%M:%S %p')} · refreshes about every {LIVE_REFRESH_SECONDS} seconds while this tab is open. "
-               "Stats come from ESPN's live box score, which can lag the broadcast by a minute.")
-    if changed:
-        st.rerun()
+def live_leg_html(info):
+    """Small progress line for one leg: status badge, current / line, game status and a bar."""
+    word, tone = _LIVE_BADGE[info["status"]]
+    cur = info["cur"]
+    prog = (f'<b>{cur:g}</b> / {info["line"]:g}' + (f' {info["unit"]}' if info["unit"] else "")) if cur is not None else "-"
+    w = 0 if cur is None or not info["line"] else max(0, min(100, cur / info["line"] * 100))
+    color = {"hit": "var(--ok)", "miss": "#dc2626"}.get(info["status"], "var(--acc)")
+    return (f'<div class="nb-muted" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px">'
+            f'<span>{badge(word, tone)} &nbsp;{prog}</span><span>{H(info["label"])}</span></div>'
+            f'<div class="nb-bar" style="height:6px;margin-bottom:6px"><div class="nb-fill" style="width:{w:.0f}%;background:{color}"></div></div>')
 
 
-try:
-    live_tracker_fragment = st.fragment(run_every=LIVE_REFRESH_SECONDS)(live_tracker_body)
-except Exception:                                    # older Streamlit: no auto-refresh, refresh by interacting
-    live_tracker_fragment = live_tracker_body
+def live_games_for(open_df):
+    """Live scoreboard data, only fetched when some open bet has a player stat leg."""
+    if not any(parse_leg(leg) for d in open_df["desc"] for leg in split_legs(d)):
+        return []
+    today = dt.date.today().isoformat()
+    dates = tuple(sorted({d for d in open_df["date"] if d <= today} | {today}))[-3:]
+    return live_scores(dates)
 
 
-def live_tracker_section():
-    st.markdown('<div class="nb-sec">📡 Live tracker</div>', unsafe_allow_html=True)
-    st.checkbox("Automatically check off legs once they're decided", value=True, key="live_auto",
-                help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone.")
-    live_tracker_fragment()
+def _refreshing(fn):
+    # Re-runs this part of the page every few seconds on its own (needs a recent Streamlit; otherwise it refreshes when you tap something).
+    try:
+        return st.fragment(run_every=LIVE_REFRESH_SECONDS)(fn)
+    except Exception:
+        return fn
 
 
-def bets_open_view():
+def open_bets_list():
     df = load_bets()
     open_all = df[df["result"] == ""]
     open_ = open_all
-    if len(open_all):
-        live_tracker_section()
+    games = live_games_for(open_all) if len(open_all) else []
+    auto = st.checkbox("Auto-check legs once they're decided by the live stats", value=True, key="live_auto",
+                       help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone.") if games else False
+    changed = False
     st.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>', unsafe_allow_html=True)
     with st.container():
         if open_all.empty:
@@ -2673,6 +2644,10 @@ def bets_open_view():
                 with st.container(border=True):
                     legs = split_legs(r["desc"])
                     pick_rows_html([bet_item(r, controls=True)])
+                    if len(legs) == 1 and games:
+                        _p1 = parse_leg(legs[0])
+                        if _p1:
+                            html(live_leg_html(leg_live(_p1, games)))
                     if len(legs) > 1:
                         _ls0 = leg_states(r)
                         with st.expander(f"Legs · {_ls0.count('H')} of {len(legs)} hit" + "\u200b" * st.session_state["legs_ver"], expanded=st.session_state["legs_open"]):
@@ -2680,6 +2655,14 @@ def bets_open_view():
                                 for i, leg in enumerate(legs):
                                     q = st.columns([3, 1.3])
                                     q[0].markdown(f"{_leg_icon(ls[i])} {leg}")
+                                    _pp = parse_leg(leg) if games else None
+                                    if _pp:
+                                        _info = leg_live(_pp, games)
+                                        with q[0]:
+                                            html(live_leg_html(_info))
+                                        if auto and ls[i] == "-" and _info["status"] in ("hit", "miss") and (_pp["kind"] == "stat" or _info["status"] == "hit"):
+                                            set_leg(r["id"], i, "H" if _info["status"] == "hit" else "M")
+                                            changed = True
                                     try:
                                         pick_ = q[1].segmented_control("Leg result", ["✅", "❌"], default={"H": "✅", "M": "❌"}.get(ls[i]),
                                                                        key=f"seg_{r['id']}_{i}_{ls[i]}", label_visibility="collapsed")
@@ -2710,7 +2693,19 @@ def bets_open_view():
                     if b4.button("🗑️ Delete", key=f"bd_{r['id']}"):
                         delete_bet(r["id"])
                         st.rerun()
+    if games:
+        st.caption(f"Live stats updated {dt.datetime.now().strftime('%-I:%M:%S %p')}, refreshing about every {LIVE_REFRESH_SECONDS} seconds. "
+                   "They come from ESPN's live box score, which can run about a minute behind the broadcast.")
+    if changed:
+        st.rerun()
 
+
+open_bets_list = _refreshing(open_bets_list)
+
+
+def bets_open_view():
+    df = load_bets()
+    open_bets_list()
     if len(df):
         with st.expander("✏️ Edit or delete a bet"):
             labels = {f"{_nice_date(r['date'])} · {r['book']} · {r['desc'][:50]} · ${r['stake']:,.0f}": r["id"] for _, r in df.sort_values("date", ascending=False).iterrows()}

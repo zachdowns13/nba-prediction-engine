@@ -2589,7 +2589,10 @@ def flip_side(key, where):
             st.session_state[k] = st.session_state.get(k + "_last", "Over")
     with where.container(key=f"{key}_sidewrap"):
         try:
-            v = st.segmented_control("Over/Under", ["Over", "Under"], key=k, on_change=_keep, label_visibility="hidden")
+            try:
+                v = st.segmented_control("Over/Under", ["Over", "Under"], key=k, on_change=_keep, label_visibility="hidden", width="stretch")
+            except TypeError:                                         # older Streamlit has no width option; the CSS below stretches it
+                v = st.segmented_control("Over/Under", ["Over", "Under"], key=k, on_change=_keep, label_visibility="hidden")
         except AttributeError:
             v = st.radio("Over/Under", ["Over", "Under"], horizontal=True, key=k, label_visibility="hidden")
     v = v or st.session_state.get(k + "_last", "Over")

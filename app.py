@@ -1827,6 +1827,23 @@ def todays_markets(log, day):
             st.markdown("  \n".join(lines))
 
 
+def alltime_cards(gd, waiting):
+    # Brief all-time summary: overall plus each market, as one row of cards.
+    tiles = []
+    for label, d in (("Overall", gd), ("Moneylines", gd[gd["market"] == "Moneyline"]),
+                     ("Spreads", gd[gd["market"] == "Spread"]), ("Totals", gd[gd["market"] == "Total"])):
+        if d.empty:
+            continue
+        s_ = pick_stats(d)
+        u_ = s_["profit"] / 100
+        units = f"{'+' if u_ > 0.005 else ('-' if u_ < -0.005 else '')}{abs(u_):.2f} units"
+        win = f"{s_['win'] * 100:.0f}%" if s_["win"] is not None else "-"
+        tiles.append(stat_tile(label, s_["rec"], f"{win} · {units}", _tone(s_["profit"])))
+    html('<div class="nb-tiles">' + "".join(tiles) + '</div>')
+    st.caption("All time, every saved day. Units: 1 unit = a $100 bet on each pick."
+               + (f" {waiting} picks are still waiting on games." if waiting else ""))
+
+
 def game_results_view():
     st.caption("Every pick is graded automatically from ESPN's final scores. Run the Full slate each day before games start and "
                "every moneyline, spread and total is saved, so this page shows how the model is actually doing.")
@@ -1850,7 +1867,8 @@ def game_results_view():
         st.info("Nothing saved yet. Open the **Full slate** tab and press **Run full slate** before games start. "
                 "Every moneyline, spread and total is saved automatically.")
     else:
-        todays_markets(log, _day)
+        if _day:
+            todays_markets(log, _day)
         view = st.radio("Show", ["All picks", "Value plays only"], horizontal=True, key="res_view", label_visibility="collapsed")
         st.caption("**All picks:** the side the model liked in every moneyline, spread and total that was saved. "
                    if view == "All picks" else "**Value plays:** only the picks the app flagged as value (the model's chance beat the sportsbook's by enough to matter). ")
@@ -1860,14 +1878,17 @@ def game_results_view():
         if gd.empty:
             st.info(f"No graded picks yet. {waiting} are waiting for their games to finish." if waiting else "No graded picks yet.")
         else:
-            st.caption(f"Record, win rate and profit below are for **{_nice_date(_day) if _day else 'all time (every saved day)'}**.")
-            results_summary(gd, waiting)
-            form_strip(gd.sort_values("date")["result"])
-            st.markdown('<div class="nb-sec">How each market is doing</div>', unsafe_allow_html=True)
-            groups = [(mk, gd[gd["market"] == mk]) for mk in ("Moneyline", "Spread", "Total")]
-            if view == "Value plays only":
-                groups += [(f"{k} value", gd[gd["strength"] == k]) for k in gd["strength"].dropna().unique() if str(k)]
-            breakdown_html(groups)
+            if _day:
+                st.caption(f"Record, win rate and profit below are for **{_nice_date(_day)}**.")
+                results_summary(gd, waiting)
+                form_strip(gd.sort_values("date")["result"])
+                st.markdown('<div class="nb-sec">How each market is doing</div>', unsafe_allow_html=True)
+                groups = [(mk, gd[gd["market"] == mk]) for mk in ("Moneyline", "Spread", "Total")]
+                if view == "Value plays only":
+                    groups += [(f"{k} value", gd[gd["strength"] == k]) for k in gd["strength"].dropna().unique() if str(k)]
+                breakdown_html(groups)
+            else:
+                alltime_cards(gd, waiting)
             st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
             day_list(gd)
             if gd['date'].nunique() > 1:

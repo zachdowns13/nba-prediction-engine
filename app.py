@@ -2992,14 +2992,14 @@ def open_bets_list(refresh=False):
     open_ = open_all
     _snap = st.session_state.get("live_snap")
     games = _snap[1] if _snap else []
+    with st.container(key="refresh_row"):                    # top left, in the space above the heading
+        rb, _rs = st.columns([1.2, 5])
+        try:
+            rb.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, type="tertiary", help="Refresh the live stats")
+        except Exception:
+            rb.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, help="Refresh the live stats")
     head_ph = st.empty()
     head_ph.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>', unsafe_allow_html=True)
-
-    def _refresh_btn():
-        try:
-            st.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, type="tertiary", use_container_width=True, help="Refresh the live stats")
-        except Exception:
-            st.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, use_container_width=True, help="Refresh the live stats")
     with st.container():
         if open_all.empty:
             st.caption("No open bets. Add one in the **Add a bet** tab.")
@@ -3017,7 +3017,7 @@ def open_bets_list(refresh=False):
                     st.rerun()
             _has_parlay = any(len(split_legs(x)) > 1 for x in open_all["desc"])
             with st.container(border=True, key="bet_filters"):
-                open_ = filter_sort_bets(open_all, "bo", right=_leg_buttons if _has_parlay else None, top_right=_refresh_btn)
+                open_ = filter_sort_bets(open_all, "bo", right=_leg_buttons if _has_parlay else None)
             head_ph.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>'
                              f'<div class="nb-muted" style="margin:-6px 0 8px">${open_all["stake"].sum():,.2f} at risk'
                              + (f" · showing {len(open_)} of {len(open_all)}" if len(open_) != len(open_all) else "") + '</div>', unsafe_allow_html=True)
@@ -3338,10 +3338,13 @@ def bets_results_view(cord_only=False):
         days = {"Today": 0, "Last 7 days": 6, "Last 30 days": 29}[period]
         df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
     used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
-    which = _seg("Bets", ["All plays", "💬 Cord plays"], f"bet_scope2{p}", "All plays") if has_cord else "All plays"      # right under the date buttons
-    t1, _t2 = st.columns([1.15, 2], vertical_alignment="center")
-    note_ph = _t2.empty()                                                    # the "early days" note goes to the right of the book dropdown
+    # Row 2: the book dropdown takes all the room it can, with the all / Cord toggle at the right end.
+    t1, _t2 = st.columns([3.2, 1.7] if has_cord else [1, 0.001], vertical_alignment="center")
     book = t1.selectbox("Book", ["All books"] + used, key=f"bet_book{p}", label_visibility="collapsed") if len(used) > 1 else "All books"
+    which = "All plays"
+    if has_cord:
+        with _t2.container(key=f"scope_right{p}"):
+            which = _seg("Bets", ["All plays", "💬 Cord plays"], f"bet_scope2{p}", "All plays")
 
     if book not in ["All books"] + used:
         book = "All books"
@@ -3353,9 +3356,6 @@ def bets_results_view(cord_only=False):
         st.info(f"No settled bets here yet. {len(open_)} open (${open_['stake'].sum():,.2f} at risk). Mark them Won, Lost or Push in the **Open bets** tab.")
     else:
         done["odds"] = [bet_odds(a, b) for a, b in zip(done["stake"], done["payout"])]
-        if 0 < len(done) < 30:
-            note_ph.markdown(f'<div class="nb-muted" style="text-align:right;font-size:.85rem;line-height:1.3">Early days: only {len(done)} settled bets so far, so numbers can swing a lot.</div>',
-                             unsafe_allow_html=True)
         bets_recap(done, open_)
         if len(used) > 1 and book == "All books":
             _sc = df[df["cord"] == "Y"] if which == "💬 Cord plays" else df
@@ -3900,6 +3900,9 @@ st.markdown("""<style>
   .st-key-navbar{background:var(--nb-bg,#0e1117)}}
 .st-key-navbar{padding:.35rem 0 .45rem;border-bottom:1px solid rgba(128,128,128,.28)}
 .st-key-live_ctrls [data-testid="stVerticalBlock"],.st-key-bet_filters [data-testid="stVerticalBlock"],.st-key-res_ctrls [data-testid="stVerticalBlock"],.st-key-res_hist [data-testid="stVerticalBlock"]{gap:.35rem}
+[class*="st-key-scope_right"] [data-testid="stElementContainer"]{display:flex;justify-content:flex-end}
+[class*="st-key-scope_right"] [data-testid="stVerticalBlock"]{align-items:flex-end}
+.st-key-refresh_row{margin-bottom:-.9rem}
 .st-key-res_ctrls{margin-bottom:-.5rem}.st-key-res_hist{margin-bottom:-.45rem}
 .st-key-bet_filters{margin-bottom:-.45rem}
 .block-container > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),

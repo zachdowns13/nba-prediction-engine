@@ -2506,15 +2506,30 @@ _LEG_RE = re.compile(r"^(?P<who>.+?) (?P<side>over|under) (?P<line>\d+(?:\.\d+)?
 _DD_RE = re.compile(r"^(?P<who>.+?) (?P<kind>double-double|triple-double)$", re.I)
 
 
+_ML_RE = re.compile(r"^(?P<team>.+?) ML(?: vs (?P<opp>.+))?$", re.I)
+_TT_RE = re.compile(r"^(?P<team>.+?) team total (?P<side>over|under) (?P<line>\d+(?:\.\d+)?)(?: vs (?P<opp>.+))?$", re.I)
+_GT_RE = re.compile(r"^(?P<team>.+?)(?: vs (?P<opp>.+?))?:? game total (?P<side>over|under) (?P<line>\d+(?:\.\d+)?)$", re.I)
+_SP_RE = re.compile(r"^(?P<team>.+?) (?P<sp>[+-]\d+(?:\.\d+)?)(?: vs (?P<opp>.+))?$", re.I)
+
+
 def parse_leg(leg):
-    """Turns a saved leg like 'Devin Booker over 26.5 points' into its parts, or None if it isn't a player stat bet."""
+    """Turns a saved leg like 'Devin Booker over 26.5 points' or 'Phoenix Suns ML vs Portland Trail Blazers' into its parts, or None if it can't be tracked."""
     leg = leg.strip()
+    for kind, rx in (("ml", _ML_RE), ("ttotal", _TT_RE), ("gtotal", _GT_RE)):
+        m = rx.match(leg)
+        if m:
+            d = m.groupdict()
+            return {"kind": kind, "team": d["team"].strip(), "opp": (d.get("opp") or "").strip(), "side": (d.get("side") or "").lower(),
+                    "line": float(d["line"]) if d.get("line") else None}
     m = _LEG_RE.match(leg)
     if m and m["stat"].lower() in STAT_PARTS:
         return {"kind": "stat", "who": m["who"], "side": m["side"].lower(), "line": float(m["line"]), "stat": m["stat"].lower()}
     m = _DD_RE.match(leg)
     if m:
         return {"kind": "dd", "who": m["who"], "dd": m["kind"].lower()}
+    m = _SP_RE.match(leg)
+    if m and not _LEG_RE.match(leg):
+        return {"kind": "spread", "team": m["team"].strip(), "opp": (m["opp"] or "").strip(), "sp": float(m["sp"]), "line": None}
     return None
 
 
@@ -2536,7 +2551,12 @@ def live_scores(dates):
             home = next(c for c in comp["competitors"] if c["homeAway"] == "home")
             away = next(c for c in comp["competitors"] if c["homeAway"] == "away")
             stt = ev["status"]["type"]
-            out.append({"id": ev["id"], "state": stt.get("state", "pre"), "detail": stt.get("shortDetail") or stt.get("detail") or "",
+            def _sc(c):
+                try:
+                    return float(c.get("score"))
+                except (TypeError, ValueError):
+                    return None
+            out.append({"id": ev["id"], "date": d, "hs": _sc(home), "as": _sc(away), "state": stt.get("state", "pre"), "detail": stt.get("shortDetail") or stt.get("detail") or "",
                         "home": home["team"]["displayName"], "away": away["team"]["displayName"],
                         "score": f"{away['team'].get('abbreviation', '')} {away.get('score', '0')} - {home['team'].get('abbreviation', '')} {home.get('score', '0')}",
                         "players": {}})
@@ -2549,8 +2569,58 @@ def live_scores(dates):
     return out
 
 
-def leg_live(parsed, games):
+def _team_is(name, full):
+    n, f = name.strip().lower(), full.lower()
+    return bool(n) and (n == f or n == f.split()[-1] or f.endswith(" " + n))
+
+
+def _team_leg_live(p, games, bet_date):
+    def find(rows):
+        for g in rows:
+            for mine, theirs, ms, ts_ in ((g["home"], g["away"], g.get("hs"), g.get("as")), (g["away"], g["home"], g.get("as"), g.get("hs"))):
+                if _team_is(p["team"], mine) and (not p["opp"] or _team_is(p["opp"], theirs)):
+                    return g, mine, theirs, ms, ts_
+        return None
+    hit = find([g for g in games if g.get("date") == bet_date]) or find(games)
+    if not hit:
+        return {"cur": None, "line": p.get("line"), "status": "wait", "label": "Game not found yet", "unit": ""}
+    g, mine, theirs, ts, os_ = hit
+    final, live_ = g["state"] == "post", g["state"] == "in"
+    label = "Final" if final else (g["detail"] if live_ else "Game hasn't started")
+    if ts is None or os_ is None or g["state"] == "pre":
+        return {"cur": None, "line": p.get("line"), "status": "wait", "label": label, "unit": ""}
+    k = p["kind"]
+    out = {"label": label, "unit": "", "line": p.get("line")}
+    if k == "ml":
+        lead = ts - os_
+        out.update(cur=lead, text=f"{short(mine)} {ts:g}–{os_:g} {short(theirs)}", bar=max(0, min(100, 50 + lead * 2.5)),
+                   status=("hit" if lead > 0 else "miss") if final else "live")
+        if final and lead == 0:
+            out["status"] = "push"
+    elif k == "spread":
+        cover = (ts - os_) + p["sp"]
+        txt = "covering by" if cover > 0 else ("behind by" if cover < 0 else "right on the line")
+        out.update(cur=cover, bar=max(0, min(100, 50 + cover * 2.5)), line=p["sp"],
+                   text=(f"{txt} {abs(cover):g}" if cover else txt),
+                   status=(("hit" if cover > 0 else "miss") if cover != 0 else "push") if final else "live")
+    else:                                                   # game total or team total
+        cur = (ts + os_) if k == "gtotal" else ts
+        line = p["line"]
+        if p["side"] == "over":
+            st_ = "hit" if cur > line else (("miss" if cur < line else "push") if final else "live")
+        else:
+            st_ = "miss" if cur > line else (("hit" if cur < line else "push") if final else "live")
+        out.update(cur=cur, status=st_)
+    return out
+
+
+def leg_live(parsed, games, bet_date=None):
     """Where one leg stands: dict with cur, line, status (hit / miss / push / live / wait / dnp), game label."""
+    if parsed["kind"] in ("ml", "spread", "gtotal", "ttotal"):
+        return _team_leg_live(parsed, games, bet_date)
+    if bet_date:                                            # prefer the game on the day the bet was placed
+        same = [g for g in games if g.get("date") == bet_date]
+        games = same + [g for g in games if g not in same]
     who = parsed["who"].lower()
     for g in games:
         p = g["players"].get(who)
@@ -2585,13 +2655,19 @@ def live_leg_html(info, title=None):
     word, tone = _LIVE_BADGE[info["status"]]
     cur = info["cur"]
     prog = (f'<b>{cur:g}</b> / {info["line"]:g}' + (f' {info["unit"]}' if info["unit"] else "")) if cur is not None else "-"
+    if info.get("text"):
+        prog = info["text"]
     w = 0 if cur is None or not info["line"] else max(0, min(100, cur / info["line"] * 100))
+    if "bar" in info:
+        w = info["bar"]
     color = {"hit": "var(--ok)", "miss": "#dc2626"}.get(info["status"], "var(--acc)")
+    if "bar" in info and info["status"] == "live":
+        color = "var(--ok)" if info["bar"] >= 50 else "#dc2626"       # ahead or behind right now
     head = f'<div style="font-weight:600;margin:0 0 4px">{H(title)}</div>' if title else ""
     mb = 16 if title else 6
     # One grid so the badge's right edge lines up exactly with the right end of the bar (the numbers sit in their own column after the bar).
     return (head + f'<div style="display:grid;grid-template-columns:1fr auto;column-gap:10px;align-items:center;margin-bottom:{mb}px">'
-            f'<div class="nb-muted" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:2px 0 3px"><span>{H(info["label"])}</span><span>{badge(word, tone)}</span></div>'
+            f'<div class="nb-muted" style="display:flex;justify-content:flex-start;align-items:center;gap:8px;margin:2px 0 3px"><span>{badge(word, tone)}</span><span>{H(info["label"])}</span></div>'
             f'<div></div>'
             f'<div class="nb-bar" style="height:6px;margin:0"><div class="nb-fill" style="width:{w:.0f}%;background:{color}"></div></div>'
             f'<span style="white-space:nowrap;font-size:.9rem;line-height:1;text-align:right">{prog}</span></div>')
@@ -2631,8 +2707,8 @@ def refresh_live_snapshot():
                 p = parse_leg(leg)
                 if not p or ls[i] != "-":
                     continue
-                st_ = leg_live(p, games)["status"]
-                if st_ == "hit" or (st_ == "miss" and p["kind"] == "stat"):
+                st_ = leg_live(p, games, r["date"])["status"]
+                if st_ in ("hit", "miss"):
                     set_leg(r["id"], i, "H" if st_ == "hit" else "M")
 
 
@@ -2675,7 +2751,7 @@ def open_bets_list(refresh=False):
                     if len(legs) == 1 and games:
                         _p1 = parse_leg(legs[0])
                         if _p1:
-                            html(live_leg_html(leg_live(_p1, games)))
+                            html(live_leg_html(leg_live(_p1, games, r["date"])))
                     if len(legs) > 1:
                         _ls0 = leg_states(r)
                         with st.expander(f"Legs · {_ls0.count('H')} of {len(legs)} hit" + "\u200b" * st.session_state["legs_ver"], expanded=st.session_state["legs_open"]):
@@ -2685,7 +2761,7 @@ def open_bets_list(refresh=False):
                                     _pp = parse_leg(leg) if games else None
                                     if _pp:
                                         with q[0]:                       # name, live numbers and bar as one tight block
-                                            html(live_leg_html(leg_live(_pp, games), title=f"{_leg_icon(ls[i])} {leg}"))
+                                            html(live_leg_html(leg_live(_pp, games, r["date"]), title=f"{_leg_icon(ls[i])} {leg}"))
                                     else:
                                         q[0].markdown(f"{_leg_icon(ls[i])} {leg}")
                                     try:

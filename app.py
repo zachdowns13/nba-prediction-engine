@@ -3261,31 +3261,22 @@ def _week_label(d):
         return d
 
 
-def bets_recap(done, open_, cdone=None, copen=None):
-    # One card. Left: all plays. Right (once you have Cord plays): Cord plays. Each side is a pyramid: profit big on top, record and win rate under it.
-    def side(title, d, o):
-        head = f'<div class="nb-muted" style="font-size:.8rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">{H(title)}</div>'
-        if d.empty:
-            return f'<div style="flex:1;text-align:center">{head}<div class="nb-muted" style="margin-top:14px">No settled bets yet</div></div>'
-        if "odds" not in d.columns:
-            d = d.assign(odds=[bet_odds(x, y) for x, y in zip(d["stake"], d["payout"])])
-        s_ = pick_stats(d)
-        win = f"{s_['win'] * 100:.0f}%" if s_["win"] is not None else "-"
-        mini = lambda lab, val, sub="": (f'<div style="flex:1"><div class="nb-muted" style="font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">{H(lab)}</div>'
-                                         f'<div style="font-size:1.25rem;font-weight:800;line-height:1.3">{H(val)}</div>'
-                                         f'<div class="nb-muted" style="font-size:.72rem">{H(sub)}</div></div>')
-        return (f'<div style="flex:1;text-align:center;min-width:0">{head}'
-                f'<div class="{_tone(s_["profit"])}" style="font-size:2.4rem;font-weight:800;line-height:1.15;margin:4px 0 0">{H(_signed_money(s_["profit"]))}</div>'
-                f'<div class="nb-muted" style="font-size:.8rem;margin-bottom:10px">on ${d["stake"].sum():,.0f} in bets</div>'
-                f'<div style="display:flex;gap:6px;border-top:1px solid var(--line);padding-top:10px">'
-                + mini("Record", s_["rec"], f"{len(o)} open" if len(o) else "all settled") + mini("Win rate", win) + '</div></div>')
-    if cdone is None:
-        html('<div class="nb-card" style="padding:16px 20px">' + side("Profit", done, open_) + '</div>')
-        return
-    html('<div class="nb-card" style="padding:16px 20px;display:flex;gap:0">'
-         + side("All plays", done, open_)
-         + '<div style="width:1px;background:var(--line);margin:0 16px"></div>'
-         + side("💬 Cord plays", cdone, copen) + '</div>')
+def bets_recap(done, open_):
+    # One clean card: the profit big and centered, with record / win rate / biggest win in a quiet row underneath.
+    s = pick_stats(done)
+    big = stat_tile("Profit", _signed_money(s["profit"]), f"on ${done['stake'].sum():,.0f} in bets", _tone(s["profit"]))
+    big = big.replace('class="nb-tile"', 'class="nb-tile big" style="border:none;background:none;padding:0 0 10px;text-align:center"', 1)
+
+    def mini(label, value, sub=""):
+        return (f'<div style="text-align:center;flex:1"><div class="nb-muted" style="font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">{H(label)}</div>'
+                f'<div style="font-size:1.3rem;font-weight:800;line-height:1.3">{H(value)}</div><div class="nb-muted" style="font-size:.75rem">{H(sub)}</div></div>')
+    win = f"{s['win'] * 100:.0f}%" if s["win"] is not None else "-"
+    html('<div class="nb-card" style="padding:16px 20px">' + big
+         + '<div style="display:flex;gap:8px;border-top:1px solid var(--line);padding-top:12px">'
+         + mini("Record", s["rec"], f"{len(open_)} open" if len(open_) else "all settled")
+         + mini("Win rate", win)
+         + mini("Biggest win", _signed_money(float(done["profit"].max())))
+         + '</div></div>')
 
 
 def bets_stats_block(done, open_, key, recap=True):
@@ -3319,27 +3310,31 @@ def _seg(label, options, key, default, where=None):
         return where.radio(label, options, index=options.index(default), horizontal=True, key=key, label_visibility="collapsed")
 
 
-def bets_results_view():
+def bets_results_view(cord_only=False):
+    p = "_c" if cord_only else ""                    # keeps the widget keys of the Cord plays tab separate
     df = load_bets()
+    if cord_only:
+        df = df[df["cord"] == "Y"]
+        if df.empty:
+            st.info("No Cord plays yet. Tick **💬 Also add to Cord plays** when you add a bet, or tag an old one in **Edit or delete a bet**.")
+            return
     if df.empty:
         st.info("No bets yet. Add one in the **Add a bet** tab and your results will show up here.")
         return
     today = local_today()
-    has_cord = (df["cord"] == "Y").any()
 
     # One toolbar: how far back, then which bets (all or Cord plays) and which book.
-    period = _seg("Time period", ["Today", "Last 7 days", "Last 30 days", "All time"], "bet_period2", "Today")
+    period = _seg("Time period", ["Today", "Last 7 days", "Last 30 days", "All time"], f"bet_period2{p}", "Today")
     if period != "All time":
         days = {"Today": 0, "Last 7 days": 6, "Last 30 days": 29}[period]
         df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
     used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
-    t1, t2 = st.columns(2)
-    which = _seg("Bets", ["All plays", "💬 Cord plays"], "bet_scope2", "All plays", t1) if has_cord else "All plays"
-    book = t2.selectbox("Book", ["All books"] + used, key="bet_book", label_visibility="collapsed") if len(used) > 1 else "All books"
+    t1, _t2 = st.columns(2, vertical_alignment="center")
+    book = t1.selectbox("Book", ["All books"] + used, key=f"bet_book{p}", label_visibility="collapsed") if len(used) > 1 else "All books"
     if book not in ["All books"] + used:
         book = "All books"
     dfb = df if book == "All books" else df[df["book"] == book]                  # period + book
-    dfs = dfb[dfb["cord"] == "Y"] if which == "💬 Cord plays" else dfb           # ...and the all / Cord choice
+    dfs = dfb
     done = dfs[dfs["result"].isin(["W", "L", "P"])].copy()
     open_ = dfs[dfs["result"] == ""]
     if done.empty:
@@ -3348,25 +3343,19 @@ def bets_results_view():
         done["odds"] = [bet_odds(a, b) for a, b in zip(done["stake"], done["payout"])]
         if 0 < len(done) < 30:
             st.caption(f"Early days: only {len(done)} settled bets here so far, so these numbers can swing a lot.")
-        _dp = dfb[dfb["result"].isin(["W", "L", "P"])]
-        _op = dfb[dfb["result"] == ""]
-        if has_cord:
-            bets_recap(_dp, _op, _dp[_dp["cord"] == "Y"], _op[_op["cord"] == "Y"])
-        else:
-            bets_recap(_dp, _op)
+        bets_recap(done, open_)
         if len(used) > 1 and book == "All books":
-            _sc = df[df["cord"] == "Y"] if which == "💬 Cord plays" else df
-            _sd = _sc[_sc["result"].isin(["W", "L", "P"])]
+            _sd = df[df["result"].isin(["W", "L", "P"])]
             st.markdown('<div class="nb-sec">By book</div>', unsafe_allow_html=True)
             breakdown_html([(b, _sd[_sd["book"] == b]) for b in BET_BOOKS + ["Other"]])
-        bets_stats_block(done, open_, "bs_view", recap=False)
+        bets_stats_block(done, open_, f"bs_view{p}", recap=False)
 
     st.markdown('<div class="nb-sec">All my bets</div>', unsafe_allow_html=True)
     h1, h2 = st.columns(2)
-    flt = h1.selectbox("Show", ["All", "Open", "Wins", "Losses", "Pushes", "Straight", "Parlays"], key="bet_filter")
+    flt = h1.selectbox("Show", ["All", "Open", "Wins", "Losses", "Pushes", "Straight", "Parlays"], key=f"bet_filter{p}")
     sel = {"All": dfs, "Open": dfs[dfs["result"] == ""], "Wins": dfs[dfs["result"] == "W"], "Losses": dfs[dfs["result"] == "L"],
            "Pushes": dfs[dfs["result"] == "P"], "Straight": dfs[dfs["type"] == "Straight"], "Parlays": dfs[dfs["type"] == "Parlay"]}[flt]
-    sel = filter_sort_bets(sel, "bh", compact=True, sort_where=h2)
+    sel = filter_sort_bets(sel, f"bh{p}", compact=True, sort_where=h2)
     if sel.empty:
         st.caption("Nothing to show for this filter yet.")
     else:
@@ -3376,13 +3365,15 @@ def bets_results_view():
 
 
 def bets_tab():
-    t_in, t_open, t_res = st.tabs(["➕ Add a bet", "⏳ Open bets", "📈 Results"])
+    t_in, t_open, t_res, t_cord = st.tabs(["➕ Add a bet", "⏳ Open bets", "📈 Results", "💬 Cord plays"])
     with t_in:
         bets_input_view()
     with t_open:
         bets_open_view()
     with t_res:
         bets_results_view()
+    with t_cord:
+        bets_results_view(cord_only=True)
 
 
 # =====================================================================

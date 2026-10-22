@@ -3323,16 +3323,18 @@ def bets_results_view(cord_only=False):
         return
     today = local_today()
 
+    has_cord = (df["cord"] == "Y").any()                                         # checked over all time, so the toggle doesn't vanish on a quiet day
     # One toolbar: how far back, then which bets (all or Cord plays) and which book.
     period = _seg("Time period", ["Today", "Last 7 days", "Last 30 days", "All time"], f"bet_period2{p}", "Today")
     if period != "All time":
         days = {"Today": 0, "Last 7 days": 6, "Last 30 days": 29}[period]
         df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
     used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
-    t1, _t2 = st.columns(2, vertical_alignment="center")
+    which = _seg("Bets", ["All plays", "💬 Cord plays"], f"bet_scope2{p}", "All plays") if has_cord else "All plays"      # right under the date buttons
+    t1, _t2 = st.columns([1, 1.4], vertical_alignment="center")
+    note_ph = _t2.empty()                                                    # the "early days" note goes to the right of the book dropdown
     book = t1.selectbox("Book", ["All books"] + used, key=f"bet_book{p}", label_visibility="collapsed") if len(used) > 1 else "All books"
-    has_cord = (df["cord"] == "Y").any()
-    which = _seg("Bets", ["All plays", "💬 Cord plays"], f"bet_scope2{p}", "All plays", _t2) if has_cord else "All plays"
+
     if book not in ["All books"] + used:
         book = "All books"
     dfb = df if book == "All books" else df[df["book"] == book]                  # period + book
@@ -3344,7 +3346,7 @@ def bets_results_view(cord_only=False):
     else:
         done["odds"] = [bet_odds(a, b) for a, b in zip(done["stake"], done["payout"])]
         if 0 < len(done) < 30:
-            st.caption(f"Early days: only {len(done)} settled bets here so far, so these numbers can swing a lot.")
+            note_ph.caption(f"Early days: only {len(done)} settled bets here so far, so these numbers can swing a lot.")
         bets_recap(done, open_)
         if len(used) > 1 and book == "All books":
             _sc = df[df["cord"] == "Y"] if which == "💬 Cord plays" else df

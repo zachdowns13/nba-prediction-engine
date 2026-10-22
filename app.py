@@ -2580,15 +2580,20 @@ def _search_select(label, options, key, where=None, index=None):
 
 
 def flip_side(key, where):
-    # One button that flips between Over and Under with a single click.
+    # Over / Under as a two-way toggle with a normal label, so it lines up with the Line box beside it.
     k = f"{key}_sideval"
     st.session_state.setdefault(k, "Over")
 
-    def _flip():
-        st.session_state[k] = "Under" if st.session_state[k] == "Over" else "Over"
-    where.markdown("<div style='font-size:.875rem;line-height:1.4;margin-bottom:.35rem;white-space:nowrap'>Over/Under</div>", unsafe_allow_html=True)
-    where.button("⬆️ Over" if st.session_state[k] == "Over" else "⬇️ Under", key=f"{key}_sidebtn", on_click=_flip, use_container_width=True)
-    return st.session_state[k]
+    def _keep():
+        if st.session_state.get(k) is None:
+            st.session_state[k] = st.session_state.get(k + "_last", "Over")
+    try:
+        v = where.segmented_control("Over/Under", ["Over", "Under"], key=k, on_change=_keep)
+    except AttributeError:
+        v = where.radio("Over/Under", ["Over", "Under"], horizontal=True, key=k)
+    v = v or st.session_state.get(k + "_last", "Over")
+    st.session_state[k + "_last"] = v
+    return v
 
 
 def norm_name(x, options):
@@ -3952,7 +3957,6 @@ st.markdown("""<style>
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stMarkdownContainer"] p{margin-left:.35rem;margin-top:.3rem}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button{display:flex !important;align-items:center !important;justify-content:center !important;text-align:center !important}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button *,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button *{text-align:center !important;justify-content:center !important;margin:0 auto !important}
-[class*="st-key-"][class*="_sidebtn"]{margin-top:.4rem}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}

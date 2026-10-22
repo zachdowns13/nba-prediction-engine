@@ -2586,7 +2586,7 @@ def flip_side(key, where):
 
     def _flip():
         st.session_state[k] = "Under" if st.session_state[k] == "Over" else "Over"
-    where.markdown("<div style='font-size:.875rem;line-height:1.4;margin-bottom:.35rem;white-space:nowrap'>Side</div>", unsafe_allow_html=True)
+    where.markdown("<div style='font-size:.875rem;line-height:1.4;margin-bottom:.35rem;white-space:nowrap'>Over/Under</div>", unsafe_allow_html=True)
     where.button("⬆️ Over" if st.session_state[k] == "Over" else "⬇️ Under", key=f"{key}_sidebtn", on_click=_flip, use_container_width=True)
     return st.session_state[k]
 
@@ -3952,6 +3952,7 @@ st.markdown("""<style>
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stMarkdownContainer"] p{margin-left:.35rem;margin-top:.3rem}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button{display:flex !important;align-items:center !important;justify-content:center !important;text-align:center !important}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button *,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button *{text-align:center !important;justify-content:center !important;margin:0 auto !important}
+[class*="st-key-"][class*="_sidebtn"]{margin-top:.4rem}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}

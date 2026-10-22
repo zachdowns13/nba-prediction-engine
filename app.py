@@ -3909,8 +3909,10 @@ st.markdown("""<style>
   .st-key-navbar{background:var(--nb-bg,#0e1117)}}
 .st-key-navbar{padding:.35rem 0 .45rem;border-bottom:1px solid rgba(128,128,128,.28)}
 .st-key-live_ctrls [data-testid="stVerticalBlock"],.st-key-bet_filters [data-testid="stVerticalBlock"],.st-key-res_ctrls [data-testid="stVerticalBlock"],.st-key-res_hist [data-testid="stVerticalBlock"]{gap:.35rem}
-[class*="st-key-scope_right"] [data-testid="stElementContainer"]{display:flex;justify-content:flex-end}
-[class*="st-key-scope_right"] [data-testid="stVerticalBlock"]{align-items:flex-end}
+[class*="st-key-scope_right"],[class*="st-key-scope_right"]>div{width:100% !important}
+[class*="st-key-scope_right"] [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}
+[class*="st-key-scope_right"] [data-testid="stVerticalBlock"]{width:100% !important;align-items:flex-end !important}
+[class*="st-key-scope_right"] [data-testid="stButtonGroup"]{justify-content:flex-end !important;float:right}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}

@@ -1331,7 +1331,7 @@ def props_tab(M, g, odds, injuries, date, b2b):
         return
     st.session_state.setdefault("props_proj", {})[f"{away} @ {home}"] = [r for r in rows]
     st.markdown('<div style="margin-top:-14px"></div>', unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align:center'>Projected player lines</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align:center'>Player projections</h3>", unsafe_allow_html=True)
     proj_note.caption(f"Model's projection for this game (the {short(home)} are projected for {res['hp']:.0f} points and the {short(away)} for {res['ap']:.0f}). "
                       "Players who are out are hidden, and their teammates' numbers already include the boost.")
     pcols = st.columns(2)
@@ -1344,9 +1344,13 @@ def props_tab(M, g, odds, injuries, date, b2b):
                 cards.append(f'<div class="nb-card" style="padding:10px 12px;display:flex;gap:12px;align-items:center">'
                              f'<div class="nb-head" style="width:62px;height:62px;margin:0;flex:none;background-image:url(\'{headshot(r["_id"])}\')"></div>'
                              f'<div style="flex:1;min-width:0"><div class="nb-top" style="margin:0"><span class="nb-title">{H(r["Player"])}</span>{stt}</div>'
-                             f'<div class="nb-muted">{r["Min"]} min</div><div class="nb-chips" style="margin-top:4px">'
-                             f'<span class="nb-chip"><b>{r["Pts"]}</b> PTS</span><span class="nb-chip"><b>{r["Reb"]}</b> REB</span>'
-                             f'<span class="nb-chip"><b>{r["Ast"]}</b> AST</span><span class="nb-chip"><b>{r["3PM"]}</b> 3PM</span></div></div></div>')
+                             f'<div class="nb-muted">{r["Min"]} min projected</div>'
+                             f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px">'
+                             + "".join(f'<div style="text-align:center;border:1px solid var(--line);border-radius:10px;padding:6px 2px">'
+                                       f'<div style="font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.6">{lab}</div>'
+                                       f'<div style="font-size:1.35rem;font-weight:800;line-height:1.2">{r[k]}</div></div>'
+                                       for lab, k in (("Points", "Pts"), ("Rebounds", "Reb"), ("Assists", "Ast"), ("3-Pointers", "3PM")))
+                             + '</div></div></div>')
             html('<div style="display:grid;gap:8px">' + "".join(cards) + '</div>')
     with st.expander("See every player as a table"):
         st.dataframe(pd.DataFrame(rows).drop(columns="_id"), hide_index=True)

@@ -3348,7 +3348,7 @@ def bets_results_view(cord_only=False):
         df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
     used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
     # Row 2: the book dropdown takes all the room it can, with the all / Cord toggle at the right end.
-    t1, _t2 = st.columns([3.6, 1.6] if has_cord else [1, 0.001], vertical_alignment="center")
+    t1, _t2 = st.columns([2.6, 2.4] if has_cord else [1, 0.001], vertical_alignment="center")
     book = t1.selectbox("Book", ["All books"] + used, key=f"bet_book{p}", label_visibility="collapsed") if len(used) > 1 else "All books"
     which = "All plays"
     if has_cord:

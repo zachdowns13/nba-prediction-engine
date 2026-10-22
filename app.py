@@ -1863,27 +1863,30 @@ def _units_txt(prof):
 
 
 def model_cards(base, note):
-    # A big overall card (record + units) with Moneylines / Spreads / Totals in smaller cards under it.
-    big, tiles = "", []
-    for label, d in (("Overall", base), ("Moneylines", base[base["market"] == "Moneyline"]),
-                     ("Spreads", base[base["market"] == "Spread"]), ("Totals", base[base["market"] == "Total"])):
-        if d.empty:
-            continue
+    # One clean card: the overall record big and centered, with Moneylines / Spreads / Totals in a quiet row underneath.
+    def stats(d):
         g_ = d[d["result"].isin(["W", "L", "P"])]
         wait = len(d) - len(g_)
         if g_.empty:
-            t_ = stat_tile(label, "0-0", f"{wait} waiting" if wait else "no results yet")
-        else:
-            s_ = pick_stats(g_)
-            win = f"{s_['win'] * 100:.0f}% win rate · " if s_["win"] is not None else ""
-            t_ = stat_tile(label, s_["rec"], f"{win}{_units_txt(s_['profit'])}" + (f" · {wait} waiting" if wait else ""), _tone(s_["profit"]))
-        if label == "Overall":
-            big = t_.replace('class="nb-tile"', 'class="nb-tile big"', 1)
-        else:
-            tiles.append(t_)
-    if big:
-        html('<div class="nb-tiles" style="grid-template-columns:1fr;margin-bottom:12px">' + big + '</div>')
-    html('<div class="nb-tiles" style="grid-template-columns:repeat(3,1fr)">' + "".join(tiles) + '</div>')
+            return "0-0", "", ("%d waiting" % wait if wait else "no results yet"), ""
+        s_ = pick_stats(g_)
+        win = f"{s_['win'] * 100:.0f}% win rate · " if s_["win"] is not None else ""
+        return s_["rec"], _tone(s_["profit"]), f"{win}{_units_txt(s_['profit'])}" + (f" · {wait} waiting" if wait else ""), ""
+
+    rec, tone, sub, _ = stats(base)
+    big = (f'<div style="text-align:center;padding-bottom:10px"><div class="nb-muted" style="font-size:.8rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">Overall</div>'
+           f'<div class="{tone}" style="font-size:3rem;font-weight:800;line-height:1.15;margin:4px 0 2px">{H(rec)}</div>'
+           f'<div class="nb-muted" style="font-size:.95rem">{H(sub)}</div></div>')
+    minis = ""
+    for label, mk in (("Moneylines", "Moneyline"), ("Spreads", "Spread"), ("Totals", "Total")):
+        d = base[base["market"] == mk]
+        if d.empty:
+            continue
+        r_, t_, s2, _ = stats(d)
+        minis += (f'<div style="text-align:center;flex:1"><div class="nb-muted" style="font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">{label}</div>'
+                  f'<div class="{t_}" style="font-size:1.3rem;font-weight:800;line-height:1.3">{H(r_)}</div><div class="nb-muted" style="font-size:.75rem">{H(s2)}</div></div>')
+    html('<div class="nb-card" style="padding:16px 20px">' + big
+         + ('<div style="display:flex;gap:8px;border-top:1px solid var(--line);padding-top:12px">' + minis + '</div>' if minis else "") + '</div>')
     st.caption(note + " Units: 1 unit = a $100 bet on each pick.")
 
 
@@ -3258,7 +3261,7 @@ def bets_recap(done, open_):
     # One clean card: the profit big on top, with record / win rate / biggest win in a quiet row underneath.
     s = pick_stats(done)
     big = stat_tile("Profit", _signed_money(s["profit"]), f"on ${done['stake'].sum():,.0f} in bets", _tone(s["profit"]))
-    big = big.replace('class="nb-tile"', 'class="nb-tile big" style="border:none;background:none;padding:0 0 10px"', 1)
+    big = big.replace('class="nb-tile"', 'class="nb-tile big" style="border:none;background:none;padding:0 0 10px;text-align:center"', 1)
 
     def mini(label, value, sub=""):
         return (f'<div style="text-align:center;flex:1"><div class="nb-muted" style="font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">{H(label)}</div>'

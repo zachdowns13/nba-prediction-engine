@@ -2305,11 +2305,11 @@ def filter_sort_bets(df, key, books_label="Books", right=None, compact=False, so
             picked = st.multiselect(books_label, present, key=kb, placeholder="All books", format_func=lambda b: f"{b} ({int(counts[b])})")
     only_cord = False
     if not compact and (df["cord"] == "Y").any():
-        oc1, oc2 = st.columns([1, 1], vertical_alignment="center")
+        oc1, oc2 = st.columns([1.1, 1.9], vertical_alignment="center")
         only_cord = oc1.checkbox("💬 Cord plays only", key=f"{key}_cord")
         if key == "bo":                                  # open bets: total stake on Cord plays, beside the toggle
             _cs = df[df["cord"] == "Y"]
-            oc2.markdown(f'<div class="nb-muted" style="text-align:right">\\${_cs["stake"].sum():,.2f} at stake · {len(_cs)} Cord play{"s" if len(_cs) != 1 else ""}</div>',
+            oc2.markdown(f'<div class="nb-muted" style="text-align:left">${_cs["stake"].sum():,.2f} at stake · {len(_cs)} Cord play{"s" if len(_cs) != 1 else ""}</div>',
                          unsafe_allow_html=True)
     if right:                                       # sort dropdown on the left, a matching-width block of buttons on the right
         sc1, sc2 = st.columns(2)
@@ -3346,7 +3346,7 @@ def bets_results_view(cord_only=False):
         df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
     used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
     # Row 2: the book dropdown takes all the room it can, with the all / Cord toggle at the right end.
-    t1, _t2 = st.columns([3.6, 1.7] if has_cord else [1, 0.001], vertical_alignment="center")
+    t1, _t2 = st.columns([3, 2] if has_cord else [1, 0.001], vertical_alignment="center")
     book = t1.selectbox("Book", ["All books"] + used, key=f"bet_book{p}", label_visibility="collapsed") if len(used) > 1 else "All books"
     which = "All plays"
     if has_cord:
@@ -3912,7 +3912,8 @@ st.markdown("""<style>
 .st-key-refresh_row{margin-top:-1.1rem;margin-bottom:-1.5rem}
 .st-key-refresh_row button{min-height:1.6rem;padding-top:0;padding-bottom:0}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"],[class*="st-key-scope_right"] [data-testid="stButtonGroup"]>div{width:100%}
-[class*="st-key-scope_right"] [data-testid="stButtonGroup"] button{flex:1 1 0}
+[class*="st-key-scope_right"] [data-testid="stButtonGroup"] button{flex:1 1 auto;white-space:nowrap;overflow:visible;padding-left:.5rem;padding-right:.5rem}
+[class*="st-key-scope_right"] [data-testid="stButtonGroup"] button *{white-space:nowrap;overflow:visible;text-overflow:clip}
 .st-key-res_ctrls{margin-bottom:-.5rem}.st-key-res_hist{margin-bottom:-.45rem}
 .st-key-bet_filters{margin-bottom:-.45rem}
 .block-container > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),

@@ -1819,12 +1819,12 @@ def todays_markets(log, day):
         tiles.append(stat_tile(plural, f"{w}-{l}" + (f"-{p}" if p else ""), sub, _tone(prof) if w + l + p else ""))
         parts.append((plural, m))
     html('<div class="nb-tiles">' + "".join(tiles) + '</div>')
-    with st.expander("See each pick"):
-        for plural, m in parts:
-            st.markdown(f"**{plural}**")
-            pick_rows_html([{"title": pick_label(r), "sub": r["game"] + f" · model {pct(r['model_p'])} vs book {pct(r['book_p'])}",
-                             "odds": f"{int(r['odds']):+d}" if pd.notna(r["odds"]) else "", "result": r["result"],
-                             "profit": r["profit"]} for _, r in m.iterrows()])
+    cols = st.columns(len(parts)) if parts else []
+    sym = {"W": "✅", "L": "❌", "P": "➖"}
+    for col, (plural, m) in zip(cols, parts):
+        with col.expander(f"{plural} picks"):
+            lines = [f"{sym.get(r['result'], '⏳')} {pick_label(r).replace('$', chr(92) + '$')}" for _, r in m.iterrows()]
+            st.markdown("  \n".join(lines))
 
 
 def game_results_view():

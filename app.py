@@ -3932,6 +3932,8 @@ st.markdown("""<style>
 [class*="st-key-scope_right"] [data-testid="stVerticalBlock"]{width:100% !important;align-items:flex-end !important}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"]{justify-content:flex-end !important;float:right}
 [class*="st-key-bet_"][class*="_type"] [role="radiogroup"]{justify-content:flex-start !important}
+[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"],[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"]>div{width:100% !important}
+[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;min-width:0;white-space:nowrap}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}

@@ -2586,7 +2586,7 @@ def flip_side(key, where):
 
     def _flip():
         st.session_state[k] = "Under" if st.session_state[k] == "Over" else "Over"
-    where.markdown("<div style='font-size:.875rem;margin-bottom:.25rem'>Side (tap to switch)</div>", unsafe_allow_html=True)
+    where.markdown("<div style='font-size:.875rem;line-height:1.4;margin-bottom:.35rem;white-space:nowrap'>Side</div>", unsafe_allow_html=True)
     where.button("⬆️ Over" if st.session_state[k] == "Over" else "⬇️ Under", key=f"{key}_sidebtn", on_click=_flip, use_container_width=True)
     return st.session_state[k]
 
@@ -3950,8 +3950,8 @@ st.markdown("""<style>
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button *,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button *{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:none !important}
 [class*="st-key-bet_"][class*="_legbox"]{border-radius:14px !important;padding:.35rem .6rem .6rem !important;margin-bottom:.15rem}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stMarkdownContainer"] p{margin-left:.35rem;margin-top:.3rem}
-[class*="st-key-bet_"][class*="_legbox"] [class*="st-key-bet_"][class*="_kind"]{margin:0 auto !important;width:100% !important;display:flex;justify-content:center}
-[class*="st-key-bet_"][class*="_legbox"] [class*="_kind"] [data-testid="stButtonGroup"]{margin:0 auto !important;justify-content:center !important}
+[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button{display:flex !important;align-items:center !important;justify-content:center !important;text-align:center !important}
+[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button *,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button *{text-align:center !important;justify-content:center !important;margin:0 auto !important}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}

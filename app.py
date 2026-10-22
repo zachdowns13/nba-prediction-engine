@@ -1330,9 +1330,9 @@ def props_tab(M, g, odds, injuries, date, b2b):
         return
     st.session_state.setdefault("props_proj", {})[f"{away} @ {home}"] = [r for r in rows]
     st.markdown('<div style="margin-top:-14px"></div>', unsafe_allow_html=True)
-    st.markdown("### Projected stat lines")
-    st.caption(f"Model's projection for this game (the {short(home)} are projected for {res['hp']:.0f} points and the {short(away)} for {res['ap']:.0f}). "
-               "Players who are out are hidden, and their teammates' numbers already include the boost.")
+    st.markdown("<h3 style='text-align:center'>Projected player lines</h3>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align:center;opacity:.65;font-size:.85rem;margin-bottom:8px'>Model's projection for this game (the {H(short(home))} are projected for {res['hp']:.0f} points and the {H(short(away))} for {res['ap']:.0f}). "
+                "Players who are out are hidden, and their teammates' numbers already include the boost.</div>", unsafe_allow_html=True)
     pcols = st.columns(2)
     for col, team, lg in zip(pcols, (home, away), (g.get("home_logo"), g.get("away_logo"))):
         with col:

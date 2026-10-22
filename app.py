@@ -2186,14 +2186,14 @@ def add_bet(row):
     save_bets(clean_bets(pd.concat([df, pd.DataFrame([row])], ignore_index=True)))
 
 
-def settle_bet(bet_id, returned):
+def settle_bet(bet_id, returned, result=None):
     # returned = the total amount that came back to you (0 for a loss, the stake for a push, the payout for a win).
     df = load_bets()
     for i in df.index[df["id"] == bet_id]:
         stake = float(df.at[i, "stake"])
         df.at[i, "returned"] = float(returned)
         df.at[i, "profit"] = float(returned) - stake
-        df.at[i, "result"] = "W" if returned > stake + 0.005 else ("P" if abs(returned - stake) <= 0.005 else "L")
+        df.at[i, "result"] = result or ("W" if returned > stake + 0.005 else ("P" if abs(returned - stake) <= 0.005 else "L"))
         df.at[i, "settled_at"] = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     save_bets(df)
 
@@ -2841,8 +2841,15 @@ def open_bets_list(refresh=False):
                     if b2.button("❌ Lost", key=f"bl_{r['id']}"):
                         settle_bet(r["id"], 0.0)
                         st.rerun()
-                    if b3.button("➖ Push", key=f"bp_{r['id']}"):
-                        settle_bet(r["id"], r["stake"])
+                    if hasattr(st, "popover"):
+                        with b3.popover("➖ Push"):
+                            st.caption("A push usually returns your stake. If the book paid something different (a reduced-leg payout, say), enter the total that came back.")
+                            pamt = num_box("Total paid back ($)", f"pushamt_{r['id']}", st, init=f"{r['stake']:g}")
+                            if st.button("Save push", key=f"bp_{r['id']}", type="primary"):
+                                settle_bet(r["id"], pamt, result="P")
+                                st.rerun()
+                    elif b3.button("➖ Push", key=f"bp_{r['id']}"):
+                        settle_bet(r["id"], r["stake"], result="P")
                         st.rerun()
                     if b4.button("🗑️ Delete", key=f"bd_{r['id']}"):
                         delete_bet(r["id"])

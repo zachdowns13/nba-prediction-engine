@@ -2858,6 +2858,25 @@ def _open_bets_list_auto_body():
 open_bets_list_auto = _refreshing(_open_bets_list_auto_body)
 
 
+def recent_settled_section():
+    df = load_bets()
+    done = df[df["result"].isin(["W", "L", "P"])]
+    if done.empty:
+        return
+    done = done.sort_values(["settled_at", "date"], ascending=False)
+    with st.expander(f"↩️ Recently settled ({len(done)}): send one back to open bets"):
+        st.caption("Settled one too early, like a cash-out on a slip that hasn't finished? Send it back to your open bets. "
+                   "Its leg check marks stay, and the result and profit are cleared until you settle it again.")
+        for _, r in done.head(10).iterrows():
+            with st.container(border=True):
+                pick_rows_html([bet_item(r, controls=False)])
+                if st.button("↩️ Send back to open bets", key=f"reopen_{r['id']}"):
+                    reopen_bet(r["id"])
+                    st.rerun()
+        if len(done) > 10:
+            st.caption(f"Showing the 10 most recent of {len(done)}. For older ones use Edit or delete a bet below, then Mark as waiting again.")
+
+
 def trash_section():
     tr = load_trash()
     if tr.empty:
@@ -2948,6 +2967,7 @@ def bets_open_view():
             if g3.button("Delete this bet", key=kk("del")):
                 delete_bet(bid)
                 st.rerun()
+    recent_settled_section()
     trash_section()
 
 

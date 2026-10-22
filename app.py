@@ -777,7 +777,7 @@ def _fetch_box_raw(event_id):
                     oreb, dreb = reb * 0.25, reb * 0.75
                 players[str(ath.get("id"))] = {
                     "name": ath.get("displayName", "?"), "team": team, "starter": bool(a.get("starter")),
-                    "min": _minutes(row.get("MIN", 0)), "fgm": fgm, "fga": fga, "ftm": ftm, "fta": fta, "tpm": tpm,
+                    "min": _minutes(row.get("MIN", 0)), "fgm": fgm, "fga": fga, "ftm": ftm, "fta": fta, "tpm": tpm, "tpa": _tpa,
                     "pts": _num(row.get("PTS")), "oreb": oreb, "dreb": dreb, "ast": _num(row.get("AST")),
                     "stl": _num(row.get("STL")), "blk": _num(row.get("BLK")),
                     "tov": _num(row.get("TO", row.get("TOV"))), "pf": _num(row.get("PF"))}
@@ -2493,10 +2493,158 @@ def bets_input_view():
             st.success("Bets erased.")
 
 
+# =====================================================================
+# LIVE PROP TRACKER (open bets vs. the real box score while games are on)
+# =====================================================================
+LIVE_REFRESH_SECONDS = 30
+STAT_PARTS = {"points": ("pts",), "rebounds": ("reb",), "assists": ("ast",), "3s made": ("tpm",), "steals": ("stl",), "blocks": ("blk",),
+              "points + rebounds + assists": ("pts", "reb", "ast"), "points + rebounds": ("pts", "reb"), "points + assists": ("pts", "ast"),
+              "rebounds + assists": ("reb", "ast"), "3s attempted": ("tpa",), "field goals made": ("fgm",), "field goals attempted": ("fga",),
+              "free throws made": ("ftm",), "free throws attempted": ("fta",)}
+_LEG_RE = re.compile(r"^(?P<who>.+?) (?P<side>over|under) (?P<line>\d+(?:\.\d+)?) (?P<stat>.+)$", re.I)
+_DD_RE = re.compile(r"^(?P<who>.+?) (?P<kind>double-double|triple-double)$", re.I)
+
+
+def parse_leg(leg):
+    """Turns a saved leg like 'Devin Booker over 26.5 points' into its parts, or None if it isn't a player stat bet."""
+    leg = leg.strip()
+    m = _LEG_RE.match(leg)
+    if m and m["stat"].lower() in STAT_PARTS:
+        return {"kind": "stat", "who": m["who"], "side": m["side"].lower(), "line": float(m["line"]), "stat": m["stat"].lower()}
+    m = _DD_RE.match(leg)
+    if m:
+        return {"kind": "dd", "who": m["who"], "dd": m["kind"].lower()}
+    return None
+
+
+def _live_value(p, stat):
+    return sum((p["oreb"] + p["dreb"]) if k == "reb" else p.get(k, 0) for k in STAT_PARTS[stat])
+
+
+@st.cache_data(ttl=20, show_spinner=False)
+def live_scores(dates):
+    """Games on these dates with their status and, for games that have started, every player's box-score line."""
+    out = []
+    for d in dates:
+        try:
+            data = _get(f"{BASE}/scoreboard", {"dates": dt.date.fromisoformat(d).strftime("%Y%m%d")}, tries=2)
+        except Exception:
+            continue
+        for ev in data.get("events", []):
+            comp = ev["competitions"][0]
+            home = next(c for c in comp["competitors"] if c["homeAway"] == "home")
+            away = next(c for c in comp["competitors"] if c["homeAway"] == "away")
+            stt = ev["status"]["type"]
+            out.append({"id": ev["id"], "state": stt.get("state", "pre"), "detail": stt.get("shortDetail") or stt.get("detail") or "",
+                        "home": home["team"]["displayName"], "away": away["team"]["displayName"],
+                        "score": f"{away['team'].get('abbreviation', '')} {away.get('score', '0')} - {home['team'].get('abbreviation', '')} {home.get('score', '0')}",
+                        "players": {}})
+    started = [g for g in out if g["state"] in ("in", "post")]
+    if started:
+        with ThreadPoolExecutor(8) as ex:
+            for g, box in zip(started, ex.map(lambda x: _fetch_box_raw(x["id"]), started)):
+                if box:
+                    g["players"] = {v["name"].lower(): dict(v) for v in box["players"].values()}
+    return out
+
+
+def leg_live(parsed, games):
+    """Where one leg stands: dict with cur, line, status (hit / miss / push / live / wait / dnp), game label."""
+    who = parsed["who"].lower()
+    for g in games:
+        p = g["players"].get(who)
+        if p is None:
+            continue
+        final, live_ = g["state"] == "post", g["state"] == "in"
+        label = "Final" if final else g["detail"]
+        if parsed["kind"] == "dd":
+            cats = sum(1 for k in ("pts", "reb", "ast", "stl", "blk") if (_live_value(p, "rebounds") if k == "reb" else p.get(k, 0)) >= 10)
+            need = 2 if parsed["dd"] == "double-double" else 3
+            status = "hit" if cats >= need else ("miss" if final else "live")
+            return {"cur": cats, "line": need, "status": status, "label": label, "unit": "categories at 10+"}
+        cur, line = _live_value(p, parsed["stat"]), parsed["line"]
+        if parsed["side"] == "over":
+            status = "hit" if cur > line else (("miss" if cur < line else "push") if final else "live")
+        else:
+            status = "miss" if cur > line else (("hit" if cur < line else "push") if final else "live")
+        return {"cur": cur, "line": line, "status": status, "label": label, "unit": ""}
+    # not in any started game's box score
+    for g in games:
+        if parsed["who"].lower() in g["players"]:
+            break
+    started_any = any(g["state"] in ("in", "post") for g in games)
+    return {"cur": None, "line": parsed.get("line"), "status": "wait", "label": "Game hasn't started" if not started_any else "Not in a box score yet", "unit": ""}
+
+
+_LIVE_BADGE = {"hit": ("✅ Hit", "ok"), "miss": ("❌ Missed", "bad"), "push": ("➖ Push", "none"), "live": ("🔴 Live", "acc"), "wait": ("⏳ Waiting", "none")}
+
+
+def live_tracker_body():
+    df = load_bets()
+    open_ = df[df["result"] == ""]
+    cards = []
+    for _, r in open_.iterrows():
+        parts = [(i, leg, parse_leg(leg)) for i, leg in enumerate(split_legs(r["desc"]))]
+        if any(p for _, _, p in parts):
+            cards.append((r, parts))
+    if not cards:
+        st.caption("No open bets with player stats to track yet. Bets like “Devin Booker over 26.5 points” show up here live.")
+        return
+    today = dt.date.today()
+    dates = tuple(sorted({r["date"] for r, _ in cards if r["date"] <= today.isoformat()} | {today.isoformat()}))[-3:]
+    games = live_scores(dates)
+    auto = st.session_state.get("live_auto", True)
+    changed = False
+    for r, parts in cards:
+        ls = leg_states(r)
+        rows, hits = [], 0
+        for i, leg, parsed in parts:
+            if not parsed:
+                rows.append(f'<div class="nb-muted" style="margin:6px 0">{H(leg)} · not tracked live</div>')
+                continue
+            info = leg_live(parsed, games)
+            word, tone = _LIVE_BADGE[info["status"]]
+            hits += info["status"] == "hit"
+            cur = info["cur"]
+            prog = (f'<b>{cur:g}</b> / {info["line"]:g}' + (f' {info["unit"]}' if info["unit"] else "")) if cur is not None else "-"
+            w = 0 if cur is None or not info["line"] else max(0, min(100, cur / info["line"] * 100))
+            color = {"hit": "var(--ok)", "miss": "#dc2626"}.get(info["status"], "var(--acc)")
+            rows.append(f'<div style="margin:10px 0 2px;display:flex;justify-content:space-between;gap:8px"><span style="font-weight:600">{H(leg)}</span>'
+                        f'<span>{badge(word, tone)}</span></div>'
+                        f'<div class="nb-muted" style="display:flex;justify-content:space-between"><span>{prog}</span><span>{H(info["label"])}</span></div>'
+                        f'<div class="nb-bar" style="height:7px"><div class="nb-fill" style="width:{w:.0f}%;background:{color}"></div></div>')
+            if auto and ls[i] == "-" and info["status"] in ("hit", "miss") and (parsed["kind"] == "stat" or info["status"] == "hit"):
+                set_leg(r["id"], i, "H" if info["status"] == "hit" else "M")
+                changed = True
+        n = len(parts)
+        html(f'<div class="nb-card" style="margin-bottom:10px"><div style="margin-bottom:2px">{book_chip(r["book"], 24)}<b style="vertical-align:middle">{H(r["book"])}</b>'
+             f'<span class="nb-muted" style="vertical-align:middle"> · {hits} of {n} hitting · ${r["stake"]:,.0f} to win ${r["payout"] - r["stake"]:,.0f}</span></div>'
+             + "".join(rows) + '</div>')
+    st.caption(f"Updated {dt.datetime.now().strftime('%-I:%M:%S %p')} · refreshes about every {LIVE_REFRESH_SECONDS} seconds while this tab is open. "
+               "Stats come from ESPN's live box score, which can lag the broadcast by a minute.")
+    if changed:
+        st.rerun()
+
+
+try:
+    live_tracker_fragment = st.fragment(run_every=LIVE_REFRESH_SECONDS)(live_tracker_body)
+except Exception:                                    # older Streamlit: no auto-refresh, refresh by interacting
+    live_tracker_fragment = live_tracker_body
+
+
+def live_tracker_section():
+    st.markdown('<div class="nb-sec">📡 Live tracker</div>', unsafe_allow_html=True)
+    st.checkbox("Automatically check off legs once they're decided", value=True, key="live_auto",
+                help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone.")
+    live_tracker_fragment()
+
+
 def bets_open_view():
     df = load_bets()
     open_all = df[df["result"] == ""]
     open_ = open_all
+    if len(open_all):
+        live_tracker_section()
     st.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>', unsafe_allow_html=True)
     with st.container():
         if open_all.empty:

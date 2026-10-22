@@ -1804,17 +1804,20 @@ def _nice_date(d):
         return str(d)
 
 
-def day_rows(d, units=False):
+def day_rows(d, units=False, newest_first=True):
     items = []
-    for day in sorted(d["date"].dropna().unique(), reverse=True):
+    for day in sorted(d["date"].dropna().unique(), reverse=newest_first):
         s = pick_stats(d[d["date"] == day])
         items.append({"title": _nice_date(day), "sub": f"{s['rec']} on {s['picks']} picks", "badge": "",
                       "result": "W" if s["profit"] > 0.5 else ("L" if s["profit"] < -0.5 else "P"), "profit": s["profit"], "units": units})
     return items
 
 
-def day_list(d, units=False):
-    items = day_rows(d, units)
+def day_list(d, units=False, newest_first=True):
+    items = day_rows(d, units, newest_first)
+    if not newest_first:                       # oldest day first, newest at the bottom
+        pick_rows_html(items)
+        return
     pick_rows_html(items[:7])
     if len(items) > 7:
         with st.expander(f"Show {len(items) - 7} older days"):
@@ -1885,7 +1888,7 @@ def market_dropdowns(base, by_date):
         with col.expander(f"{plural} by date" if by_date else f"{plural} picks"):
             if by_date:
                 lines = []
-                for day in sorted(m["date"].astype(str).str[:10].unique(), reverse=True):
+                for day in sorted(m["date"].astype(str).str[:10].unique()):
                     d = m[m["date"].astype(str).str[:10] == day]
                     g_ = d[d["result"].isin(["W", "L", "P"])]
                     w, l, p = int((g_["result"] == "W").sum()), int((g_["result"] == "L").sum()), int((g_["result"] == "P").sum())
@@ -1939,7 +1942,7 @@ def model_period_view(log, graded, day, k):
             breakdown_html(groups)
     if not day and not gd.empty:
         st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
-        day_list(gd, True)
+        day_list(gd, True, newest_first=False)
         if gd["date"].nunique() > 1:
             st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
             profit_chart(gd, True)
@@ -1948,15 +1951,15 @@ def model_period_view(log, graded, day, k):
         flt = st.selectbox("Show", ["All", "Wins", "Losses", "Waiting for the game"], key=f"res_pf_{k}", label_visibility="collapsed")
         sel = {"All": base, "Wins": base[base["result"] == "W"], "Losses": base[base["result"] == "L"],
                "Waiting for the game": base[~base["result"].isin(["W", "L", "P"])]}[flt]
-        sel = sel.sort_values(["date", "game", "market"], ascending=[False, True, True])
+        sel = sel.sort_values(["date", "game", "market"], ascending=[True, True, True])
         if sel.empty:
             st.caption("Nothing to show for this filter yet.")
         else:
             pick_rows_html([{"title": f"{pick_label(r)}", "sub": f"{r['game']} · {_nice_date(r['date'])} · model {pct(r['model_p'])} vs book {pct(r['book_p'])}",
                              "odds": f"{int(r['odds']):+d}" if pd.notna(r["odds"]) else "", "result": r["result"],
-                             "profit": r["profit"]} for _, r in sel.head(60).iterrows()])
+                             "profit": r["profit"]} for _, r in sel.tail(60).iterrows()])
             if len(sel) > 60:
-                st.caption(f"Showing the latest 60 of {len(sel)}. Download the log below for the full list.")
+                st.caption(f"Showing the latest 60 of {len(sel)}, oldest first. Download the log below for the full list.")
 
     if not day:
         nonpush = graded[graded["result"].isin(["W", "L"])].copy()

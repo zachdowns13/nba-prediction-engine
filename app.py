@@ -1744,6 +1744,8 @@ def _tone(x):
 
 
 def pick_stats(d):
+    if "odds" not in d.columns and {"stake", "payout"} <= set(d.columns):      # bets: work the odds out from stake and payout
+        d = d.assign(odds=[bet_odds(x, y) for x, y in zip(d["stake"], d["payout"])])
     dec = d[d["result"].isin(["W", "L"])]
     n, w = len(dec), int((dec["result"] == "W").sum())
     push = int((d["result"] == "P").sum())

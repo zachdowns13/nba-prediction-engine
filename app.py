@@ -2647,7 +2647,7 @@ def leg_builder(key):
     if kind == "Type it myself":
         return st.text_input("The bet", placeholder="e.g. Booker first basket", key=f"{key}_free").strip()
     if kind == "Player prop":
-        c1, c2, c3, c4 = st.columns([2.7, 2.2, 1.7, 1.9], gap="small")
+        c1, c2, c3, c4 = st.columns([3, 2.4, 1.8, 2], gap="small")
         who = norm_name(_search_select("Player", players, f"{key}_who", c1), players)
         stat = c2.selectbox("Stat", LEG_STATS, key=f"{key}_stat")
         if stat in ("Double-double", "Triple-double"):
@@ -3957,11 +3957,11 @@ st.markdown("""<style>
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"],[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"]>div,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"],[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"]>div{display:flex !important;flex-direction:row !important;flex-wrap:nowrap !important;gap:.4rem;width:100% !important}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;width:auto !important;min-width:0;white-space:nowrap;overflow:visible !important;text-overflow:clip !important;padding-left:.6rem !important;padding-right:.6rem !important}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button *,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button *{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:none !important}
-[class*="st-key-bet_"][class*="_legbox"]{border-radius:14px !important;padding:.35rem .25rem .6rem !important;margin-bottom:.15rem}
+[class*="st-key-bet_"][class*="_legbox"]{border-radius:14px !important;padding:.35rem .1rem .6rem !important;margin-bottom:.15rem}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stMarkdownContainer"] p{margin-left:.35rem;margin-top:.3rem}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button{display:flex !important;align-items:center !important;justify-content:center !important;text-align:center !important}
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button *,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button *{text-align:center !important;justify-content:center !important;margin:0 auto !important}
-[class*="_sidewrap"]{width:calc(100% - .5rem) !important;margin-top:.45rem;margin-right:.5rem}
+[class*="_sidewrap"]{width:100% !important;margin-top:.45rem}
 [class*="_sidewrap"] [data-testid="stElementContainer"],[class*="_sidewrap"] [data-testid="stButtonGroup"]{width:100% !important}
 [class*="_sidewrap"] [data-testid="stButtonGroup"],[class*="_sidewrap"] [data-testid="stButtonGroup"]>div{display:flex !important;flex-direction:row !important;gap:.3rem;width:100% !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]{flex-wrap:nowrap !important;gap:.25rem}

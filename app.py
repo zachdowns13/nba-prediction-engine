@@ -3067,6 +3067,8 @@ def bulk_dates_section(df):
     # Move many bets to a new date at once.
     with st.expander("📅 Change dates in bulk"):
         st.caption("Placed a bunch of bets for tomorrow but they were dated today? Pick them and move them all at once.")
+        if st.session_state.get("bulk_msg"):
+            st.success(st.session_state.pop("bulk_msg"))
         c1, c2 = st.columns(2)
         stat = c1.radio("Which bets", ["Open bets", "All bets"], horizontal=True, key="bulk_stat")
         pool = df if stat == "All bets" else df[~df["result"].isin(["W", "L", "P"])]
@@ -3083,14 +3085,19 @@ def bulk_dates_section(df):
         st.button(f"Select all {len(ids)} shown", key="bulk_all", on_click=_all, disabled=not ids)
         picked = st.multiselect("Bets to move", ids, key="bulk_pick", format_func=lambda i: label.get(i, i))
         new_d = st.date_input("Move them to", local_today() + dt.timedelta(days=1), key="bulk_new")
-        if st.button(f"Move {len(picked)} bet{'s' if len(picked) != 1 else ''} to {_nice_date(new_d.isoformat())}", key="bulk_go",
-                     type="primary", disabled=not picked):
-            allb = load_bets()
-            allb.loc[allb["id"].isin(picked), "date"] = new_d.isoformat()
-            save_bets(allb)
-            st.session_state["bulk_pick"] = []
-            st.success(f"Moved {len(picked)} bets.")
-            st.rerun()
+
+        def _move():
+            ids_ = list(st.session_state.get("bulk_pick", []))
+            d_ = st.session_state.get("bulk_new")
+            if ids_ and d_:
+                allb = load_bets()
+                allb.loc[allb["id"].isin(ids_), "date"] = d_.isoformat()
+                save_bets(allb)
+                st.session_state["bulk_msg"] = f"Moved {len(ids_)} bet{'s' if len(ids_) != 1 else ''} to {_nice_date(d_.isoformat())}."
+                st.session_state["bulk_pick"] = []            # allowed here: this runs before the page redraws
+
+        st.button(f"Move {len(picked)} bet{'s' if len(picked) != 1 else ''} to {_nice_date(new_d.isoformat())}", key="bulk_go",
+                  type="primary", disabled=not picked, on_click=_move)
 
 
 def trash_section():

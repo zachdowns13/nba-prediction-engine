@@ -2644,7 +2644,7 @@ def leg_builder(key):
     if kind == "Type it myself":
         return st.text_input("The bet", placeholder="e.g. Booker first basket", key=f"{key}_free").strip()
     if kind == "Player prop":
-        c1, c2, c3, c4 = st.columns([3, 2.4, 1.3, 1.3])
+        c1, c2, c3, c4 = st.columns([2.4, 2, 1.8, 1.8])
         who = norm_name(_search_select("Player", players, f"{key}_who", c1), players)
         stat = c2.selectbox("Stat", LEG_STATS, key=f"{key}_stat")
         if stat in ("Double-double", "Triple-double"):
@@ -3960,7 +3960,8 @@ st.markdown("""<style>
 [class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button *,[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button *{text-align:center !important;justify-content:center !important;margin:0 auto !important}
 [class*="_sidewrap"],[class*="_sidewrap"] [data-testid="stElementContainer"],[class*="_sidewrap"] [data-testid="stButtonGroup"]{width:100% !important}
 [class*="_sidewrap"] [data-testid="stButtonGroup"],[class*="_sidewrap"] [data-testid="stButtonGroup"]>div{display:flex !important;flex-direction:row !important;gap:.3rem;width:100% !important}
-[class*="_sidewrap"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;min-width:0;height:2.5rem !important;min-height:2.5rem !important;display:flex;align-items:center;justify-content:center}
+[class*="_sidewrap"] [data-testid="stButtonGroup"] button *{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:none !important}
+[class*="_sidewrap"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;min-width:0;padding-left:.2rem !important;padding-right:.2rem !important;white-space:nowrap;overflow:visible;height:2.5rem !important;min-height:2.5rem !important;display:flex;align-items:center;justify-content:center}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}

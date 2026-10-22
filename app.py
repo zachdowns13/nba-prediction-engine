@@ -2628,9 +2628,9 @@ def leg_builder(key):
     if kind == "Type it myself":
         return st.text_input("The bet", placeholder="e.g. Booker first basket", key=f"{key}_free").strip()
     if kind == "Player prop":
-        who = norm_name(_search_select("Player", players, f"{key}_who"), players)      # stacked: player, then stat, then line + over/under
-        stat = st.selectbox("Stat", LEG_STATS, key=f"{key}_stat")
-        c3, c4 = st.columns(2)
+        c1, c2, c3, c4 = st.columns([3, 2.4, 1.3, 1.3])
+        who = norm_name(_search_select("Player", players, f"{key}_who", c1), players)
+        stat = c2.selectbox("Stat", LEG_STATS, key=f"{key}_stat")
         if stat in ("Double-double", "Triple-double"):
             return f"{who} {stat.lower()}" if who else ""
         line = num_box("Line", f"{key}_line", c3, "26.5")
@@ -2641,9 +2641,9 @@ def leg_builder(key):
     if kind == "First basket":
         who = norm_name(_search_select("Player", players, f"{key}_fbwho"), players)
         return f"{who} first basket" if who else ""
-    c3 = None                                                     # stacked: team, then bet type, then the number
-    team = norm_name(_search_select("Team", teams, f"{key}_team"), teams)
-    what = st.selectbox("Bet", TEAM_BETS, key=f"{key}_what")
+    c1, c2, c3 = st.columns([3, 2.4, 2.6])
+    team = norm_name(_search_select("Team", teams, f"{key}_team", c1), teams)
+    what = c2.selectbox("Bet", TEAM_BETS, key=f"{key}_what")
     # Opponent: filled in from the day's schedule when that team plays, otherwise pick it.
     guess = None
     for gm in globals().get("games", []) or []:
@@ -2689,8 +2689,18 @@ def bets_input_view():
 
         def _book_changed():
             st.session_state[k("type")] = "Straight" if st.session_state.get(k("book")) in ("Kalshi", "Novig") else "Parlay"
-        btype = st.radio("Type", ["Straight", "Parlay"], horizontal=True, key=k("type"))
-        c1, c2, c3 = st.columns(3)
+        def _keep_type():                                                # tapping the chosen option again would blank it, so put it back
+            if st.session_state.get(k("type")) is None:
+                st.session_state[k("type")] = st.session_state.get(k("type_last"), "Parlay")
+        _icons = {"Straight": "🎯 Straight bet", "Parlay": "🔗 Parlay"}
+        try:
+            btype = st.segmented_control("Type", ["Straight", "Parlay"], key=k("type"), format_func=_icons.get,
+                                         on_change=_keep_type, label_visibility="collapsed")
+        except AttributeError:
+            btype = st.radio("Type", ["Straight", "Parlay"], horizontal=True, key=k("type"), format_func=_icons.get)
+        btype = btype or st.session_state.get(k("type_last"), "Parlay")
+        st.session_state[k("type_last")] = btype
+        c2, c3, c1 = st.columns(3)                                      # book, legs, then date
         _dd_now = default_date()                                    # today, or tomorrow once tonight's games are all over
         if st.session_state.get("bet_auto_date") is not None and st.session_state.get(k("date")) == st.session_state["bet_auto_date"]:
             st.session_state[k("date")] = _dd_now                   # still on the automatic date, so follow it
@@ -2700,6 +2710,7 @@ def bets_input_view():
         if btype == "Parlay":
             legs = int(c3.number_input("Legs", min_value=2, max_value=15, value=2, step=1, key=k("legs")))
         else:
+            c3.number_input("Legs", min_value=1, max_value=1, value=1, disabled=True, key=k("legs_off"))
             legs = 1
         parts = []
         for i in range(legs):

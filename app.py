@@ -2241,7 +2241,8 @@ def leg_score(r):
     ls = leg_states(r)
     if "M" in ls:
         return 1000 + ls.count("M")
-    return len(ls) - ls.count("H")
+    left = len(ls) - ls.count("H")
+    return left + (500 if len(ls) == 1 else 0)          # single plays go after the parlays
 
 
 def set_leg(bet_id, idx, val):
@@ -2727,7 +2728,8 @@ def bets_open_view():
     df = load_bets()
     t1, t2, t3 = st.columns([1.2, 2, 3.4])
     pressed = t1.button("🔄 Refresh live stats", key="live_refresh")
-    t2.toggle(f"Auto-refresh every {LIVE_REFRESH_SECONDS}s", key="live_auto_refresh", value=False) if hasattr(st, "toggle") else None
+    if hasattr(st, "toggle"):
+        t2.toggle(f"Auto-refresh every {LIVE_REFRESH_SECONDS}s", key="live_auto_refresh", value=False)
     t3.checkbox("Auto-check legs once the live stats decide them", value=True, key="live_auto",
                 help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone.")
     if st.session_state.get("live_auto_refresh", False):

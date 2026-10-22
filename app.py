@@ -1860,6 +1860,7 @@ def game_results_view():
         if gd.empty:
             st.info(f"No graded picks yet. {waiting} are waiting for their games to finish." if waiting else "No graded picks yet.")
         else:
+            st.caption(f"Record, win rate and profit below are for **{_nice_date(_day) if _day else 'all time (every saved day)'}**.")
             results_summary(gd, waiting)
             form_strip(gd.sort_values("date")["result"])
             st.markdown('<div class="nb-sec">How each market is doing</div>', unsafe_allow_html=True)
@@ -2100,14 +2101,14 @@ def props_results_view():
 
 def results_day():
     # The day to filter results to, or None for everything.
-    return st.session_state["sel_date"].isoformat() if st.session_state.get("res_only_day") else None
+    return st.session_state["sel_date"].isoformat() if st.session_state.get("res_scope") == "Just the day picked" else None
 
 
 def results_tab():
     c1, c2 = st.columns([1, 3])
     date_picker("results", c1)
-    c2.markdown("<div style='height:1.9rem'></div>", unsafe_allow_html=True)
-    c2.checkbox("Only show this day", key="res_only_day")
+    c2.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
+    c2.radio("Stats below cover", ["All time", "Just the day picked"], horizontal=True, key="res_scope")
     t_games, t_props = st.tabs(["🏀 Games", "🎯 Player props"])
     with t_games:
         game_results_view()

@@ -1335,7 +1335,7 @@ def props_tab(M, g, odds, injuries, date, b2b):
     pcols = st.columns(2)
     for col, team, lg in zip(pcols, (home, away), (g.get("home_logo"), g.get("away_logo"))):
         with col:
-            html(f'<div style="font-weight:700;margin:4px 0">{logo(lg)}{H(team)}</div>')
+            html(f'<div style="font-weight:700;margin:4px 0 8px;display:flex;justify-content:center;align-items:center;text-align:center">{logo(lg)}{H(team)}</div>')
             cards = []
             for r in [x for x in rows if x["Team"] == short(team)][:6]:
                 stt = (badge(r["Status"], "bad" if r["Status"].lower() in ("out", "doubtful") else "lean") if r["Status"] else "")

@@ -2281,7 +2281,7 @@ BOOK_SORT = "Book (most bets first)"
 BET_SORTS = ["Closest to hitting", "Newest", "Oldest", "Biggest stake", "Biggest profit", "Biggest loss", BOOK_SORT, "Book A-Z"]
 
 
-def filter_sort_bets(df, key, books_label="Books", right=None, compact=False, sort_where=None):
+def filter_sort_bets(df, key, books_label="Books", right=None, compact=False, sort_where=None, top_right=None):
     counts = df["book"].value_counts()
     present = [b for b in BET_BOOKS + ["Other"] if counts.get(b, 0) > 0]
     kb = f"{key}_books"
@@ -2291,7 +2291,13 @@ def filter_sort_bets(df, key, books_label="Books", right=None, compact=False, so
     if compact:
         picked = []                       # the Results page has its own book picker at the top
     else:
-        st.caption("Filter by book")
+        if top_right:                                  # a small button in the top right corner of the box, level with the label
+            tc1, tc2 = st.columns([5, 1.4], vertical_alignment="center")
+            tc1.caption("Filter by book")
+            with tc2:
+                top_right()
+        else:
+            st.caption("Filter by book")
         try:
             picked = list(st.pills(books_label, present, selection_mode="multi", key=kb, label_visibility="collapsed",
                                    format_func=lambda b: f"{b} ({int(counts[b])})") or [])
@@ -2986,13 +2992,14 @@ def open_bets_list(refresh=False):
     open_ = open_all
     _snap = st.session_state.get("live_snap")
     games = _snap[1] if _snap else []
-    hc1, hc2 = st.columns([5, 1.4], vertical_alignment="bottom")
-    head_ph = hc1.empty()
+    head_ph = st.empty()
     head_ph.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>', unsafe_allow_html=True)
-    try:
-        hc2.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, type="tertiary", use_container_width=True, help="Refresh the live stats")
-    except Exception:
-        hc2.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, use_container_width=True, help="Refresh the live stats")
+
+    def _refresh_btn():
+        try:
+            st.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, type="tertiary", use_container_width=True, help="Refresh the live stats")
+        except Exception:
+            st.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, use_container_width=True, help="Refresh the live stats")
     with st.container():
         if open_all.empty:
             st.caption("No open bets. Add one in the **Add a bet** tab.")
@@ -3010,7 +3017,7 @@ def open_bets_list(refresh=False):
                     st.rerun()
             _has_parlay = any(len(split_legs(x)) > 1 for x in open_all["desc"])
             with st.container(border=True, key="bet_filters"):
-                open_ = filter_sort_bets(open_all, "bo", right=_leg_buttons if _has_parlay else None)
+                open_ = filter_sort_bets(open_all, "bo", right=_leg_buttons if _has_parlay else None, top_right=_refresh_btn)
             head_ph.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>'
                              f'<div class="nb-muted" style="margin:-6px 0 8px">${open_all["stake"].sum():,.2f} at risk'
                              + (f" · showing {len(open_)} of {len(open_all)}" if len(open_) != len(open_all) else "") + '</div>', unsafe_allow_html=True)
@@ -3332,7 +3339,7 @@ def bets_results_view(cord_only=False):
         df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
     used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
     which = _seg("Bets", ["All plays", "💬 Cord plays"], f"bet_scope2{p}", "All plays") if has_cord else "All plays"      # right under the date buttons
-    t1, _t2 = st.columns([1, 1.4], vertical_alignment="center")
+    t1, _t2 = st.columns([1.15, 2], vertical_alignment="center")
     note_ph = _t2.empty()                                                    # the "early days" note goes to the right of the book dropdown
     book = t1.selectbox("Book", ["All books"] + used, key=f"bet_book{p}", label_visibility="collapsed") if len(used) > 1 else "All books"
 
@@ -3347,7 +3354,8 @@ def bets_results_view(cord_only=False):
     else:
         done["odds"] = [bet_odds(a, b) for a, b in zip(done["stake"], done["payout"])]
         if 0 < len(done) < 30:
-            note_ph.caption(f"Early days: only {len(done)} settled bets here so far, so these numbers can swing a lot.")
+            note_ph.markdown(f'<div class="nb-muted" style="text-align:right;font-size:.85rem;line-height:1.3">Early days: only {len(done)} settled bets so far, so numbers can swing a lot.</div>',
+                             unsafe_allow_html=True)
         bets_recap(done, open_)
         if len(used) > 1 and book == "All books":
             _sc = df[df["cord"] == "Y"] if which == "💬 Cord plays" else df

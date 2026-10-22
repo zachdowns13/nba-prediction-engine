@@ -3149,7 +3149,6 @@ def bets_stats_block(done, open_, key, recap=True):
         return
     if recap:
         bets_recap(done, open_)
-    form_strip(done.sort_values(["date", "settled_at"])["result"])
     st.markdown('<div class="nb-sec">Over time</div>', unsafe_allow_html=True)
     view = st.radio("Group by", ["Daily", "Weekly"], horizontal=True, key=f"{key}_grp", label_visibility="collapsed")
     if view == "Daily":

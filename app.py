@@ -2951,7 +2951,7 @@ def refresh_live_snapshot():
         pass
     games = live_games_for(open_) if len(open_) else []
     st.session_state["live_snap"] = (local_now(), games)
-    if games and st.session_state.get("live_auto", True):          # mark legs the live stats have already decided
+    if games and st.session_state.get("auto_check_on", True):          # mark legs the live stats have already decided
         for _, r in open_.iterrows():
             ls = leg_states(r)
             for i, leg in enumerate(split_legs(r["desc"])):
@@ -3170,13 +3170,12 @@ def bets_open_view():
                 st.session_state.pop("last_deleted", None)
                 st.rerun()
     with st.container(border=True, key="live_ctrls"):
-        st.session_state.setdefault("live_auto", True)
 
         def _flip_auto():
-            st.session_state["live_auto"] = not st.session_state["live_auto"]
+            st.session_state["auto_check_on"] = not st.session_state.get("auto_check_on", True)
         _a, t1, _b, t3, _c = st.columns([1, 2, 1, 2, 1])          # equal space left, middle and right; both buttons the same width
         pressed = t1.button("🔄 Refresh live stats", key="live_refresh", use_container_width=True)
-        _on = st.session_state["live_auto"]
+        _on = st.session_state.get("auto_check_on", True)
         t3.button("✅ Auto-check legs: On" if _on else "Auto-check legs: Off", key="live_auto_btn", use_container_width=True,
                   type="primary" if _on else "secondary", on_click=_flip_auto,
                   help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone. Tap to turn it on or off.")
@@ -3294,14 +3293,15 @@ def bets_results_view():
         st.info("No bets yet. Add one in the **Add a bet** tab and your results will show up here.")
         return
     today = local_today()
-    period = st.radio("Time period", ["Today", "Last 7 days", "Last 30 days", "All time"], index=0, horizontal=True, key="bet_period")
-    if period != "All time":
-        days = {"Today": 0, "Last 7 days": 6, "Last 30 days": 29}[period]
-        df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
-    if (df["cord"] == "Y").any():
-        which = st.radio("Bets", ["All my bets", "💬 Cord plays"], horizontal=True, key="bet_scope", label_visibility="collapsed")
-        if which == "💬 Cord plays":
-            df = df[df["cord"] == "Y"]
+    with st.container(border=True, key="res_ctrls"):
+        period = st.radio("Time period", ["Today", "Last 7 days", "Last 30 days", "All time"], index=0, horizontal=True, key="bet_period")
+        if period != "All time":
+            days = {"Today": 0, "Last 7 days": 6, "Last 30 days": 29}[period]
+            df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
+        if (df["cord"] == "Y").any():
+            which = st.radio("Bets", ["All my bets", "💬 Cord plays"], horizontal=True, key="bet_scope", label_visibility="collapsed")
+            if which == "💬 Cord plays":
+                df = df[df["cord"] == "Y"]
     done = df[df["result"].isin(["W", "L", "P"])].copy()
     open_ = df[df["result"] == ""]
     if done.empty:
@@ -3322,11 +3322,13 @@ def bets_results_view():
                 bets_stats_block(done[done["book"] == b], open_[open_["book"] == b], f"bs_{b}")
 
     st.markdown('<div class="nb-sec">All my bets</div>', unsafe_allow_html=True)
-    flt = st.selectbox("Show", ["All", "Open", "Wins", "Losses", "Pushes", "Straight", "Parlays", "Cord plays"], key="bet_filter", label_visibility="collapsed")
+    _hist = st.container(border=True, key="res_hist")
+    flt = _hist.selectbox("Show", ["All", "Open", "Wins", "Losses", "Pushes", "Straight", "Parlays", "Cord plays"], key="bet_filter")
     sel = {"All": df, "Open": df[df["result"] == ""], "Wins": df[df["result"] == "W"], "Losses": df[df["result"] == "L"],
            "Pushes": df[df["result"] == "P"], "Straight": df[df["type"] == "Straight"], "Parlays": df[df["type"] == "Parlay"],
            "Cord plays": df[df["cord"] == "Y"]}[flt]
-    sel = filter_sort_bets(sel, "bh")
+    with _hist:
+        sel = filter_sort_bets(sel, "bh")
     if sel.empty:
         st.caption("Nothing to show for this filter yet.")
     else:
@@ -3856,7 +3858,8 @@ st.markdown("""<style>
   [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),
   .st-key-navbar{background:var(--nb-bg,#0e1117)}}
 .st-key-navbar{padding:.35rem 0 .45rem;border-bottom:1px solid rgba(128,128,128,.28)}
-.st-key-live_ctrls [data-testid="stVerticalBlock"],.st-key-bet_filters [data-testid="stVerticalBlock"]{gap:.35rem}
+.st-key-live_ctrls [data-testid="stVerticalBlock"],.st-key-bet_filters [data-testid="stVerticalBlock"],.st-key-res_ctrls [data-testid="stVerticalBlock"],.st-key-res_hist [data-testid="stVerticalBlock"]{gap:.35rem}
+.st-key-res_ctrls{margin-bottom:-.5rem}.st-key-res_hist{margin-bottom:-.45rem}
 .st-key-live_ctrls{margin-bottom:-.95rem}
 .st-key-bet_filters{margin-bottom:-.45rem}
 .block-container > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),

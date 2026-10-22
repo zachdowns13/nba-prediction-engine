@@ -532,6 +532,14 @@ def team_injury_pts(M, team, injuries, date):
     return injury_total(injury_rows(team, injuries, ratings_for(M, team, date)))
 
 
+def trust_slider():
+    st.session_state.setdefault("model_trust", int(round(BETA_M * 100)))
+    st.slider("Model trust (less sportsbook blend)", 10, 100, step=5, key="model_trust", format="%d%%",
+              help="How far the simulation may move away from the sportsbook's spread and total. 10% is the default: mostly the book's numbers "
+                   "nudged by the model. 100% uses the model's own numbers with no sportsbook blend.")
+    st.caption("Higher = the simulation relies more on the model and less on the sportsbook line. Picks saved to Results use this setting.")
+
+
 def analyze_game(M, g, o, h_inj, a_inj, b2b):
     home, away = g["home"], g["away"]
     hb, ab = (1.0 if home in b2b else 0.0), (1.0 if away in b2b else 0.0)
@@ -541,8 +549,10 @@ def analyze_game(M, g, o, h_inj, a_inj, b2b):
     ap -= a_inj / 2; hp += a_inj / 2
     raw_m, raw_t = hp - ap, hp + ap
     has_s, has_t = o["home_spread"] is not None, o["total"] is not None
-    m_mu = (-o["home_spread"]) + BETA_M * (raw_m - (-o["home_spread"])) if has_s else raw_m
-    t_mu = o["total"] + BETA_T * (raw_t - o["total"]) if has_t else raw_t
+    trust = st.session_state.get("model_trust")                      # slider: how much to trust the model over the sportsbook's numbers
+    bm, bt = (trust / 100, trust / 100) if trust else (BETA_M, BETA_T)
+    m_mu = (-o["home_spread"]) + bm * (raw_m - (-o["home_spread"])) if has_s else raw_m
+    t_mu = o["total"] + bt * (raw_t - o["total"]) if has_t else raw_t
     rng = np.random.default_rng()
     margin = np.rint(rng.normal(m_mu, SD_M, SIMS))
     total = np.rint(rng.normal(t_mu, SD_T, SIMS))
@@ -3322,6 +3332,7 @@ def slate_tab(M, date, games, injuries, b2b):
         st.info("No games on this date.")
         return
     key = f"slate_{date.isoformat()}"
+    trust_slider()
     if st.button("🔥 Run full slate", type="primary", key="run_slate"):
         with st.spinner(f"Simulating {len(games)} games..."):
             res_list = [analyze_game(M, g, g["odds"], team_injury_pts(M, g["home"], injuries, date),
@@ -3961,6 +3972,7 @@ if nav == NAV[0]:
                 st.caption(f"Estimated impact: **-{inj_pts[team]:.1f} pts**")
 
     st.markdown("---")
+    trust_slider()
     if st.button("🔥 Simulate game", type="primary", key=f"sim_{gid}"):
         if g["home"] == g["away"]:
             st.error("A team can't play itself.")

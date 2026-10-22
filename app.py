@@ -3914,7 +3914,8 @@ st.markdown("""<style>
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}
-.st-key-refresh_right button{margin-left:auto !important;margin-top:0}
+.st-key-refresh_right button{margin-left:auto !important;margin-top:0;justify-content:flex-end !important;padding-right:.1rem !important}
+.st-key-refresh_right button>div,.st-key-refresh_right button p{text-align:right !important;justify-content:flex-end !important}
 .st-key-refresh_right button{min-height:1.6rem;padding-top:0;padding-bottom:0}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"],[class*="st-key-scope_right"] [data-testid="stButtonGroup"]>div{width:100%}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"] button{flex:1 1 0;min-width:0;white-space:nowrap;overflow:visible;padding-left:.25rem;padding-right:.25rem}

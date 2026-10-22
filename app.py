@@ -1836,6 +1836,29 @@ def todays_markets(log, day):
             st.markdown("  \n".join(lines))
 
 
+VALUE_RESET_PATH = "value_reset.txt"
+VALUE_RESET_DEFAULT = "2026-10-22"   # value plays from before this day are left out of the value-play record
+
+
+def value_cutoff():
+    v = st.session_state.get("value_reset")
+    if v:
+        return v
+    try:
+        v = open(VALUE_RESET_PATH).read().strip()
+    except Exception:
+        v = ""
+    return v or VALUE_RESET_DEFAULT
+
+
+def set_value_cutoff(day):
+    st.session_state["value_reset"] = day
+    try:
+        open(VALUE_RESET_PATH, "w").write(day)
+    except Exception:
+        pass
+
+
 def alltime_cards(gd, waiting):
     # Brief all-time summary: overall plus each market, as one row of cards.
     tiles, big = [], ""
@@ -1888,6 +1911,15 @@ def game_results_view():
                    if view == "All picks" else "**Value plays:** only the picks the app flagged as value (the model's chance beat the sportsbook's by enough to matter). ")
         col = "is_pick" if view == "All picks" else "flagged"
         base, gd = log[log[col]], graded[graded[col]]
+        if view == "Value plays only":
+            cut = value_cutoff()
+            base = base[base["date"].astype(str).str[:10] >= cut]
+            gd = gd[gd["date"].astype(str).str[:10] >= cut]
+            st.caption(f"Value-play record starts fresh on **{_nice_date(cut)}**. Earlier value plays are left out, "
+                       "since the early ones were overvalued. Your saved picks and the All picks view are untouched.")
+            if st.button("🔄 Start the value-play record over from today", key="val_reset_btn"):
+                set_value_cutoff(dt.date.today().isoformat())
+                st.rerun()
         waiting = int((~base["result"].isin(["W", "L", "P"])).sum())
         if gd.empty:
             st.info(f"No graded picks yet. {waiting} are waiting for their games to finish." if waiting else "No graded picks yet.")
@@ -2143,7 +2175,7 @@ def results_tab():
     c1, c2 = st.columns([1, 3])
     date_picker("results", c1)
     c2.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
-    c2.radio("Stats below cover", ["Selected date", "All time"], index=1, horizontal=True, key="res_scope")
+    c2.radio("Stats below cover", ["All time", "Selected date"], index=0, horizontal=True, key="res_scope")
     t_games, t_props = st.tabs(["🏀 Games", "🎯 Player props"])
     with t_games:
         game_results_view()

@@ -1329,13 +1329,14 @@ def props_tab(M, g, odds, injuries, date, b2b):
         st.error("Could not read player stats from ESPN for these teams.")
         return
     st.session_state.setdefault("props_proj", {})[f"{away} @ {home}"] = [r for r in rows]
+    st.markdown('<div style="margin-top:-14px"></div>', unsafe_allow_html=True)
     st.markdown("### Projected stat lines")
     st.caption(f"Model's projection for this game (the {short(home)} are projected for {res['hp']:.0f} points and the {short(away)} for {res['ap']:.0f}). "
                "Players who are out are hidden, and their teammates' numbers already include the boost.")
     pcols = st.columns(2)
     for col, team, lg in zip(pcols, (home, away), (g.get("home_logo"), g.get("away_logo"))):
         with col:
-            html(f'<div style="font-weight:700;margin:4px 0 8px;display:flex;justify-content:center;align-items:center;text-align:center">{logo(lg)}{H(team)}</div>')
+            html(f'<div style="font-weight:700;margin:4px 0 10px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px">{logo(lg, True)}<span>{H(team)}</span></div>')
             cards = []
             for r in [x for x in rows if x["Team"] == short(team)][:6]:
                 stt = (badge(r["Status"], "bad" if r["Status"].lower() in ("out", "doubtful") else "lean") if r["Status"] else "")

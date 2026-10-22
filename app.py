@@ -1901,78 +1901,64 @@ def market_dropdowns(base, by_date):
             st.markdown("  \n".join(lines))
 
 
-def game_results_view():
-    st.caption("Every pick is graded automatically from ESPN's final scores. Run the Full slate each day before games start and "
-               "every moneyline, spread and total is saved, so this page shows how the model is actually doing.")
-    wide = load_wide()
-    if len(wide):
-        with st.spinner("Checking final scores..."):
-            wide, n_new = grade_wide(wide)
-        if n_new:
-            save_wide(wide)
-            st.success(f"Graded {n_new} new games.")
-    log = add_pick_flag(expand_wide(wide))
-    graded = log[log["result"].isin(["W", "L", "P"])].copy()
-    for c in ("odds", "model_p", "book_p", "edge", "profit"):
-        graded[c] = pd.to_numeric(graded[c])
-    sec = st.radio("Period", ["Today", "All time", "Selected date"], horizontal=True, key="res_sec_games", label_visibility="collapsed")
-    _day = local_today().isoformat() if sec == "Today" else (st.session_state["sel_date"].isoformat() if sec == "Selected date" else None)
-    if _day and not log.empty:
-        log = log[log["date"].astype(str).str[:10] == _day]
-        graded = graded[graded["date"].astype(str).str[:10] == _day]
-
+def model_period_view(log, graded, day, k):
+    # One period (today / all time / the picked date): choose All plays or Value plays, then cards, dropdowns and lists.
+    if day and not log.empty:
+        log = log[log["date"].astype(str).str[:10] == day]
+        graded = graded[graded["date"].astype(str).str[:10] == day]
     if log.empty:
-        if _day:
-            st.info(f"No picks were saved for {_nice_date(_day)}. Run the **Full slate** tab before that day's games start and they will show up here.")
+        if day:
+            st.info(f"No picks were saved for {_nice_date(day)}. Run the **Full slate** tab before that day's games start and they will show up here.")
         else:
             st.info("Nothing saved yet. Open the **Full slate** tab and press **Run full slate** before games start. "
                     "Every moneyline, spread and total is saved automatically.")
-    else:
-        view = st.radio("Show", ["All picks", "Value plays only"], horizontal=True, key="res_view", label_visibility="collapsed")
-        st.caption("**All picks:** the side the model liked in every moneyline, spread and total that was saved. "
-                   if view == "All picks" else "**Value plays:** only the picks the app flagged as value (the model's chance beat the sportsbook's by enough to matter). ")
-        col = "is_pick" if view == "All picks" else "flagged"
-        base, gd = log[log[col]], graded[graded[col]]
-        if view == "Value plays only":
-            cut = value_cutoff()
-            base = base[base["date"].astype(str).str[:10] >= cut]
-            gd = gd[gd["date"].astype(str).str[:10] >= cut]
-            st.caption(f"Value-play record starts fresh on **{_nice_date(cut)}**. Earlier value plays are left out, "
-                       "since the early ones were overvalued. Your saved picks and the All picks view are untouched.")
-            if st.button("🔄 Start the value-play record over from today", key="val_reset_btn"):
-                set_value_cutoff(local_today().isoformat())
-                st.rerun()
-        if base.empty:
-            st.info("Nothing to show for this period yet.")
+        return
+    view = st.radio("Filter", ["All plays", "Value plays"], horizontal=True, key=f"res_view_{k}")
+    st.caption("**All plays:** the side the model liked in every moneyline, spread and total that was saved."
+               if view == "All plays" else "**Value plays:** only the picks the app flagged as value (the model's chance beat the sportsbook's by enough to matter).")
+    col = "is_pick" if view == "All plays" else "flagged"
+    base, gd = log[log[col]], graded[graded[col]]
+    if view == "Value plays":
+        cut = value_cutoff()
+        base = base[base["date"].astype(str).str[:10] >= cut]
+        gd = gd[gd["date"].astype(str).str[:10] >= cut]
+        st.caption(f"Value-play record starts fresh on **{_nice_date(cut)}**. Earlier value plays are left out, "
+                   "since the early ones were overvalued. Your saved picks and the All plays view are untouched.")
+        if st.button("🔄 Start the value-play record over from today", key=f"val_reset_{k}"):
+            set_value_cutoff(local_today().isoformat())
+            st.rerun()
+    if base.empty:
+        st.info("Nothing to show for this period yet.")
+        return
+    model_cards(base, f"For {_nice_date(day)}." if day else "All time, every saved day.")
+    market_dropdowns(base, by_date=not day)
+    if view == "Value plays" and not gd.empty:
+        groups = [(f"{x} value", gd[gd["strength"] == x]) for x in gd["strength"].dropna().unique() if str(x)]
+        if groups:
+            st.markdown('<div class="nb-sec">Strong vs slight value</div>', unsafe_allow_html=True)
+            breakdown_html(groups)
+    if not day and not gd.empty:
+        st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
+        day_list(gd, True)
+        if gd["date"].nunique() > 1:
+            st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
+            profit_chart(gd, True)
+
+    with st.expander(f"📋 See every pick ({len(base)})"):
+        flt = st.selectbox("Show", ["All", "Wins", "Losses", "Waiting for the game"], key=f"res_pf_{k}", label_visibility="collapsed")
+        sel = {"All": base, "Wins": base[base["result"] == "W"], "Losses": base[base["result"] == "L"],
+               "Waiting for the game": base[~base["result"].isin(["W", "L", "P"])]}[flt]
+        sel = sel.sort_values(["date", "game", "market"], ascending=[False, True, True])
+        if sel.empty:
+            st.caption("Nothing to show for this filter yet.")
         else:
-            model_cards(base, f"For {_nice_date(_day)}." if _day else "All time, every saved day.")
-            market_dropdowns(base, by_date=not _day)
-            if view == "Value plays only" and not gd.empty:
-                groups = [(f"{k} value", gd[gd["strength"] == k]) for k in gd["strength"].dropna().unique() if str(k)]
-                if groups:
-                    st.markdown('<div class="nb-sec">Strong vs slight value</div>', unsafe_allow_html=True)
-                    breakdown_html(groups)
-            if not _day and not gd.empty:
-                st.markdown('<div class="nb-sec">Day by day</div>', unsafe_allow_html=True)
-                day_list(gd, True)
-                if gd['date'].nunique() > 1:
-                    st.markdown('<div class="nb-sec">Profit over time</div>', unsafe_allow_html=True)
-                    profit_chart(gd, True)
+            pick_rows_html([{"title": f"{pick_label(r)}", "sub": f"{r['game']} · {_nice_date(r['date'])} · model {pct(r['model_p'])} vs book {pct(r['book_p'])}",
+                             "odds": f"{int(r['odds']):+d}" if pd.notna(r["odds"]) else "", "result": r["result"],
+                             "profit": r["profit"]} for _, r in sel.head(60).iterrows()])
+            if len(sel) > 60:
+                st.caption(f"Showing the latest 60 of {len(sel)}. Download the log below for the full list.")
 
-        with st.expander(f"📋 See every pick ({len(base)})"):
-            flt = st.selectbox("Show", ["All", "Wins", "Losses", "Waiting for the game"], key="res_pf", label_visibility="collapsed")
-            sel = {"All": base, "Wins": base[base["result"] == "W"], "Losses": base[base["result"] == "L"],
-                   "Waiting for the game": base[~base["result"].isin(["W", "L", "P"])]}[flt]
-            sel = sel.sort_values(["date", "game", "market"], ascending=[False, True, True])
-            if sel.empty:
-                st.caption("Nothing to show for this filter yet.")
-            else:
-                pick_rows_html([{"title": f"{pick_label(r)}", "sub": f"{r['game']} · {_nice_date(r['date'])} · model {pct(r['model_p'])} vs book {pct(r['book_p'])}",
-                                 "odds": f"{int(r['odds']):+d}" if pd.notna(r["odds"]) else "", "result": r["result"],
-                                 "profit": r["profit"]} for _, r in sel.head(60).iterrows()])
-                if len(sel) > 60:
-                    st.caption(f"Showing the latest 60 of {len(sel)}. Download the log below for the full list.")
-
+    if not day:
         nonpush = graded[graded["result"].isin(["W", "L"])].copy()
         with st.expander("🎯 Model vs sportsbook accuracy"):
             if len(nonpush) < 40:
@@ -1989,6 +1975,30 @@ def game_results_view():
                     picks=("won", "size"), model_said=("model_p", "mean"), actually_won=("won", "mean")).round(3)
                 st.markdown("**When the model says X%, how often does it happen?**")
                 st.dataframe(cal)
+
+
+def game_results_view():
+    st.caption("Every pick is graded automatically from ESPN's final scores. Run the Full slate each day before games start and "
+               "every moneyline, spread and total is saved, so this page shows how the model is actually doing.")
+    wide = load_wide()
+    if len(wide):
+        with st.spinner("Checking final scores..."):
+            wide, n_new = grade_wide(wide)
+        if n_new:
+            save_wide(wide)
+            st.success(f"Graded {n_new} new games.")
+    log = add_pick_flag(expand_wide(wide))
+    graded = log[log["result"].isin(["W", "L", "P"])].copy()
+    for c in ("odds", "model_p", "book_p", "edge", "profit"):
+        graded[c] = pd.to_numeric(graded[c])
+    t_today, t_all, t_sel = st.tabs(["📅 Today", "📊 All time", "🗓️ Selected date"])
+    with t_today:
+        model_period_view(log, graded, local_today().isoformat(), "today")
+    with t_all:
+        model_period_view(log, graded, None, "all")
+    with t_sel:
+        model_period_view(log, graded, st.session_state["sel_date"].isoformat(), "sel")
+
 
     with st.expander("My saved games, backup and restore"):
         st.caption("One line per game: the model's pick in each market (✅ win, ❌ loss, ➖ push, ⏳ waiting) and, where it differs or is flagged, "

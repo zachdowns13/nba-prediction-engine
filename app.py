@@ -2305,7 +2305,7 @@ def filter_sort_bets(df, key, books_label="Books", right=None, compact=False, so
             picked = st.multiselect(books_label, present, key=kb, placeholder="All books", format_func=lambda b: f"{b} ({int(counts[b])})")
     only_cord = False
     if not compact and (df["cord"] == "Y").any():
-        oc1, oc2 = st.columns([1.1, 1.9], vertical_alignment="center")
+        oc1, oc2 = st.columns([1.15, 2], vertical_alignment="center")
         only_cord = oc1.checkbox("💬 Cord plays only", key=f"{key}_cord")
         if key == "bo":                                  # open bets: total stake on Cord plays, beside the toggle
             _cs = df[df["cord"] == "Y"]
@@ -2999,13 +2999,14 @@ def open_bets_list(refresh=False):
     open_ = open_all
     _snap = st.session_state.get("live_snap")
     games = _snap[1] if _snap else []
-    with st.container(key="refresh_row"):                    # top left, in the space above the heading
-        rb, _rs = st.columns([1.2, 5])
-        try:
-            rb.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, type="tertiary", help="Refresh the live stats")
-        except Exception:
-            rb.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, help="Refresh the live stats")
-    head_ph = st.empty()
+    hc1, hc2 = st.columns([3, 1.3], vertical_alignment="top")          # heading on the left, Refresh at the far right
+    with hc2:
+        with st.container(key="refresh_right"):
+            try:
+                st.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, type="tertiary", help="Refresh the live stats")
+            except Exception:
+                st.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, help="Refresh the live stats")
+    head_ph = hc1.empty()
     head_ph.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>', unsafe_allow_html=True)
     with st.container():
         if open_all.empty:
@@ -3346,17 +3347,17 @@ def bets_results_view(cord_only=False):
         df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
     used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
     # Row 2: the book dropdown takes all the room it can, with the all / Cord toggle at the right end.
-    t1, _t2 = st.columns([3, 2] if has_cord else [1, 0.001], vertical_alignment="center")
+    t1, _t2 = st.columns([3.6, 1.6] if has_cord else [1, 0.001], vertical_alignment="center")
     book = t1.selectbox("Book", ["All books"] + used, key=f"bet_book{p}", label_visibility="collapsed") if len(used) > 1 else "All books"
     which = "All plays"
     if has_cord:
         with _t2.container(key=f"scope_right{p}"):
-            which = _seg("Bets", ["All plays", "💬 Cord plays"], f"bet_scope2{p}", "All plays")
+            which = _seg("Bets", ["All plays", "Cord plays"], f"bet_scope2{p}", "All plays")
 
     if book not in ["All books"] + used:
         book = "All books"
     dfb = df if book == "All books" else df[df["book"] == book]                  # period + book
-    dfs = dfb[dfb["cord"] == "Y"] if which == "💬 Cord plays" else dfb            # ...and the all / Cord choice
+    dfs = dfb[dfb["cord"] == "Y"] if which == "Cord plays" else dfb            # ...and the all / Cord choice
     done = dfs[dfs["result"].isin(["W", "L", "P"])].copy()
     open_ = dfs[dfs["result"] == ""]
     if done.empty:
@@ -3365,7 +3366,7 @@ def bets_results_view(cord_only=False):
         done["odds"] = [bet_odds(a, b) for a, b in zip(done["stake"], done["payout"])]
         bets_recap(done, open_)
         if len(used) > 1 and book == "All books":
-            _sc = df[df["cord"] == "Y"] if which == "💬 Cord plays" else df
+            _sc = df[df["cord"] == "Y"] if which == "Cord plays" else df
             _sd = _sc[_sc["result"].isin(["W", "L", "P"])]
             st.markdown('<div class="nb-sec">By book</div>', unsafe_allow_html=True)
             breakdown_html([(b, _sd[_sd["book"] == b]) for b in BET_BOOKS + ["Other"]])
@@ -3909,10 +3910,10 @@ st.markdown("""<style>
 .st-key-live_ctrls [data-testid="stVerticalBlock"],.st-key-bet_filters [data-testid="stVerticalBlock"],.st-key-res_ctrls [data-testid="stVerticalBlock"],.st-key-res_hist [data-testid="stVerticalBlock"]{gap:.35rem}
 [class*="st-key-scope_right"] [data-testid="stElementContainer"]{display:flex;justify-content:flex-end}
 [class*="st-key-scope_right"] [data-testid="stVerticalBlock"]{align-items:flex-end}
-.st-key-refresh_row{margin-top:-1.1rem;margin-bottom:-1.5rem}
-.st-key-refresh_row button{min-height:1.6rem;padding-top:0;padding-bottom:0}
+.st-key-refresh_right{display:flex;justify-content:flex-end}
+.st-key-refresh_right button{min-height:1.6rem;padding-top:0;padding-bottom:0}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"],[class*="st-key-scope_right"] [data-testid="stButtonGroup"]>div{width:100%}
-[class*="st-key-scope_right"] [data-testid="stButtonGroup"] button{flex:1 1 auto;white-space:nowrap;overflow:visible;padding-left:.5rem;padding-right:.5rem}
+[class*="st-key-scope_right"] [data-testid="stButtonGroup"] button{flex:1 1 0;min-width:0;white-space:nowrap;overflow:visible;padding-left:.25rem;padding-right:.25rem}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"] button *{white-space:nowrap;overflow:visible;text-overflow:clip}
 .st-key-res_ctrls{margin-bottom:-.5rem}.st-key-res_hist{margin-bottom:-.45rem}
 .st-key-bet_filters{margin-bottom:-.45rem}

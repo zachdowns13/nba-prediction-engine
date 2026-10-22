@@ -3569,6 +3569,11 @@ def msgs_for_api(msgs, prompt):
 # THE PAGE
 # =====================================================================
 st.session_state.setdefault("sel_date", local_today())
+_cur_nav = st.session_state.get("main_nav")
+if st.session_state.get("_last_nav") not in (None, _cur_nav):      # changed tabs: go back to today's date and its games
+    st.session_state["sel_date"] = local_today()
+    st.session_state.pop("sel_game", None)
+st.session_state["_last_nav"] = _cur_nav
 date = st.session_state["sel_date"]          # changed from the date box inside each tab
 M = fit_model(date.isoformat())
 if M is None:

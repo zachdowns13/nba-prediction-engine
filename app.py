@@ -3331,10 +3331,12 @@ def bets_results_view(cord_only=False):
     used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
     t1, _t2 = st.columns(2, vertical_alignment="center")
     book = t1.selectbox("Book", ["All books"] + used, key=f"bet_book{p}", label_visibility="collapsed") if len(used) > 1 else "All books"
+    has_cord = (df["cord"] == "Y").any()
+    which = _seg("Bets", ["All plays", "💬 Cord plays"], f"bet_scope2{p}", "All plays", _t2) if has_cord else "All plays"
     if book not in ["All books"] + used:
         book = "All books"
     dfb = df if book == "All books" else df[df["book"] == book]                  # period + book
-    dfs = dfb
+    dfs = dfb[dfb["cord"] == "Y"] if which == "💬 Cord plays" else dfb            # ...and the all / Cord choice
     done = dfs[dfs["result"].isin(["W", "L", "P"])].copy()
     open_ = dfs[dfs["result"] == ""]
     if done.empty:
@@ -3345,7 +3347,8 @@ def bets_results_view(cord_only=False):
             st.caption(f"Early days: only {len(done)} settled bets here so far, so these numbers can swing a lot.")
         bets_recap(done, open_)
         if len(used) > 1 and book == "All books":
-            _sd = df[df["result"].isin(["W", "L", "P"])]
+            _sc = df[df["cord"] == "Y"] if which == "💬 Cord plays" else df
+            _sd = _sc[_sc["result"].isin(["W", "L", "P"])]
             st.markdown('<div class="nb-sec">By book</div>', unsafe_allow_html=True)
             breakdown_html([(b, _sd[_sd["book"] == b]) for b in BET_BOOKS + ["Other"]])
         bets_stats_block(done, open_, f"bs_view{p}", recap=False)
@@ -3365,15 +3368,13 @@ def bets_results_view(cord_only=False):
 
 
 def bets_tab():
-    t_in, t_open, t_res, t_cord = st.tabs(["➕ Add a bet", "⏳ Open bets", "📈 Results", "💬 Cord plays"])
+    t_in, t_open, t_res = st.tabs(["➕ Add a bet", "⏳ Open bets", "📈 Results"])
     with t_in:
         bets_input_view()
     with t_open:
         bets_open_view()
     with t_res:
         bets_results_view()
-    with t_cord:
-        bets_results_view(cord_only=True)
 
 
 # =====================================================================

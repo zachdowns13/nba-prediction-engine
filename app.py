@@ -2681,7 +2681,7 @@ def bets_input_view():
         st.success(st.session_state.pop("bet_msg"))
     with st.container(border=True):
         st.markdown("**Add a bet**")
-        c1, c2, c3, c4 = st.columns([2, 2, 2.4, 1.1])
+        c1, c2, c3, c4 = st.columns(4)
         _dd_now = default_date()                                    # today, or tomorrow once tonight's games are all over
         if st.session_state.get("bet_auto_date") is not None and st.session_state.get(k("date")) == st.session_state["bet_auto_date"]:
             st.session_state[k("date")] = _dd_now                   # still on the automatic date, so follow it

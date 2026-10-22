@@ -2654,9 +2654,12 @@ def live_leg_html(info, title=None):
     """Small progress line for one leg: status badge, current / line, game status and a bar."""
     word, tone = _LIVE_BADGE[info["status"]]
     cur = info["cur"]
-    prog = (f'<b>{cur:g}</b> / {info["line"]:g}' + (f' {info["unit"]}' if info["unit"] else "")) if cur is not None else "-"
     if info.get("text"):
         prog = info["text"]
+    elif cur is not None and info.get("line") is not None:
+        prog = f'<b>{cur:g}</b> / {info["line"]:g}' + (f' {info["unit"]}' if info["unit"] else "")
+    else:
+        prog = "-"
     w = 0 if cur is None or not info["line"] else max(0, min(100, cur / info["line"] * 100))
     if "bar" in info:
         w = info["bar"]

@@ -3918,9 +3918,7 @@ st.markdown("""<style>
 [class*="st-key-scope_right"] [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}
 [class*="st-key-scope_right"] [data-testid="stVerticalBlock"]{width:100% !important;align-items:flex-end !important}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"]{justify-content:flex-end !important;float:right}
-[class*="st-key-bet_"][class*="_type"] [role="radiogroup"]{justify-content:center !important}
-[class*="st-key-bet_"][class*="_type"] [data-testid="stWidgetLabel"]{justify-content:center !important;text-align:center}
-[class*="st-key-bet_"][class*="_type"] [data-testid="stWidgetLabel"] p{text-align:center;width:100%}
+[class*="st-key-bet_"][class*="_type"] [role="radiogroup"]{justify-content:center !important;width:100%}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}

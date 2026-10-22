@@ -2505,7 +2505,7 @@ def all_nba_names():
     return players, sorted(n for _, n in info)
 
 
-LEG_KINDS = ["Player prop", "Team bet", "First basket", "Type it myself"]
+LEG_KINDS = ["Player prop", "Team bet", "First basket", "NFL play", "Type it myself"]
 LEG_STATS = ["Points", "Rebounds", "Assists", "3-pointers made",
              "Points + rebounds + assists", "Points + rebounds", "Points + assists", "Rebounds + assists",
              "Steals", "Blocks",
@@ -2566,6 +2566,8 @@ def norm_name(x, options):
 def cap_leg(leg):
     # Display fix for legs saved in lowercase, like "suns ML".
     leg = leg.strip()
+    if leg.upper().startswith("NFL:"):
+        return leg
     if leg.endswith(" ML") or leg.endswith(" ml"):
         return leg[:-3].title() + " ML"
     return leg[:1].upper() + leg[1:]
@@ -2575,6 +2577,11 @@ def leg_builder(key):
     # Builds the bet text for one leg from dropdowns, e.g. "Devin Booker over 23.5 points".
     players, teams = all_nba_names()
     kind = st.radio("Leg type", LEG_KINDS, horizontal=True, key=f"{key}_kind", label_visibility="collapsed")
+    if kind == "NFL play":
+        txt = st.text_input("Name the NFL play however you like", placeholder="e.g. Mahomes over 275.5 passing yards", key=f"{key}_nfl").strip()
+        txt = re.sub(r"^nfl\s*:\s*", "", txt, flags=re.I).replace(" + ", " & ")
+        st.caption("Shows as an NFL leg. The live tracker skips it, so check it off as hit, missed or pushed yourself.")
+        return f"NFL: {txt}" if txt else ""
     if kind == "Type it myself":
         return st.text_input("The bet", placeholder="e.g. Booker first basket", key=f"{key}_free").strip()
     if kind == "Player prop":
@@ -2725,6 +2732,8 @@ _SP_RE = re.compile(r"^(?P<team>.+?) (?P<sp>[+-]\d+(?:\.\d+)?)(?: vs (?P<opp>.+)
 def parse_leg(leg):
     """Turns a saved leg like 'Devin Booker over 26.5 points' or 'Phoenix Suns ML vs Portland Trail Blazers' into its parts, or None if it can't be tracked."""
     leg = leg.strip()
+    if leg.upper().startswith("NFL:"):          # NFL legs are scored by hand
+        return None
     for kind, rx in (("ml", _ML_RE), ("ttotal", _TT_RE), ("gtotal", _GT_RE)):
         m = rx.match(leg)
         if m:

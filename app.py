@@ -2303,7 +2303,14 @@ def filter_sort_bets(df, key, books_label="Books", right=None, compact=False, so
                                    format_func=lambda b: f"{b} ({int(counts[b])})") or [])
         except AttributeError:
             picked = st.multiselect(books_label, present, key=kb, placeholder="All books", format_func=lambda b: f"{b} ({int(counts[b])})")
-    only_cord = st.checkbox("💬 Cord plays only", key=f"{key}_cord") if (not compact and (df["cord"] == "Y").any()) else False
+    only_cord = False
+    if not compact and (df["cord"] == "Y").any():
+        oc1, oc2 = st.columns([1, 1], vertical_alignment="center")
+        only_cord = oc1.checkbox("💬 Cord plays only", key=f"{key}_cord")
+        if key == "bo":                                  # open bets: total stake on Cord plays, beside the toggle
+            _cs = df[df["cord"] == "Y"]
+            oc2.markdown(f'<div class="nb-muted" style="text-align:right">\\${_cs["stake"].sum():,.2f} at stake · {len(_cs)} Cord play{"s" if len(_cs) != 1 else ""}</div>',
+                         unsafe_allow_html=True)
     if right:                                       # sort dropdown on the left, a matching-width block of buttons on the right
         sc1, sc2 = st.columns(2)
         how = sc1.selectbox("Sort by", BET_SORTS, index=0 if key == "bo" else 1, key=f"{key}_sort",

@@ -2383,7 +2383,7 @@ def split_legs(desc, tidy=True):
 
 def leg_states(r):
     n = len(split_legs(r["desc"]))
-    st_ = [x if x in ("H", "M") else "-" for x in str(r.get("leg_status", "") or "").split(",") if x != ""][:n]
+    st_ = [x if x in ("H", "M", "P") else "-" for x in str(r.get("leg_status", "") or "").split(",") if x != ""][:n]
     return st_ + ["-"] * (n - len(st_))
 
 
@@ -2392,7 +2392,7 @@ def leg_score(r):
     ls = leg_states(r)
     if "M" in ls:
         return 1000 + ls.count("M")
-    left = len(ls) - ls.count("H")
+    left = len(ls) - ls.count("H") - ls.count("P")
     return left + (500 if len(ls) == 1 else 0)          # single plays go after the parlays
 
 
@@ -2406,7 +2406,12 @@ def set_leg(bet_id, idx, val):
 
 
 def _leg_icon(x):
-    return {"H": "✅", "M": "❌"}.get(x, "⬜")
+    return {"H": "✅", "M": "❌", "P": "➖"}.get(x, "⬜")
+
+
+def leg_can_push(leg):
+    # Only legs with a whole-number line (23, 23.0, spread -3) can land exactly on the line.
+    return bool(re.search(r"(?:over|under|[+\-])\s*\d+(?:\.0+)?(?![\d.])", leg or "", re.I))
 
 
 def bet_item(r, controls=False):
@@ -2416,7 +2421,7 @@ def bet_item(r, controls=False):
     ls = leg_states(r)
     head = f'<div style="margin-bottom:4px">{book_chip(r["book"], 26)}<span class="nb-muted" style="vertical-align:middle">{H(r["book"])}</span></div>'
     if controls and len(legs) > 1:
-        body = f'<div style="font-weight:600">{"Parlay"} · {ls.count("H")} of {len(legs)} legs hit' + (f' · {ls.count("M")} missed' if "M" in ls else "") + "</div>"
+        body = f'<div style="font-weight:600">{"Parlay"} · {ls.count("H")} of {len(legs)} legs hit' + (f' · {ls.count("M")} missed' if "M" in ls else "") + (f' · {ls.count("P")} pushed' if "P" in ls else "") + "</div>"
     elif len(legs) > 1:
         body = "".join(f'<div style="font-weight:600;margin-top:2px">{_leg_icon(x) + " " if r["result"] == "" else ""}{H(l)}</div>' for l, x in zip(legs, ls))
     else:
@@ -2865,8 +2870,8 @@ def refresh_live_snapshot():
                 if not p or ls[i] != "-":
                     continue
                 st_ = leg_live(p, games, r["date"])["status"]
-                if st_ in ("hit", "miss"):
-                    set_leg(r["id"], i, "H" if st_ == "hit" else "M")
+                if st_ in ("hit", "miss", "push"):
+                    set_leg(r["id"], i, {"hit": "H", "miss": "M", "push": "P"}[st_])
 
 
 def open_bets_list(refresh=False):
@@ -2921,21 +2926,27 @@ def open_bets_list(refresh=False):
                                             html(live_leg_html(leg_live(_pp, games, r["date"]), title=f"{_leg_icon(ls[i])} {leg}"))
                                     else:
                                         q[0].markdown(f"{_leg_icon(ls[i])} {leg}")
+                                    _cp = leg_can_push(leg)
                                     try:
-                                        pick_ = q[1].segmented_control("Leg result", ["✅", "❌"], default={"H": "✅", "M": "❌"}.get(ls[i]),
-                                                                       key=f"seg_{r['id']}_{i}_{ls[i]}", label_visibility="collapsed")
-                                        new_ = {"✅": "H", "❌": "M"}.get(pick_, "-")
+                                        pick_ = q[1].segmented_control("Leg result", ["✅", "➖", "❌"] if _cp else ["✅", "❌"],
+                                                                       default={"H": "✅", "M": "❌", "P": "➖"}.get(ls[i]),
+                                                                       key=f"seg_{r['id']}_{i}_{ls[i]}_{int(_cp)}", label_visibility="collapsed")
+                                        new_ = {"✅": "H", "❌": "M", "➖": "P"}.get(pick_, "-")
                                         if new_ != ls[i]:
                                             set_leg(r["id"], i, new_)
                                             st.rerun()
                                     except AttributeError:                                   # older Streamlit: plain buttons
-                                        z = q[1].columns(3)
-                                        for col_, lab_, val_ in zip(z, ["✅", "❌", "↩️"], ["H", "M", "-"]):
+                                        _labs, _vals = (["✅", "➖", "❌", "↩️"], ["H", "P", "M", "-"]) if _cp else (["✅", "❌", "↩️"], ["H", "M", "-"])
+                                        z = q[1].columns(len(_labs))
+                                        for col_, lab_, val_ in zip(z, _labs, _vals):
                                             if col_.button(lab_, key=f"lg_{r['id']}_{i}_{val_}"):
                                                 set_leg(r["id"], i, val_)
                                                 st.rerun()
                                 if "M" in ls:
                                     st.caption("A leg missed. If your book still pays on partial hits, use Edit, otherwise mark the slip Lost.")
+                                elif "P" in ls:
+                                    st.caption("A leg pushed, so the book usually drops it and pays a lower amount. Tap Won only if you were paid in full; "
+                                               "otherwise use Edit and enter what you were actually paid.")
                                 elif ls.count("H") == len(ls):
                                     st.caption("Every leg hit. Tap Won to collect.")
                     b1, b2, b3, b4 = st.columns(4)
@@ -3105,18 +3116,25 @@ def _week_label(d):
         return d
 
 
-def bets_stats_block(done, open_, key):
-    # Stats for any slice of bets: summary tiles, daily / weekly views, straight vs parlay.
-    if done.empty:
-        st.caption(f"No settled bets here yet. {len(open_)} open (${open_['stake'].sum():,.0f} at risk)." if len(open_) else "No bets here yet.")
-        return
+def bets_recap(done, open_):
+    # One big profit box across the row, with record / win rate / biggest win in smaller boxes under it.
     s = pick_stats(done)
-    html('<div class="nb-tiles">'
-         + stat_tile("Profit", _signed_money(s["profit"]), f"on ${done['stake'].sum():,.0f} bet", _tone(s["profit"]))
+    big = stat_tile("Profit", _signed_money(s["profit"]), f"on ${done['stake'].sum():,.0f} bet", _tone(s["profit"])).replace('class="nb-tile"', 'class="nb-tile big"', 1)
+    html('<div class="nb-tiles" style="grid-template-columns:1fr;margin-bottom:12px">' + big + '</div>')
+    html('<div class="nb-tiles" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))">'
          + stat_tile("Record", s["rec"], f"{len(open_)} open (${open_['stake'].sum():,.0f} at risk)" if len(open_) else "all settled")
          + stat_tile("Win rate", f"{s['win'] * 100:.0f}%" if s["win"] is not None else "-", "wins out of wins + losses")
          + stat_tile("Biggest win", _signed_money(float(done["profit"].max())), "single bet")
          + '</div>')
+
+
+def bets_stats_block(done, open_, key, recap=True):
+    # Stats for any slice of bets: summary tiles, daily / weekly views, straight vs parlay.
+    if done.empty:
+        st.caption(f"No settled bets here yet. {len(open_)} open (${open_['stake'].sum():,.0f} at risk)." if len(open_) else "No bets here yet.")
+        return
+    if recap:
+        bets_recap(done, open_)
     form_strip(done.sort_values(["date", "settled_at"])["result"])
     st.markdown('<div class="nb-sec">Over time</div>', unsafe_allow_html=True)
     view = st.radio("Group by", ["Daily", "Weekly"], horizontal=True, key=f"{key}_grp", label_visibility="collapsed")
@@ -3139,7 +3157,7 @@ def bets_results_view():
         st.info("No bets yet. Add one in the **Add a bet** tab and your results will show up here.")
         return
     today = dt.date.today()
-    period = st.radio("Time period", ["All time", "Today", "Last 7 days", "Last 30 days"], horizontal=True, key="bet_period")
+    period = st.radio("Time period", ["Today", "Last 7 days", "Last 30 days", "All time"], index=0, horizontal=True, key="bet_period")
     if period != "All time":
         days = {"Today": 0, "Last 7 days": 6, "Last 30 days": 29}[period]
         df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
@@ -3151,12 +3169,13 @@ def bets_results_view():
         done["odds"] = [bet_odds(a, b) for a, b in zip(done["stake"], done["payout"])]
         if 0 < len(done) < 30:
             st.caption(f"Early days: only {len(done)} settled bets here so far, so these numbers can swing a lot.")
+        bets_recap(done, open_)
         st.markdown('<div class="nb-sec">By book</div>', unsafe_allow_html=True)
         breakdown_html([(b, done[done["book"] == b]) for b in BET_BOOKS + ["Other"]])
         used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
         tabs = st.tabs(["All books"] + used)
         with tabs[0]:
-            bets_stats_block(done, open_, "bs_all")
+            bets_stats_block(done, open_, "bs_all", recap=False)
         for t, b in zip(tabs[1:], used):
             with t:
                 bets_stats_block(done[done["book"] == b], open_[open_["book"] == b], f"bs_{b}")

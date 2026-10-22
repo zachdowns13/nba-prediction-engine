@@ -2003,6 +2003,40 @@ def game_results_view():
         model_period_view(log, graded, st.session_state["sel_date"].isoformat(), "sel")
 
 
+    with st.expander("➕ Add a moneyline that wasn't logged"):
+        st.caption("For a game you picked before tracking existed. It is added to your Results as a finished moneyline pick, using the odds you enter.")
+        _teams = globals().get("teams", [])
+        m1, m2 = st.columns(2)
+        man_date = m1.date_input("Game date", local_today(), key="man_date")
+        man_res = m2.radio("Result", ["Won", "Lost", "Push"], horizontal=True, key="man_res")
+        m3, m4 = st.columns(2)
+        man_away = m3.selectbox("Away team", _teams, key="man_away", index=None, placeholder="Choose a team")
+        man_home = m4.selectbox("Home team", _teams, key="man_home", index=None, placeholder="Choose a team")
+        m5, m6 = st.columns(2)
+        man_pick = m5.selectbox("Your pick to win", [t for t in (man_away, man_home) if t], key="man_pick", index=None, placeholder="Choose the team you picked")
+        man_odds = num_box("Moneyline odds (like -150 or +130)", "man_odds", m6, placeholder="-110", default=0.0)
+        if st.button("Add this pick", key="man_add", type="primary"):
+            if not (man_away and man_home and man_pick) or man_away == man_home:
+                st.error("Choose both teams (different ones) and the team you picked.")
+            elif abs(man_odds) < 100:
+                st.error("Enter the moneyline odds, like -150 or +130.")
+            else:
+                pick_home = man_pick == man_home
+                p_pick = implied(man_odds)
+                p_oth = 1 - p_pick
+                o_oth = -100 * p_oth / (1 - p_oth) if p_oth >= 0.5 else 100 * (1 - p_oth) / p_oth
+                m_pick = min(p_pick + 0.001, 0.999)              # a hair above the book, so this is a pick but not a value play
+                win = "P" if man_res == "Push" else ("A" if (pick_home == (man_res == "Won")) else "B")
+                a_, b_ = ("a", "b") if pick_home else ("b", "a")
+                row = {"key": f"{man_date.isoformat()}|manual-{uuid.uuid4().hex[:8]}", "date": man_date.isoformat(),
+                       "event_id": f"manual-{uuid.uuid4().hex[:6]}", "game": f"{man_away} @ {man_home}", "home": man_home, "away": man_away,
+                       "saved_at": local_now().isoformat(timespec="seconds"), "ml_win": win,
+                       f"ml_odds_{a_}": man_odds, f"ml_odds_{b_}": round(o_oth), f"ml_model_{a_}": m_pick, f"ml_model_{b_}": 1 - m_pick,
+                       f"ml_book_{a_}": p_pick, f"ml_book_{b_}": p_oth}
+                save_wide(clean_wide(pd.concat([wide, pd.DataFrame([row])], ignore_index=True)))
+                st.success("Added. Your record is updated.")
+                st.rerun()
+
     with st.expander("My saved games, backup and restore"):
         st.caption("One line per game: the model's pick in each market (✅ win, ❌ loss, ➖ push, ⏳ waiting) and, where it differs or is flagged, "
                    "the 💰 value pick. On Streamlit Cloud the saved file can be erased when the app restarts or is redeployed, so download a "

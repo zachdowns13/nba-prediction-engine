@@ -2589,7 +2589,7 @@ def live_leg_html(info, title=None):
     color = {"hit": "var(--ok)", "miss": "#dc2626"}.get(info["status"], "var(--acc)")
     head = f'<div style="font-weight:600;margin:0 0 4px">{H(title)}</div>' if title else ""
     return (head + f'<div class="nb-muted" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px">'
-            f'<span>{badge(word, tone)} &nbsp;{prog}</span><span>{H(info["label"])}</span></div>'
+            f'<span>{H(info["label"])}</span><span>{prog} &nbsp;{badge(word, tone)}</span></div>'
             f'<div class="nb-bar" style="height:6px;margin-bottom:{16 if title else 6}px"><div class="nb-fill" style="width:{w:.0f}%;background:{color}"></div></div>')
 
 

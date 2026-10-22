@@ -3170,18 +3170,14 @@ def bets_open_view():
                 st.session_state.pop("last_deleted", None)
                 st.rerun()
     with st.container(border=True, key="live_ctrls"):
-        t1, t2, t3 = st.columns([1.3, 1, 1])
+        _l, t1, t3, _r = st.columns([0.6, 1.3, 1.1, 0.6], vertical_alignment="center")
         pressed = t1.button("🔄 Refresh live stats", key="live_refresh", use_container_width=True)
         if hasattr(st, "toggle"):
-            t2.toggle(f"Auto-refresh ({LIVE_REFRESH_SECONDS}s)", key="live_auto_refresh", value=False)
             t3.toggle("Auto-check legs", value=True, key="live_auto",
                       help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone.")
         else:
             t3.checkbox("Auto-check legs", value=True, key="live_auto")
-    if st.session_state.get("live_auto_refresh", False):
-        open_bets_list_auto()
-    else:
-        open_bets_list(refresh=pressed or "live_snap" not in st.session_state)
+    open_bets_list(refresh=pressed or "live_snap" not in st.session_state)
     if len(df):
         bulk_dates_section(df)
         with st.expander("✏️ Edit or delete a bet"):
@@ -3858,7 +3854,7 @@ st.markdown("""<style>
   .st-key-navbar{background:var(--nb-bg,#0e1117)}}
 .st-key-navbar{padding:.35rem 0 .45rem;border-bottom:1px solid rgba(128,128,128,.28)}
 .st-key-live_ctrls [data-testid="stVerticalBlock"],.st-key-bet_filters [data-testid="stVerticalBlock"]{gap:.35rem}
-.st-key-live_ctrls{margin-bottom:-.55rem}
+.st-key-live_ctrls{margin-bottom:-.95rem}
 .st-key-bet_filters{margin-bottom:-.45rem}
 .block-container > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar){margin-bottom:-.7rem}

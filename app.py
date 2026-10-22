@@ -2276,7 +2276,7 @@ BOOK_SORT = "Book (most bets first)"
 BET_SORTS = ["Closest to hitting", "Newest", "Oldest", "Biggest stake", "Biggest profit", "Biggest loss", BOOK_SORT, "Book A-Z"]
 
 
-def filter_sort_bets(df, key, books_label="Books"):
+def filter_sort_bets(df, key, books_label="Books", right=None):
     counts = df["book"].value_counts()
     present = [b for b in BET_BOOKS + ["Other"] if counts.get(b, 0) > 0]
     kb = f"{key}_books"
@@ -2289,7 +2289,13 @@ def filter_sort_bets(df, key, books_label="Books"):
     except AttributeError:
         picked = st.multiselect(books_label, present, key=kb, placeholder="All books", format_func=lambda b: f"{b} ({int(counts[b])})")
     only_cord = st.checkbox("💬 Cord plays only", key=f"{key}_cord") if (df["cord"] == "Y").any() else False
-    how = st.selectbox("Sort by", BET_SORTS, index=0 if key == "bo" else 1, key=f"{key}_sort")
+    if right:                                       # sort dropdown on the left, a matching-width block of buttons on the right
+        sc1, sc2 = st.columns(2)
+        how = sc1.selectbox("Sort by", BET_SORTS, index=0 if key == "bo" else 1, key=f"{key}_sort")
+        with sc2:
+            right()
+    else:
+        how = st.selectbox("Sort by", BET_SORTS, index=0 if key == "bo" else 1, key=f"{key}_sort")
     if only_cord:
         df = df[df["cord"] == "Y"]
     if picked:
@@ -2969,18 +2975,21 @@ def open_bets_list(refresh=False):
         if open_all.empty:
             st.caption("No open bets. Add one in the **Add a bet** tab.")
         else:
-            open_ = filter_sort_bets(open_all, "bo")
-            st.caption(f"${open_all['stake'].sum():,.2f} at risk overall" + (f" · showing {len(open_)} of {len(open_all)}" if len(open_) != len(open_all) else "") + ". Tap a button when the bet settles.")
             st.session_state.setdefault("legs_open", True)
             st.session_state.setdefault("legs_ver", 0)
-            if any(len(split_legs(x)) > 1 for x in open_["desc"]):
-                z1, z2, _sp = st.columns([1, 1, 4])
-                if z1.button("▾ Expand all parlays", key="legs_expand_all"):
+
+            def _leg_buttons():
+                st.markdown("<div style='height:1.7rem'></div>", unsafe_allow_html=True)
+                z1, z2 = st.columns(2)
+                if z1.button("▾ Expand all", key="legs_expand_all", use_container_width=True):
                     st.session_state["legs_open"], st.session_state["legs_ver"] = True, st.session_state["legs_ver"] + 1
                     st.rerun()
-                if z2.button("▸ Collapse all parlays", key="legs_collapse_all"):
+                if z2.button("▸ Collapse all", key="legs_collapse_all", use_container_width=True):
                     st.session_state["legs_open"], st.session_state["legs_ver"] = False, st.session_state["legs_ver"] + 1
                     st.rerun()
+            _has_parlay = any(len(split_legs(x)) > 1 for x in open_all["desc"])
+            open_ = filter_sort_bets(open_all, "bo", right=_leg_buttons if _has_parlay else None)
+            st.caption(f"${open_all['stake'].sum():,.2f} at risk overall" + (f" · showing {len(open_)} of {len(open_all)}" if len(open_) != len(open_all) else "") + ". Tap a button when the bet settles.")
             by_book = st.session_state.get("bo_sort") == BOOK_SORT
             last_book = None
             for _, r in open_.iterrows():

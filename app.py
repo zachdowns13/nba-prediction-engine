@@ -3328,6 +3328,7 @@ def bets_results_view():
             breakdown_html([(b, done[done["book"] == b]) for b in BET_BOOKS + ["Other"]])
         view_b = "All books"
         if len(used) > 1:
+            st.markdown("<div style='height:.9rem'></div>", unsafe_allow_html=True)
             try:
                 view_b = st.pills("Details for", ["All books"] + used, default="All books", key="bet_detail_book", label_visibility="collapsed") or "All books"
             except AttributeError:

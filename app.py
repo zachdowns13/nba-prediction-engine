@@ -3170,13 +3170,16 @@ def bets_open_view():
                 st.session_state.pop("last_deleted", None)
                 st.rerun()
     with st.container(border=True, key="live_ctrls"):
-        _l, t1, t3, _r = st.columns([0.6, 1.3, 1.1, 0.6], vertical_alignment="center")
+        st.session_state.setdefault("live_auto", True)
+
+        def _flip_auto():
+            st.session_state["live_auto"] = not st.session_state["live_auto"]
+        _a, t1, _b, t3, _c = st.columns([1, 2, 1, 2, 1])          # equal space left, middle and right; both buttons the same width
         pressed = t1.button("🔄 Refresh live stats", key="live_refresh", use_container_width=True)
-        if hasattr(st, "toggle"):
-            t3.toggle("Auto-check legs", value=True, key="live_auto",
-                      help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone.")
-        else:
-            t3.checkbox("Auto-check legs", value=True, key="live_auto")
+        _on = st.session_state["live_auto"]
+        t3.button("✅ Auto-check legs: On" if _on else "Auto-check legs: Off", key="live_auto_btn", use_container_width=True,
+                  type="primary" if _on else "secondary", on_click=_flip_auto,
+                  help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone. Tap to turn it on or off.")
     open_bets_list(refresh=pressed or "live_snap" not in st.session_state)
     if len(df):
         bulk_dates_section(df)

@@ -2692,7 +2692,7 @@ def bets_input_view():
         def _keep_type():                                                # tapping the chosen option again would blank it, so put it back
             if st.session_state.get(k("type")) is None:
                 st.session_state[k("type")] = st.session_state.get(k("type_last"), "Parlay")
-        _icons = {"Straight": "🎯 Straight bet", "Parlay": "🔗 Parlay"}
+        _icons = {"Straight": "🎯 Straight", "Parlay": "🔗 Parlay"}
         try:
             btype = st.segmented_control("Type", ["Straight", "Parlay"], key=k("type"), format_func=_icons.get,
                                          on_change=_keep_type, label_visibility="collapsed")

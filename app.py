@@ -3000,11 +3000,11 @@ def open_bets_list(refresh=False):
     _snap = st.session_state.get("live_snap")
     games = _snap[1] if _snap else []
     _oh = st.container(key="open_head")                                   # pulled up to remove the space above
-    hc1, hc2 = _oh.columns([3.2, 1.1], vertical_alignment="top")          # heading on the left, Refresh at the far right
+    hc1, hc2 = _oh.columns([3.6, 1.1], vertical_alignment="bottom")          # heading on the left, Refresh at the far right
     with hc2:
         with st.container(key="refresh_right"):
             try:
-                st.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, type="tertiary", help="Refresh the live stats")
+                st.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, type="tertiary", use_container_width=True, help="Refresh the live stats")
             except Exception:
                 st.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, help="Refresh the live stats")
     head_ph = hc1.empty()
@@ -3914,7 +3914,7 @@ st.markdown("""<style>
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}
-.st-key-refresh_right button{margin-left:auto !important;margin-top:.9rem}
+.st-key-refresh_right button{margin-left:auto !important;margin-top:0}
 .st-key-refresh_right button{min-height:1.6rem;padding-top:0;padding-bottom:0}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"],[class*="st-key-scope_right"] [data-testid="stButtonGroup"]>div{width:100%}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"] button{flex:1 1 0;min-width:0;white-space:nowrap;overflow:visible;padding-left:.25rem;padding-right:.25rem}

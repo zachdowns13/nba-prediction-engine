@@ -2705,10 +2705,10 @@ def bets_open_view():
     df = load_bets()
     t1, t2, t3 = st.columns([1.2, 2, 3.4])
     t1.button("🔄 Refresh live stats", key="live_refresh")
-    t2.toggle(f"Auto-refresh every {LIVE_REFRESH_SECONDS}s", key="live_auto_refresh", value=True) if hasattr(st, "toggle") else None
+    t2.toggle(f"Auto-refresh every {LIVE_REFRESH_SECONDS}s", key="live_auto_refresh", value=False) if hasattr(st, "toggle") else None
     t3.checkbox("Auto-check legs once the live stats decide them", value=True, key="live_auto",
                 help="A leg is marked hit as soon as an Over passes its line, or missed once an Under goes over. Legs that depend on the final score are marked when the game ends. Legs you've already marked are left alone.")
-    if st.session_state.get("live_auto_refresh", True):
+    if st.session_state.get("live_auto_refresh", False):
         open_bets_list_auto()
     else:
         open_bets_list()

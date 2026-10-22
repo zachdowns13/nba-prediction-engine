@@ -3339,7 +3339,7 @@ def bets_results_view(cord_only=False):
         df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
     used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
     # Row 2: the book dropdown takes all the room it can, with the all / Cord toggle at the right end.
-    t1, _t2 = st.columns([3.2, 1.7] if has_cord else [1, 0.001], vertical_alignment="center")
+    t1, _t2 = st.columns([3.6, 1.7] if has_cord else [1, 0.001], vertical_alignment="center")
     book = t1.selectbox("Book", ["All books"] + used, key=f"bet_book{p}", label_visibility="collapsed") if len(used) > 1 else "All books"
     which = "All plays"
     if has_cord:
@@ -3902,7 +3902,10 @@ st.markdown("""<style>
 .st-key-live_ctrls [data-testid="stVerticalBlock"],.st-key-bet_filters [data-testid="stVerticalBlock"],.st-key-res_ctrls [data-testid="stVerticalBlock"],.st-key-res_hist [data-testid="stVerticalBlock"]{gap:.35rem}
 [class*="st-key-scope_right"] [data-testid="stElementContainer"]{display:flex;justify-content:flex-end}
 [class*="st-key-scope_right"] [data-testid="stVerticalBlock"]{align-items:flex-end}
-.st-key-refresh_row{margin-bottom:-.9rem}
+.st-key-refresh_row{margin-top:-1.1rem;margin-bottom:-1.5rem}
+.st-key-refresh_row button{min-height:1.6rem;padding-top:0;padding-bottom:0}
+[class*="st-key-scope_right"] [data-testid="stButtonGroup"],[class*="st-key-scope_right"] [data-testid="stButtonGroup"]>div{width:100%}
+[class*="st-key-scope_right"] [data-testid="stButtonGroup"] button{flex:1 1 0}
 .st-key-res_ctrls{margin-bottom:-.5rem}.st-key-res_hist{margin-bottom:-.45rem}
 .st-key-bet_filters{margin-bottom:-.45rem}
 .block-container > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),

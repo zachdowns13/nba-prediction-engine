@@ -3909,7 +3909,9 @@ st.markdown("""<style>
   .st-key-navbar{background:var(--nb-bg,#0e1117)}}
 .st-key-navbar{padding:.35rem 0 .45rem;border-bottom:1px solid rgba(128,128,128,.28)}
 .st-key-live_ctrls [data-testid="stVerticalBlock"],.st-key-bet_filters [data-testid="stVerticalBlock"],.st-key-res_ctrls [data-testid="stVerticalBlock"],.st-key-res_hist [data-testid="stVerticalBlock"]{gap:.35rem}
-[class*="st-key-scope_right"],[class*="st-key-scope_right"]>div{width:100% !important}
+[data-testid="stColumn"]:has([class*="st-key-scope_right"]){flex:0 0 auto !important;width:auto !important;min-width:0 !important}
+[data-testid="stColumn"]:has(+ [data-testid="stColumn"] [class*="st-key-scope_right"]){flex:1 1 0 !important;width:auto !important}
+[class*="st-key-scope_right"],[class*="st-key-scope_right"]>div{width:auto !important}
 [class*="st-key-scope_right"] [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}
 [class*="st-key-scope_right"] [data-testid="stVerticalBlock"]{width:100% !important;align-items:flex-end !important}
 [class*="st-key-scope_right"] [data-testid="stButtonGroup"]{justify-content:flex-end !important;float:right}

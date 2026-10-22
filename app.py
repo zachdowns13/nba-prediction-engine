@@ -1792,6 +1792,37 @@ def day_list(d):
             pick_rows_html(items[7:])
 
 
+def todays_markets(log, day):
+    # Three dropdowns (moneylines, spreads, totals) for one day, each headed by how those picks did.
+    if log.empty:
+        return
+    ds = log["date"].astype(str).str[:10]
+    if day is None:
+        today = dt.date.today().isoformat()
+        day = today if (ds == today).any() else str(ds.max())
+    d = log[(ds == day) & log["is_pick"]]
+    if d.empty:
+        return
+    nice = _nice_date(day)
+    st.markdown(f'<div class="nb-sec">{H(nice)}: the model\'s picks by market</div>', unsafe_allow_html=True)
+    for mk, plural in (("Moneyline", "Moneylines"), ("Spread", "Spreads"), ("Total", "Totals")):
+        m = d[d["market"] == mk].sort_values("game")
+        if m.empty:
+            continue
+        w, l, p = int((m["result"] == "W").sum()), int((m["result"] == "L").sum()), int((m["result"] == "P").sum())
+        wait = int((~m["result"].isin(["W", "L", "P"])).sum())
+        prof = float(pd.to_numeric(m["profit"], errors="coerce").fillna(0).sum())
+        head = f"{plural}: {w}-{l}" + (f"-{p}" if p else "")
+        if w + l + p:
+            head += f" ({_signed_money(prof)} on $100 each)"
+        if wait:
+            head += f" · {wait} waiting"
+        with st.expander(head):
+            pick_rows_html([{"title": pick_label(r), "sub": r["game"] + f" · model {pct(r['model_p'])} vs book {pct(r['book_p'])}",
+                             "odds": f"{int(r['odds']):+d}" if pd.notna(r["odds"]) else "", "result": r["result"],
+                             "profit": r["profit"]} for _, r in m.iterrows()])
+
+
 def game_results_view():
     st.caption("Every pick is graded automatically from ESPN's final scores. Run the Full slate each day before games start and "
                "every moneyline, spread and total is saved, so this page shows how the model is actually doing.")
@@ -1815,6 +1846,7 @@ def game_results_view():
         st.info("Nothing saved yet. Open the **Full slate** tab and press **Run full slate** before games start. "
                 "Every moneyline, spread and total is saved automatically.")
     else:
+        todays_markets(log, _day)
         view = st.radio("Show", ["All picks", "Value plays only"], horizontal=True, key="res_view", label_visibility="collapsed")
         st.caption("**All picks:** the side the model liked in every moneyline, spread and total that was saved. "
                    if view == "All picks" else "**Value plays:** only the picks the app flagged as value (the model's chance beat the sportsbook's by enough to matter). ")

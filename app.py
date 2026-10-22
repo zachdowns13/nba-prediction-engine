@@ -3037,7 +3037,22 @@ def bets_open_view():
         open_bets_list(refresh=pressed or "live_snap" not in st.session_state)
     if len(df):
         with st.expander("✏️ Edit or delete a bet"):
-            labels = {f"{_nice_date(r['date'])} · {r['book']} · {r['desc'][:50]} · ${r['stake']:,.0f}": r["id"] for _, r in df.sort_values("date", ascending=False).iterrows()}
+            fb = ["All books"] + [bk for bk in BET_BOOKS + ["Other"] if (df["book"] == bk).any()]
+            fl = {k: (len(df) if k == "All books" else int((df["book"] == k).sum())) for k in fb}
+            fc1, fc2 = st.columns([3, 2])
+            sel_book = fc1.radio("Book", fb, horizontal=True, key="bet_fix_book", format_func=lambda k: f"{k} ({fl[k]})")
+            sel_stat = fc2.radio("Status", ["All", "Open", "Settled"], horizontal=True, key="bet_fix_stat")
+            sub = df if sel_book == "All books" else df[df["book"] == sel_book]
+            if sel_stat == "Open":
+                sub = sub[~sub["result"].isin(["W", "L", "P"])]
+            elif sel_stat == "Settled":
+                sub = sub[sub["result"].isin(["W", "L", "P"])]
+            if sub.empty:
+                st.caption("No bets match that filter.")
+                sub = df
+            _rs = {"W": "✅ Won", "L": "❌ Lost", "P": "➖ Push"}
+            labels = {f"{_nice_date(r['date'])} · {r['book']} · {r['desc'][:50]} · ${r['stake']:,.0f} · {_rs.get(r['result'], '⏳ Open')}": r["id"]
+                      for _, r in sub.sort_values("date", ascending=False).iterrows()}
             pick = st.selectbox("Choose a bet", list(labels), key="bet_fix_pick")
             bid = labels[pick]
             row = df[df["id"] == bid].iloc[0]

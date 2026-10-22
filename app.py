@@ -3,6 +3,20 @@ import re
 import uuid
 import math
 import datetime as dt
+try:
+    from zoneinfo import ZoneInfo
+    _TZ = ZoneInfo("America/Los_Angeles")
+except Exception:
+    _TZ = dt.timezone(dt.timedelta(hours=-7))
+
+
+def local_now():
+    # The server clock is UTC, so "today" would flip to tomorrow at 5pm Pacific. Use the user's time instead.
+    return dt.datetime.now(_TZ).replace(tzinfo=None)
+
+
+def local_today():
+    return local_now().date()
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -1400,7 +1414,7 @@ def props_tab(M, g, odds, injuries, date, b2b):
         save_prop({"key": f"{date.isoformat()}|{g['id']}|{name}|{stat}", "date": date.isoformat(), "event_id": str(g["id"]),
                    "game": f"{away} @ {home}", "team": team, "player": name, "stat": stat, "line": float(line),
                    "side": side.capitalize(), "odds": float(od), "model_p": float(mp), "book_p": float(bp), "edge": float(edge),
-                   "proj": float(proj_val), "saved_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "result": "", "actual": np.nan, "profit": np.nan})
+                   "proj": float(proj_val), "saved_at": local_now().strftime("%Y-%m-%d %H:%M"), "result": "", "actual": np.nan, "profit": np.nan})
         st.success(f"Saved: {name} {side} {line:g} {stat.lower()}. It will be graded automatically after the game in the Results tab.")
     vals = [sum(x[s] for s in stats) for x in info["logs"]][-10:]
     if vals:
@@ -1521,7 +1535,7 @@ def save_wide(df):
 def game_to_wide(res, date_iso):
     g, o = res["game"], res["odds"]
     row = {"key": f"{date_iso}|{g['id']}", "date": date_iso, "event_id": str(g["id"]), "game": f"{g['away']} @ {g['home']}",
-           "home": g["home"], "away": g["away"], "saved_at": dt.datetime.now().isoformat(timespec="seconds")}
+           "home": g["home"], "away": g["away"], "saved_at": local_now().isoformat(timespec="seconds")}
     for m, name in MKTS.items():
         pair = [r for r in res["rows"] if r["market"] == name]      # analyze_game adds home/over first, then away/under
         if len(pair) == 2:
@@ -1807,7 +1821,7 @@ def todays_markets(log, day):
         return
     ds = log["date"].astype(str).str[:10]
     if day is None:
-        today = dt.date.today().isoformat()
+        today = local_today().isoformat()
         day = today if (ds == today).any() else str(ds.max())
     d = log[(ds == day) & log["is_pick"]]
     if d.empty:
@@ -1918,7 +1932,7 @@ def game_results_view():
             st.caption(f"Value-play record starts fresh on **{_nice_date(cut)}**. Earlier value plays are left out, "
                        "since the early ones were overvalued. Your saved picks and the All picks view are untouched.")
             if st.button("🔄 Start the value-play record over from today", key="val_reset_btn"):
-                set_value_cutoff(dt.date.today().isoformat())
+                set_value_cutoff(local_today().isoformat())
                 st.rerun()
         waiting = int((~base["result"].isin(["W", "L", "P"])).sum())
         if gd.empty:
@@ -2298,7 +2312,7 @@ def settle_bet(bet_id, returned, result=None):
         df.at[i, "returned"] = float(returned)
         df.at[i, "profit"] = float(returned) - stake
         df.at[i, "result"] = result or ("W" if returned > stake + 0.005 else ("P" if abs(returned - stake) <= 0.005 else "L"))
-        df.at[i, "settled_at"] = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+        df.at[i, "settled_at"] = local_now().strftime("%Y-%m-%d %H:%M")
     save_bets(df)
 
 
@@ -2339,7 +2353,7 @@ def load_trash():
         tr = clean_trash(pd.read_csv(TRASH_PATH, dtype=str))
     except Exception:
         tr = st.session_state.get("trash_df", clean_trash(pd.DataFrame(columns=BET_COLS + ["deleted_at"])))
-    cutoff = (dt.datetime.now() - dt.timedelta(days=TRASH_DAYS)).strftime("%Y-%m-%d %H:%M")
+    cutoff = (local_now() - dt.timedelta(days=TRASH_DAYS)).strftime("%Y-%m-%d %H:%M")
     return tr[(tr["deleted_at"] == "") | (tr["deleted_at"] >= cutoff)].reset_index(drop=True)      # old ones fall off after 30 days
 
 
@@ -2356,7 +2370,7 @@ def delete_bet(bet_id):
     df = load_bets()
     gone = df[df["id"] == bet_id]
     if len(gone):
-        gone = gone.assign(deleted_at=dt.datetime.now().strftime("%Y-%m-%d %H:%M"))
+        gone = gone.assign(deleted_at=local_now().strftime("%Y-%m-%d %H:%M"))
         save_trash(clean_trash(pd.concat([load_trash(), gone], ignore_index=True)))
         st.session_state["last_deleted"] = bet_id
     save_bets(clean_bets(df[df["id"] != bet_id]))
@@ -2581,7 +2595,7 @@ def bets_input_view():
     with st.container(border=True):
         st.markdown("**Add a bet**")
         c1, c2, c3 = st.columns(3)
-        placed = c1.date_input("Date", dt.date.today(), key=k("date"))
+        placed = c1.date_input("Date", local_today(), key=k("date"))
         books_ = BET_BOOKS + ["Other"]
         _saved = load_bets()
         last_book = st.session_state.get("last_book") or (_saved["book"].iloc[-1] if len(_saved) else None)   # the book you used last
@@ -2648,7 +2662,7 @@ def bets_input_view():
         if st.button("🗑️ Erase all my bets") and confirm:
             _all = load_bets()
             if len(_all):                                   # even "erase all" goes to Recently deleted first
-                save_trash(clean_trash(pd.concat([load_trash(), _all.assign(deleted_at=dt.datetime.now().strftime("%Y-%m-%d %H:%M"))], ignore_index=True)))
+                save_trash(clean_trash(pd.concat([load_trash(), _all.assign(deleted_at=local_now().strftime("%Y-%m-%d %H:%M"))], ignore_index=True)))
             save_bets(clean_bets(pd.DataFrame(columns=BET_COLS)))
             st.success("Bets erased. You can bring them back from Recently deleted in the Open bets tab for 30 days.")
 
@@ -2839,7 +2853,7 @@ def live_games_for(open_df):
     """Live scoreboard data, only fetched when some open bet has a player stat leg."""
     if not any(parse_leg(leg) for d in open_df["desc"] for leg in split_legs(d)):
         return []
-    today = dt.date.today().isoformat()
+    today = local_today().isoformat()
     dates = tuple(sorted({d for d in open_df["date"] if d <= today} | {today}))[-3:]
     return live_scores(dates)
 
@@ -2861,7 +2875,7 @@ def refresh_live_snapshot():
     except Exception:
         pass
     games = live_games_for(open_) if len(open_) else []
-    st.session_state["live_snap"] = (dt.datetime.now(), games)
+    st.session_state["live_snap"] = (local_now(), games)
     if games and st.session_state.get("live_auto", True):          # mark legs the live stats have already decided
         for _, r in open_.iterrows():
             ls = leg_states(r)
@@ -3073,7 +3087,7 @@ def bets_open_view():
             try:
                 d0 = dt.date.fromisoformat(row["date"])
             except Exception:
-                d0 = dt.date.today()
+                d0 = local_today()
             new_date = h1.date_input("Date", d0, key=kk("date"))
             books = BET_BOOKS + ["Other"]
             new_book = h2.selectbox("Book", books, index=books.index(row["book"]) if row["book"] in books else len(books) - 1, key=kk("book"))
@@ -3156,7 +3170,7 @@ def bets_results_view():
     if df.empty:
         st.info("No bets yet. Add one in the **Add a bet** tab and your results will show up here.")
         return
-    today = dt.date.today()
+    today = local_today()
     period = st.radio("Time period", ["Today", "Last 7 days", "Last 30 days", "All time"], index=0, horizontal=True, key="bet_period")
     if period != "All time":
         days = {"Today": 0, "Last 7 days": 6, "Last 30 days": 29}[period]
@@ -3514,7 +3528,7 @@ def _scroll_chat(follow=False):
     # Scrolls only the chat box (never the page) to its end. While an answer is typing it keeps following until you scroll up yourself.
     try:
         import streamlit.components.v1 as components
-        components.html(f"""<script>/* {dt.datetime.now().timestamp()} */
+        components.html(f"""<script>/* {local_now().timestamp()} */
         const d = window.parent.document, follow = {"true" if follow else "false"};
         let stop = false;
         function scroller() {{
@@ -3555,7 +3569,7 @@ def msgs_for_api(msgs, prompt):
 # =====================================================================
 # THE PAGE
 # =====================================================================
-st.session_state.setdefault("sel_date", dt.date.today())
+st.session_state.setdefault("sel_date", local_today())
 date = st.session_state["sel_date"]          # changed from the date box inside each tab
 M = fit_model(date.isoformat())
 if M is None:

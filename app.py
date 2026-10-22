@@ -3282,6 +3282,10 @@ def bets_results_view():
     if period != "All time":
         days = {"Today": 0, "Last 7 days": 6, "Last 30 days": 29}[period]
         df = df[df["date"] >= (today - dt.timedelta(days=days)).isoformat()]
+    if (df["cord"] == "Y").any():
+        which = st.radio("Bets", ["All my bets", "💬 Cord plays"], horizontal=True, key="bet_scope", label_visibility="collapsed")
+        if which == "💬 Cord plays":
+            df = df[df["cord"] == "Y"]
     done = df[df["result"].isin(["W", "L", "P"])].copy()
     open_ = df[df["result"] == ""]
     if done.empty:
@@ -3292,18 +3296,14 @@ def bets_results_view():
             st.caption(f"Early days: only {len(done)} settled bets here so far, so these numbers can swing a lot.")
         bets_recap(done, open_)
         st.markdown('<div class="nb-sec">By book</div>', unsafe_allow_html=True)
-        breakdown_html([(b, done[done["book"] == b]) for b in BET_BOOKS + ["Other"]] + [("💬 Cord plays", done[done["cord"] == "Y"])])
+        breakdown_html([(b, done[done["book"] == b]) for b in BET_BOOKS + ["Other"]])
         used = [b for b in BET_BOOKS + ["Other"] if (df["book"] == b).any()]
-        has_cord = (df["cord"] == "Y").any()
-        tabs = st.tabs(["All books"] + used + (["💬 Cord plays"] if has_cord else []))
+        tabs = st.tabs(["All books"] + used)
         with tabs[0]:
             bets_stats_block(done, open_, "bs_all", recap=False)
         for t, b in zip(tabs[1:], used):
             with t:
                 bets_stats_block(done[done["book"] == b], open_[open_["book"] == b], f"bs_{b}")
-        if has_cord:
-            with tabs[-1]:
-                bets_stats_block(done[done["cord"] == "Y"], open_[open_["cord"] == "Y"], "bs_cord")
 
     st.markdown('<div class="nb-sec">All my bets</div>', unsafe_allow_html=True)
     flt = st.selectbox("Show", ["All", "Open", "Wins", "Losses", "Pushes", "Straight", "Parlays", "Cord plays"], key="bet_filter", label_visibility="collapsed")

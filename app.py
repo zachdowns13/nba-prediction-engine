@@ -2591,10 +2591,10 @@ def live_leg_html(info, title=None):
     mb = 16 if title else 6
     # One grid so the badge's right edge lines up exactly with the right end of the bar (the numbers sit in their own column after the bar).
     return (head + f'<div style="display:grid;grid-template-columns:1fr auto;column-gap:10px;align-items:center;margin-bottom:{mb}px">'
-            f'<div class="nb-muted" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px"><span>{H(info["label"])}</span><span>{badge(word, tone)}</span></div>'
+            f'<div class="nb-muted" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:2px 0 3px"><span>{H(info["label"])}</span><span>{badge(word, tone)}</span></div>'
             f'<div></div>'
-            f'<div class="nb-bar" style="height:6px;margin:6px 0 0"><div class="nb-fill" style="width:{w:.0f}%;background:{color}"></div></div>'
-            f'<span style="white-space:nowrap;font-size:.9rem;margin-top:6px;text-align:right">{prog}</span></div>')
+            f'<div class="nb-bar" style="height:6px;margin:0"><div class="nb-fill" style="width:{w:.0f}%;background:{color}"></div></div>'
+            f'<span style="white-space:nowrap;font-size:.9rem;line-height:1;text-align:right">{prog}</span></div>')
 
 
 def live_games_for(open_df):

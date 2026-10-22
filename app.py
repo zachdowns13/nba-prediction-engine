@@ -1868,10 +1868,10 @@ def model_cards(base, note):
         g_ = d[d["result"].isin(["W", "L", "P"])]
         wait = len(d) - len(g_)
         if g_.empty:
-            return "0-0", "", ("%d waiting" % wait if wait else "no results yet"), ""
+            return "0-0", "", "no results yet", ""
         s_ = pick_stats(g_)
         win = f"{s_['win'] * 100:.0f}% win rate · " if s_["win"] is not None else ""
-        return s_["rec"], _tone(s_["profit"]), f"{win}{_units_txt(s_['profit'])}" + (f" · {wait} waiting" if wait else ""), ""
+        return s_["rec"], _tone(s_["profit"]), f"{win}{_units_txt(s_['profit'])}", ""
 
     rec, tone, sub, _ = stats(base)
     big = (f'<div style="text-align:center;padding-bottom:10px"><div class="nb-muted" style="font-size:.8rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">Overall</div>'

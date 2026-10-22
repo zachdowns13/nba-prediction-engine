@@ -3263,6 +3263,8 @@ def bets_recap(done, open_, cdone=None, copen=None):
         head = f'<div class="nb-muted" style="font-size:.8rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">{H(title)}</div>'
         if d.empty:
             return f'<div style="flex:1;text-align:center">{head}<div class="nb-muted" style="margin-top:14px">No settled bets yet</div></div>'
+        if "odds" not in d.columns:
+            d = d.assign(odds=[bet_odds(x, y) for x, y in zip(d["stake"], d["payout"])])
         s_ = pick_stats(d)
         win = f"{s_['win'] * 100:.0f}%" if s_["win"] is not None else "-"
         mini = lambda lab, val, sub="": (f'<div style="flex:1"><div class="nb-muted" style="font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">{H(lab)}</div>'

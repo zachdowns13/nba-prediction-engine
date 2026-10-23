@@ -1098,7 +1098,15 @@ def first_basket_tab(M, g, injuries, now):
             fives.append(five)
         jump = {}
         for team in (home, away):
-            jump[team] = (usual_jumper(tboxes, tip_evs[team][-TIP_GAMES:], team, set(chosen[team])) if jsel[team].startswith("Auto") else jsel[team])
+            if jsel[team].startswith("Auto"):
+                _cs0 = dt.date(M["season"] - 1, 9, 1).toordinal()
+                _cur = {e for (o, e) in M["hist"].get(team, []) if o >= _cs0}
+                _tcur = [e for e in tip_evs[team] if e in _cur]
+                jump[team] = usual_jumper(tboxes, _tcur, team, set(chosen[team]))          # this season's tips first
+                if not jump[team]:                                                           # no usable tip yet this season: fall back to recent older games
+                    jump[team] = usual_jumper(tboxes, tip_evs[team][-TIP_GAMES:], team, set(chosen[team]))
+            else:
+                jump[team] = jsel[team]
         tipm = tip_model(tboxes, tip_all, jump[home], jump[away])
         first_off, winner, scorer, done = simulate_first_basket(fives[0], fives[1], SIMS, tipm["p_home"])
         rows = []

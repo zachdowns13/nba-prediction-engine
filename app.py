@@ -1448,6 +1448,101 @@ def props_tab(M, g, odds, injuries, date, b2b):
 # =====================================================================
 # RESULTS LOG (saves every pick, grades it from ESPN's final scores)
 # =====================================================================
+# =====================================================================
+# DURABLE STORAGE
+# Streamlit Cloud erases files saved on the server whenever the app restarts or is redeployed. If GITHUB_TOKEN and DATA_REPO are set
+# in the app's secrets, every save is also copied into that (separate, private) GitHub repo, and anything missing on the server is
+# pulled back from it when the app starts. Without those secrets this does nothing and the app behaves as before.
+# =====================================================================
+import base64 as _b64
+import threading as _th
+
+_DATA_FILES = ["bets_log.csv", "bets_trash.csv", "picks_log.csv", "props_log.csv", "value_reset.txt"]
+_GH = {"sha": {}, "lock": _th.Lock(), "restored": False, "err": ""}
+
+
+def _gh_cfg():
+    try:
+        tok, repo = st.secrets.get("GITHUB_TOKEN"), st.secrets.get("DATA_REPO")
+    except Exception:
+        return None
+    if not tok or not repo:
+        return None
+    return {"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github+json"}, str(repo).strip().strip("/")
+
+
+def _gh_get(path):
+    cfg = _gh_cfg()
+    if not cfg:
+        return None, None
+    hdr, repo = cfg
+    r = requests.get(f"https://api.github.com/repos/{repo}/contents/{path}", headers=hdr, timeout=10)
+    if r.status_code == 404:
+        return None, None
+    r.raise_for_status()
+    j = r.json()
+    _GH["sha"][path] = j.get("sha")
+    return _b64.b64decode(j["content"]).decode("utf-8"), j.get("sha")
+
+
+def _gh_put(path):
+    cfg = _gh_cfg()
+    if not cfg or not os.path.exists(path):
+        return
+    hdr, repo = cfg
+    with _GH["lock"]:
+        try:
+            body = open(path, "rb").read()
+            for _ in range(2):
+                sha = _GH["sha"].get(path)
+                if sha is None:
+                    _gh_get(path)
+                    sha = _GH["sha"].get(path)
+                payload = {"message": f"auto-save {path}", "content": _b64.b64encode(body).decode()}
+                if sha:
+                    payload["sha"] = sha
+                r = requests.put(f"https://api.github.com/repos/{repo}/contents/{path}", headers=hdr, json=payload, timeout=15)
+                if r.status_code in (409, 422):                     # stale sha: look it up again and retry once
+                    _GH["sha"].pop(path, None)
+                    continue
+                r.raise_for_status()
+                _GH["sha"][path] = r.json()["content"]["sha"]
+                _GH["err"] = ""
+                break
+        except Exception as e:
+            _GH["err"] = str(e)[:200]
+
+
+def cloud_save(path):
+    # Copy a just-saved file to the data repo without making the app wait for it.
+    if _gh_cfg():
+        try:
+            ThreadPoolExecutor(max_workers=1).submit(_gh_put, path)
+        except Exception:
+            pass
+
+
+def _cloud_restore_once():
+    if _GH["restored"] or not _gh_cfg():
+        return
+    _GH["restored"] = True
+    for p in _DATA_FILES:
+        try:
+            if not os.path.exists(p):                              # wiped by a restart: bring it back
+                txt, _ = _gh_get(p)
+                if txt is not None:
+                    open(p, "w", encoding="utf-8", newline="").write(txt)
+            else:                                                  # first time with backup on: copy what is here up
+                _txt, sha = _gh_get(p)
+                if sha is None:
+                    _gh_put(p)
+        except Exception as e:
+            _GH["err"] = str(e)[:200]
+
+
+_cloud_restore_once()
+
+
 LOG_PATH = "picks_log.csv"
 LOG_COLS = ["key", "date", "event_id", "game", "market", "side", "side_role", "line", "home_spread", "total_line",
             "odds", "model_p", "book_p", "edge", "ev", "flagged", "strength", "saved_at", "result", "profit"]
@@ -1544,6 +1639,7 @@ def save_wide(df):
     st.session_state["log_df"] = df
     try:
         df.to_csv(LOG_PATH, index=False)
+        cloud_save(LOG_PATH)
         return True
     except Exception:
         return False
@@ -1856,6 +1952,7 @@ def set_value_cutoff(day):
     st.session_state["value_reset"] = day
     try:
         open(VALUE_RESET_PATH, "w").write(day)
+        cloud_save(VALUE_RESET_PATH)
     except Exception:
         pass
 
@@ -2145,6 +2242,7 @@ def save_props(df):
     st.session_state["props_df"] = df
     try:
         df.to_csv(PROP_LOG_PATH, index=False)
+        cloud_save(PROP_LOG_PATH)
         return True
     except Exception:
         return False
@@ -2367,6 +2465,7 @@ def save_bets(df):
     st.session_state["bets_df"] = df
     try:
         df.to_csv(BET_LOG_PATH, index=False)
+        cloud_save(BET_LOG_PATH)
         return True
     except Exception:
         return False
@@ -2442,6 +2541,7 @@ def save_trash(tr):
     st.session_state["trash_df"] = tr
     try:
         tr.to_csv(TRASH_PATH, index=False)
+        cloud_save(TRASH_PATH)
     except Exception:
         pass
 
@@ -2776,6 +2876,11 @@ def bets_input_view():
     with st.expander("My bets backup and restore"):
         st.caption("On Streamlit Cloud the saved file can be erased when the app restarts or is redeployed, so download a backup now and then and "
                    "upload it here to restore. Anyone who opens this site can see and change your bets.")
+        if _gh_cfg():
+            st.caption("☁️ **Automatic cloud backup is on.** Every change is also saved to your private GitHub data repo and restored if the app restarts."
+                       + (f" (Last problem: {_GH['err']})" if _GH["err"] else ""))
+        else:
+            st.caption("☁️ Automatic cloud backup is off. Set GITHUB_TOKEN and DATA_REPO in the app's secrets to turn it on.")
         st.download_button("⬇️ Download my bets (CSV)", df.to_csv(index=False), file_name="bets_log.csv", mime="text/csv")
         up = st.file_uploader("Restore from a saved bets file (CSV)", type="csv", key="bets_up")
         if up is not None and st.button("Merge uploaded bets"):

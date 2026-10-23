@@ -1048,7 +1048,10 @@ def first_basket_tab(M, g, injuries, now):
     for col, team, tid in ((cols[0], home, g.get("home_id")), (cols[1], away, g.get("away_id"))):
         with col:
             st.markdown(f"**{team}**")
-            agg = team_profile(evs[team], boxes, team)
+            _cs0 = dt.date(M["season"] - 1, 9, 1).toordinal()
+            _cur = {e for (o, e) in M["hist"].get(team, []) if o >= _cs0}                 # this season's games only
+            _evt = [e for e in evs[team] if e in _cur] or evs[team]                        # fall back to last season only if the team has no games yet
+            agg = team_profile(_evt, boxes, team)
             roster = set(get_roster(tid))
             if roster:
                 agg = {k: a for k, a in agg.items() if k in roster}     # current roster only
@@ -1067,9 +1070,13 @@ def first_basket_tab(M, g, injuries, now):
             aggs[team] = agg
             jsel[team] = st.selectbox(f"Tip-off jumper ({team})", ["Auto (most likely)"] + list(chosen[team]), key=f"fbj_{g['id']}_{team}",
                                       help="Who takes the opening tip. Auto picks the starter who has taken the most recent tips for this team.")
-            if M["cur_counts"].get(team, 0) < 5:
-                st.warning("Fewer than 5 games played this season, so this lineup is a GUESS from older games. "
+            _ng = M["cur_counts"].get(team, 0)
+            if _ng == 0:
+                st.warning("No games played this season yet, so this lineup is a GUESS from last season. "
                            "Set the real starting five above once lineups are announced (about 30 min before tip).")
+            elif _ng < 5:
+                st.caption(f"Lineup built from this season's {_ng} game{'s' if _ng != 1 else ''} only. "
+                           "Double-check it once lineups are announced (about 30 min before tip).")
     with st.expander("🔎 Tip data check (troubleshooting)"):
         st.caption("Shows whether the opening-tip data is being found.")
         tip_check(home, (tip_evs[home] or [None])[-1], tip_all, tboxes)

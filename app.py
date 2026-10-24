@@ -331,7 +331,32 @@ def parse_odds(comp, home_abbr):
     out["away_spread_odds"] = to_american(a.get("spreadOdds")) or -110
     out["over_odds"] = to_american(o.get("overOdds")) or -110
     out["under_odds"] = to_american(o.get("underOdds")) or -110
+    out["close"] = parse_close(o)
     return out
+
+
+def _cnum(x):
+    # "o224.5", "-5.5", "+3" -> float
+    try:
+        return float(re.sub(r"^[ou]", "", str(x).strip().lower()).replace("+", ""))
+    except (ValueError, TypeError):
+        return None
+
+
+def parse_close(o):
+    # ESPN lists open and close numbers inside the odds object. Missing pieces stay None.
+    def dig(*path):
+        cur = o
+        for k in path:
+            cur = (cur or {}).get(k) if isinstance(cur, dict) else None
+        return cur
+    c = {"ml_h": to_american(dig("moneyline", "home", "close", "odds")), "ml_a": to_american(dig("moneyline", "away", "close", "odds")),
+         "sp_line": _cnum(dig("pointSpread", "home", "close", "line")),
+         "sp_h": to_american(dig("pointSpread", "home", "close", "odds")), "sp_a": to_american(dig("pointSpread", "away", "close", "odds")),
+         "to_line": _cnum(dig("total", "over", "close", "line")),
+         "to_o": to_american(dig("total", "over", "close", "odds")), "to_u": to_american(dig("total", "under", "close", "odds"))}
+    c["has"] = any(v is not None for k, v in c.items())
+    return c
 
 
 def _team_logo(team):
@@ -483,7 +508,11 @@ def fit_model(date_iso):
     beta = np.linalg.solve(X.T @ (w[:, None] * X) + np.diag(pen), X.T @ (w * y))
     G = F["G"]
     cur = G[G["season"] == season]
-    return {"beta": beta, "idx": F["idx"], "T": F["T"], "hist": build_hist(G), "season": season,
+    sched = {}
+    for r in G.itertuples():
+        sched.setdefault(r.home, []).append((r.ord, 1))
+        sched.setdefault(r.away, []).append((r.ord, 0))
+    return {"beta": beta, "idx": F["idx"], "T": F["T"], "hist": build_hist(G), "sched": sched, "season": season,
             "cur_counts": pd.concat([cur["home"], cur["away"]]).value_counts().to_dict(),
             "n_games": int(mask.sum() / 2)}
 
@@ -539,6 +568,53 @@ def trust_slider():
               help="How far the simulation may move away from the sportsbook's spread and total. 10% is the default: mostly the book's numbers "
                    "nudged by the model. 100% uses the model's own numbers with no sportsbook blend.")
     st.caption("Higher = the simulation relies more on the model and less on the sportsbook line. Picks saved to Results use this setting.")
+    st.session_state["sched_on"] = st.toggle("Rest, travel and fatigue factors", value=st.session_state.get("sched_on", True), key="sched_on_w",
+                                             help="Adds small adjustments for a third game in four nights, a long road trip, and a big rest gap between the teams. "
+                                                  "Back-to-backs are already built into the team ratings, so they are not counted twice.")
+
+
+def schedule_spot(M, team, day, is_home):
+    # Rest days, games in the last 4 nights, and how long the current road trip is, from the games already played.
+    prior = [(o, h) for o, h in (M.get("sched") or {}).get(team, []) if o < day.toordinal()]
+    spot = {"rest": 4, "in4": 1, "trip": 0, "b2b": False}
+    if prior:
+        gap = day.toordinal() - prior[-1][0] - 1
+        spot["rest"] = 4 if gap > 30 else min(gap, 4)
+        spot["b2b"] = gap == 0
+        spot["in4"] = 1 + sum(1 for o, _ in prior if o >= day.toordinal() - 3)
+        if not is_home:
+            n = 1
+            for _, h in reversed(prior):
+                if h:
+                    break
+                n += 1
+            spot["trip"] = n if gap <= 30 else 1
+    return spot
+
+
+def schedule_adjust(M, home, away, day):
+    # Small hand-set adjustments for tired legs. The back-to-back itself is already learned by the ratings, so this only adds
+    # what that misses: a third game in four nights, a long road trip, and a big rest gap between the teams.
+    hs_, as_ = schedule_spot(M, home, day, True), schedule_spot(M, away, day, False)
+    notes, pens = [], {}
+    for team, sp in ((home, hs_), (away, as_)):
+        pen = 0.0
+        if sp["in4"] >= 3:
+            pen += 0.6 + (0.5 if sp["b2b"] else 0.0)
+            notes.append(f"{short(team)}: 3rd game in 4 nights" + (" (second night of a back-to-back)" if sp["b2b"] else ""))
+        if sp["trip"] >= 4:
+            pen += min(0.4 * (sp["trip"] - 3), 1.5)
+            notes.append(f"{short(team)}: game {sp['trip']} of a road trip")
+        pens[team] = pen
+    rest_edge = 0.0
+    if not hs_["b2b"] and not as_["b2b"]:
+        diff = min(hs_["rest"], 3) - min(as_["rest"], 3)
+        rest_edge = 0.35 * max(-2, min(2, diff))
+        if diff:
+            notes.append(f"{short(home if diff > 0 else away)} has {abs(diff)} more day{'s' if abs(diff) != 1 else ''} of rest")
+    dm = (pens[away] - pens[home]) + rest_edge                       # change in the home team's expected margin
+    dt_ = -0.5 * sum(1 for v in pens.values() if v > 0)             # tired teams play slower and shoot worse
+    return {"dm": dm, "dt": dt_, "notes": notes, "home": hs_, "away": as_}
 
 
 def analyze_game(M, g, o, h_inj, a_inj, b2b):
@@ -548,6 +624,15 @@ def analyze_game(M, g, o, h_inj, a_inj, b2b):
     ap = team_score(M, away, home, 0, ab, hb)
     hp -= h_inj / 2; ap += h_inj / 2          # injuries hurt offense AND defense
     ap -= a_inj / 2; hp += a_inj / 2
+    sched = {"on": False, "notes": [], "dm": 0.0, "dt": 0.0}
+    if st.session_state.get("sched_on", True) and M.get("sched") and st.session_state.get("sel_date"):
+        try:
+            sa = schedule_adjust(M, home, away, st.session_state["sel_date"])
+            hp += sa["dm"] / 2 + sa["dt"] / 2
+            ap += -sa["dm"] / 2 + sa["dt"] / 2
+            sched = {"on": True, "notes": sa["notes"], "dm": sa["dm"], "dt": sa["dt"]}
+        except Exception:
+            pass
     raw_m, raw_t = hp - ap, hp + ap
     has_s, has_t = o["home_spread"] is not None, o["total"] is not None
     trust = st.session_state.get("model_trust")                      # slider: how much to trust the model over the sportsbook's numbers
@@ -581,7 +666,7 @@ def analyze_game(M, g, o, h_inj, a_inj, b2b):
         nv = novig(o["over_odds"], o["under_odds"])
         add("Total", "Over", f"{T_}", o["over_odds"], ov, 1 - ov - un, nv[0])
         add("Total", "Under", f"{T_}", o["under_odds"], un, 1 - ov - un, nv[1])
-    return {"game": g, "odds": o, "rows": rows, "raw_m": raw_m, "raw_t": raw_t,
+    return {"game": g, "odds": o, "rows": rows, "raw_m": raw_m, "raw_t": raw_t, "sched": sched,
             "med_m": float(np.median(margin)), "med_t": float(np.median(total)),
             "hp": (t_mu + m_mu) / 2, "ap": (t_mu - m_mu) / 2, "p_home": ph,
             "home_draws": np.rint((total + margin) / 2).astype(np.int16), "away_draws": np.rint((total - margin) / 2).astype(np.int16)}
@@ -692,6 +777,12 @@ def render_result(res):
                    f"Model gives it **{pct(best['model_p'])}**, the sportsbook's odds only imply **{pct(best['book_p'])}**.")
     elif res["rows"]:
         st.info("### No clear value\nThe model and the sportsbook roughly agree on all three markets.")
+    if best and strength(best["edge"], best["ev"]) and st.session_state.get("stake_mode") == "Kelly":
+        sk = stake_for(best["model_p"], best["book_odds"])
+        st.caption(f"💵 Kelly stake for this spot: **{md_money(sk)}** ({sk / 100:.2f} units) on a {md_money(st.session_state.get('ks_bankroll', 1000))} bankroll.")
+    sc = res.get("sched") or {}
+    if sc.get("on") and sc.get("notes"):
+        st.caption("😮‍💨 Schedule factors in this projection: " + "; ".join(sc["notes"]) + f" (net {sc['dm']:+.1f} pts on the margin, {sc['dt']:+.1f} on the total before the sportsbook blend).")
     note = (BACKTEST_NOTE + " ") if BACKTEST_NOTE else ""
     st.caption(f"{note}Model estimates, not guarantees.")
     render_markets(res)
@@ -1472,7 +1563,7 @@ def props_tab(M, g, odds, injuries, date, b2b):
 import base64 as _b64
 import threading as _th
 
-_DATA_FILES = ["bets_log.csv", "bets_trash.csv", "picks_log.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv", "pickem_fb_log.csv"]
+_DATA_FILES = ["bets_log.csv", "bets_trash.csv", "picks_log.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv", "pickem_fb_log.csv", "closing_log.csv"]
 _GH = {"sha": {}, "lock": _th.Lock(), "restored": False, "err": ""}
 
 
@@ -3648,7 +3739,8 @@ def slate_tab(M, date, games, injuries, b2b):
             "Game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "Market": r["market"], "Pick": pick_name(r),
             "Odds": f"{r['book_odds']:+d}", "Model chance": pct(r["model_p"]), "Sportsbook implies": pct(r["book_p"]),
             "Edge (pts)": f"{r['edge'] * 100:+.1f}", "Profit per $100 if model is right": f"${r['ev']:,.0f}",
-            "Value": strength(r["edge"], r["ev"])} for res, r in flagged]), hide_index=True)
+            "Value": strength(r["edge"], r["ev"]),
+            "Stake": md_money(stake_for(r["model_p"], r["book_odds"])).replace("\\", "")} for res, r in flagged]), hide_index=True)
         st.caption("Sorted by edge. Large edges are worth double-checking against the latest injury news and confirmed lineups.")
 
     st.markdown("### Game details")
@@ -4389,7 +4481,540 @@ def pickem_tab(M, date, games, injuries, b2b):
                              hide_index=True, use_container_width=True)
 
 
-NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "🏆 Pick'em", "💬 AI chat"]
+# =====================================================================
+# EDGE TOOLS
+# Kelly staking, closing line value (CLV), model accuracy, a Discord-ready post, and an arbitrage / +EV scanner.
+# =====================================================================
+CLOSE_PATH = "closing_log.csv"
+CLOSE_COLS = ["event_id", "date", "final", "ml_h", "ml_a", "sp_line", "sp_h", "sp_a", "to_line", "to_o", "to_u", "saved_at"]
+
+
+def load_close():
+    try:
+        df = pd.read_csv(CLOSE_PATH, dtype={"event_id": str})
+    except Exception:
+        df = st.session_state.get("close_df")
+        if df is None:
+            df = pd.DataFrame(columns=CLOSE_COLS)
+    for c in CLOSE_COLS:
+        if c not in df.columns:
+            df[c] = np.nan
+    return df[CLOSE_COLS].copy()
+
+
+def record_closing(day, games):
+    # Keeps the last sportsbook numbers seen before each game starts, and ESPN's own closing numbers when it lists them.
+    try:
+        cl = load_close()
+        have = {str(r.event_id): i for i, r in enumerate(cl.itertuples())}
+        changed = False
+        for g in games or []:
+            o = g.get("odds") or {}
+            eid = str(g["id"])
+            old = cl.iloc[have[eid]].to_dict() if eid in have else None
+            if old is not None and str(old.get("final")) in ("1", "1.0"):
+                continue
+            if g["state"] == "pre":
+                new = {"ml_h": o.get("home_ml"), "ml_a": o.get("away_ml"), "sp_line": o.get("home_spread"),
+                       "sp_h": o.get("home_spread_odds"), "sp_a": o.get("away_spread_odds"), "to_line": o.get("total"),
+                       "to_o": o.get("over_odds"), "to_u": o.get("under_odds"), "final": 0}
+            else:
+                c = o.get("close") or {}
+                if c.get("has"):
+                    new = {k: (c.get(k) if c.get(k) is not None else (old or {}).get(k)) for k in ("ml_h", "ml_a", "sp_line", "sp_h", "sp_a", "to_line", "to_o", "to_u")}
+                    new["final"] = 1
+                elif old is not None:
+                    new = {"final": 1}                 # lock in the last numbers seen before the game started
+                else:
+                    continue
+            row = dict(old or {c: np.nan for c in CLOSE_COLS})
+            row.update(new)
+            row["event_id"], row["date"] = eid, day.isoformat()
+            row["saved_at"] = local_now().isoformat(timespec="seconds")
+            cmp_keys = [k for k in CLOSE_COLS if k not in ("saved_at",)]
+            if old is not None and all(str(old.get(k)) == str(row.get(k)) or (pd.isna(old.get(k)) and pd.isna(row.get(k))) for k in cmp_keys):
+                continue
+            if eid in have:
+                for k, v in row.items():
+                    cl.at[have[eid], k] = v
+            else:
+                cl = pd.concat([cl, pd.DataFrame([row])], ignore_index=True)
+                have[eid] = len(cl) - 1
+            changed = True
+        if changed:
+            st.session_state["close_df"] = cl
+            cl.to_csv(CLOSE_PATH, index=False)
+            cloud_save(CLOSE_PATH)
+    except Exception:
+        pass
+
+
+# ---------- Kelly ----------
+KELLY_FRACS = {"Full Kelly": 1.0, "Half Kelly": 0.5, "Quarter Kelly (recommended)": 0.25, "Eighth Kelly": 0.125}
+
+
+def kelly_fraction(p, odds):
+    # Share of the bankroll that maximizes long-run growth: (b*p - q) / b
+    b = dec(float(odds)) - 1
+    return max(0.0, (b * p - (1 - p)) / b) if b > 0 else 0.0
+
+
+def kelly_stake(p, odds, bankroll=None, frac=None, cap=None):
+    bankroll = st.session_state.get("ks_bankroll", 1000.0) if bankroll is None else bankroll
+    frac = st.session_state.get("ks_frac", 0.25) if frac is None else frac
+    cap = st.session_state.get("ks_cap", 5.0) if cap is None else cap
+    f = min(kelly_fraction(p, odds) * frac, cap / 100)
+    return round(bankroll * f, 2)
+
+
+def stake_for(p, odds):
+    return kelly_stake(p, odds) if st.session_state.get("stake_mode") == "Kelly" else 100.0
+
+
+def stake_settings(where):
+    st.session_state.setdefault("stake_mode", "Flat $100")
+    mode = st.radio("Bet sizing", ["Flat $100", "Kelly"], horizontal=True, key=f"mode_{where}",
+                    index=0 if st.session_state["stake_mode"] != "Kelly" else 1,
+                    help="Flat bets $100 on everything. Kelly bets more when the model's edge is bigger and less when it is small, based on your bankroll.")
+    st.session_state["stake_mode"] = mode
+    c1, c2, c3 = st.columns(3)
+    bank = c1.number_input("Bankroll ($)", min_value=10.0, value=float(st.session_state.get("ks_bankroll", 1000.0)), step=100.0, key=f"bank_{where}")
+    labels = list(KELLY_FRACS)
+    cur = next((i for i, k in enumerate(labels) if KELLY_FRACS[k] == st.session_state.get("ks_frac", 0.25)), 2)
+    lab = c2.selectbox("Kelly size", labels, index=cur, key=f"frac_{where}",
+                       help="Full Kelly is very aggressive and assumes the model is exactly right. Most bettors use a quarter or less.")
+    cap = c3.number_input("Max per bet (% of bankroll)", min_value=0.5, max_value=25.0, value=float(st.session_state.get("ks_cap", 5.0)), step=0.5, key=f"cap_{where}")
+    st.session_state["ks_bankroll"], st.session_state["ks_frac"], st.session_state["ks_cap"] = bank, KELLY_FRACS[lab], cap
+
+
+def kelly_view(date):
+    st.caption("Kelly sizing bets a share of your bankroll that grows with your edge. It uses the model's win chance, which is already "
+               "blended with the sportsbook's, so it stays on the cautious side. Turn it on and the Full slate and Game odds pages show a stake next to every value play.")
+    stake_settings("edge")
+    st.markdown("#### Quick calculator")
+    c1, c2 = st.columns(2)
+    p = c1.number_input("Your win chance (%)", 1.0, 99.0, 55.0, 0.5, key="kc_p") / 100
+    o = int(c2.number_input("Odds (American)", -2000, 2000, -110, 5, key="kc_o"))
+    if abs(o) < 100:
+        st.warning("American odds are +100 or higher, or -100 or lower.")
+    else:
+        f = kelly_fraction(p, o)
+        s_ = kelly_stake(p, o)
+        be = implied(o)
+        if f <= 0:
+            st.info(f"No edge: you need to win more than **{be * 100:.1f}%** at {o:+d} to break even.")
+        else:
+            st.success(f"Full Kelly says **{f * 100:.1f}%** of your bankroll. With your settings, bet **{md_money(s_)}** ({s_ / 100:.2f} units). Break-even is {be * 100:.1f}%.")
+    st.markdown("#### Today's value plays")
+    res_list = st.session_state.get(f"slate_{date.isoformat()}")
+    if not res_list:
+        st.info("Run the **Full slate** for this date first. The value plays then show up here with a stake.")
+    else:
+        rows = [(res, r) for res in res_list for r in res["rows"] if strength(r["edge"], r["ev"])]
+        if not rows:
+            st.info("No value plays on this slate.")
+        else:
+            st.dataframe(pd.DataFrame([{"Game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "Pick": pick_name(r),
+                                        "Odds": f"{r['book_odds']:+d}", "Model": pct(r["model_p"]), "Edge (pts)": f"{r['edge'] * 100:+.1f}",
+                                        "Flat": "$100", "Kelly": f"${kelly_stake(r['model_p'], r['book_odds']):,.0f}"} for res, r in rows]), hide_index=True)
+    st.markdown("#### What Kelly would have done with your logged value plays")
+    log = value_log()
+    if log.empty:
+        st.info("Once some value plays have finished, this compares flat $100 bets with Kelly sizing on them.")
+        return
+    flat = pd.to_numeric(log["profit"]).sum()
+    ks = [kelly_stake(r.model_p, r.odds) for r in log.itertuples()]
+    kp = sum((s_ * (dec(float(r.odds)) - 1) if r.result == "W" else (-s_ if r.result == "L" else 0.0)) for s_, r in zip(ks, log.itertuples()))
+    fs, kst = 100.0 * len(log), float(sum(ks))
+    t1, t2 = st.columns(2)
+    t1.metric("Flat $100", _signed_money(flat), f"{flat / fs * 100:+.1f}% on ${fs:,.0f} staked")
+    t2.metric("Kelly", _signed_money(kp), f"{(kp / kst * 100 if kst else 0):+.1f}% on ${kst:,.0f} staked")
+    st.caption(f"{len(log)} finished value plays since your value reset date. Kelly here uses a fixed bankroll (no compounding) and your settings above.")
+
+
+def value_log():
+    try:
+        log = add_pick_flag(expand_wide(load_wide()))
+    except Exception:
+        return pd.DataFrame()
+    if log.empty:
+        return log
+    log = log[log["flagged"] & log["result"].isin(["W", "L", "P"]) & (log["date"].astype(str) >= str(value_cutoff()))].copy()
+    for c in ("odds", "model_p", "profit"):
+        log[c] = pd.to_numeric(log[c])
+    return log
+
+
+# ---------- CLV ----------
+def _nv(a, b):
+    try:
+        if pd.isna(a) or pd.isna(b):
+            return None
+        return novig(float(a), float(b))
+    except Exception:
+        return None
+
+
+def clv_frame():
+    log = add_pick_flag(expand_wide(load_wide()))
+    cl = load_close()
+    cl = cl[cl["event_id"].astype(str).isin(set(log["event_id"].astype(str)))] if len(log) else cl
+    if log.empty or cl.empty:
+        return pd.DataFrame()
+    cm = {str(r.event_id): r for r in cl.itertuples()}
+    out = []
+    for r in log.itertuples():
+        c = cm.get(str(r.event_id))
+        if c is None or not (r.is_pick or r.flagged):
+            continue
+        mk, role = r.market, r.side_role
+        pp, how = None, ""
+        if mk == "Moneyline":
+            nv = _nv(c.ml_h, c.ml_a)
+            if nv:
+                pp, how = (nv[0] if role == "home" else nv[1]) - r.book_p, "price"
+                pp *= 100
+        elif mk == "Spread" and pd.notna(c.sp_line) and pd.notna(r.home_spread):
+            gain = (r.home_spread - c.sp_line) if role == "home" else (c.sp_line - r.home_spread)
+            if abs(gain) > 1e-9:
+                pp, how = gain * 3.0, f"line {gain:+.1f}"
+            else:
+                nv = _nv(c.sp_h, c.sp_a)
+                if nv:
+                    pp, how = ((nv[0] if role == "home" else nv[1]) - r.book_p) * 100, "price"
+        elif mk == "Total" and pd.notna(c.to_line) and pd.notna(r.total_line):
+            gain = (c.to_line - r.total_line) if role == "over" else (r.total_line - c.to_line)
+            if abs(gain) > 1e-9:
+                pp, how = gain * 3.0, f"line {gain:+.1f}"
+            else:
+                nv = _nv(c.to_o, c.to_u)
+                if nv:
+                    pp, how = ((nv[0] if role == "over" else nv[1]) - r.book_p) * 100, "price"
+        if pp is None:
+            continue
+        out.append({"date": str(r.date)[:10], "game": r.game, "market": mk, "pick": f"{pick_label(pd.Series(r._asdict()))}",
+                    "kind": "Value play" if r.flagged else "Model pick", "is_pick": bool(r.is_pick), "flagged": bool(r.flagged),
+                    "clv": float(pp), "how": how, "locked": str(c.final) in ("1", "1.0")})
+    return pd.DataFrame(out)
+
+
+def clv_view():
+    st.caption("Closing line value asks one question: after you (or the model) took a number, did the market move toward you by game time? "
+               "Beating the closing line over a large sample is the best sign of a real edge, and it shows up much sooner than wins and losses do.")
+    d = clv_frame()
+    if d.empty:
+        st.info("No closing lines yet. The app saves each game's last pre-game numbers whenever you open it on game day, "
+                "so open it shortly before tip-off (any page works) and your CLV fills in after the games start. "
+                "It can only measure games from now on.")
+        return
+    tiles = []
+    for lab, sub in (("Model picks", d[d["is_pick"]]), ("Value plays", d[d["flagged"]])):
+        if sub.empty:
+            continue
+        beat = float((sub["clv"] > 0).mean() * 100)
+        avg = float(sub["clv"].mean())
+        tiles.append((lab, avg, beat, len(sub)))
+    cols = st.columns(max(1, len(tiles)))
+    for col, (lab, avg, beat, n) in zip(cols, tiles):
+        col.metric(lab, f"{avg:+.2f} pts avg", f"{beat:.0f}% beat the close · {n} picks")
+    st.caption("Points are no-vig win chance (for lines that moved, about 3 points of win chance per point of spread or total). Positive = the market moved toward the pick.")
+    bym = d.groupby(["market", "kind"]).agg(Picks=("clv", "size"), Avg=("clv", "mean"), Beat=("clv", lambda s: (s > 0).mean() * 100)).reset_index()
+    bym["Avg"] = bym["Avg"].map(lambda v: f"{v:+.2f}")
+    bym["Beat"] = bym["Beat"].map(lambda v: f"{v:.0f}%")
+    st.dataframe(bym.rename(columns={"market": "Market", "kind": "Type", "Avg": "Avg CLV (pts)", "Beat": "Beat the close"}), hide_index=True)
+    with st.expander("Every pick"):
+        v = d.sort_values("date", ascending=False).copy()
+        v["clv"] = v["clv"].map(lambda x: f"{x:+.2f}")
+        st.dataframe(v[["date", "game", "market", "pick", "kind", "clv", "how"]].rename(columns={"clv": "CLV (pts)", "how": "Moved by"}), hide_index=True)
+    if (~d["locked"]).any():
+        st.caption("Some games have not started yet, so their closing line is still the latest number seen.")
+
+
+# ---------- Model accuracy ----------
+def accuracy_view():
+    st.caption("Do the model's confident picks actually win that often? This checks every graded game in your Results log.")
+    try:
+        log = add_pick_flag(expand_wide(load_wide()))
+    except Exception:
+        log = pd.DataFrame()
+    if log.empty:
+        st.info("Nothing graded yet. Run the Full slate each day and this page fills in as games finish.")
+        return
+    g = log[log["result"].isin(["W", "L"])].copy()
+    for c in ("model_p", "book_p", "odds", "profit", "edge"):
+        g[c] = pd.to_numeric(g[c], errors="coerce")
+    picks = g[g["is_pick"]].copy()
+    if len(picks) < 5:
+        st.info(f"Only {len(picks)} graded picks so far. Come back after a couple of weeks of results.")
+        return
+    picks["win"] = (picks["result"] == "W").astype(float)
+    bins = [(0.50, 0.55), (0.55, 0.60), (0.60, 0.65), (0.65, 0.70), (0.70, 1.01)]
+    rows, html_rows = [], ""
+    for lo, hi in bins:
+        s_ = picks[(picks["model_p"] >= lo) & (picks["model_p"] < hi)]
+        if s_.empty:
+            continue
+        pred, act = float(s_["model_p"].mean()), float(s_["win"].mean())
+        lab = f"{int(lo * 100)}–{min(int(hi * 100), 100)}%"
+        gap = act - pred
+        html_rows += (f'<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:.88rem"><b>{lab} picks</b>'
+                      f'<span class="nb-muted">{int(s_["win"].sum())}-{len(s_) - int(s_["win"].sum())} · {len(s_)} picks</span></div>'
+                      + bar(f"Model said {pred * 100:.0f}%", pred, "#64748b") + bar(f"Actually won {act * 100:.0f}%", act, "var(--acc)" if gap >= -0.03 else "#ef4444")
+                      + '</div>')
+    html('<div class="nb-card"><div class="nb-muted" style="font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:.78rem">Calibration: predicted vs actual</div>'
+         + html_rows + '</div>')
+    st.caption("If the two bars match, the model's percentages can be trusted. Actual below predicted means it is overconfident there. Small groups swing a lot, so wait for 30+ picks per row.")
+
+    st.markdown("#### Record by confidence")
+    t = []
+    for lo, hi in bins:
+        s_ = picks[(picks["model_p"] >= lo) & (picks["model_p"] < hi)]
+        if len(s_):
+            w = int(s_["win"].sum())
+            t.append({"Model confidence": f"{int(lo * 100)}–{min(int(hi * 100), 100)}%", "Record": f"{w}-{len(s_) - w}", "Win %": f"{w / len(s_) * 100:.0f}%",
+                      "Units": f"{s_['profit'].sum() / 100:+.2f}"})
+    st.dataframe(pd.DataFrame(t), hide_index=True)
+
+    st.markdown("#### Record by edge (how far the model disagreed with the book)")
+    e = g.copy()
+    e["bucket"] = pd.cut(e["edge"], [-1, 0, 0.03, 0.06, 1], labels=["Model agrees or lower", "Small edge (0–3 pts)", "Medium edge (3–6 pts)", "Big edge (6+ pts)"])
+    e["win"] = (e["result"] == "W").astype(float)
+    t = []
+    for b, s_ in e.groupby("bucket", observed=True):
+        w = int(s_["win"].sum())
+        t.append({"Edge": str(b), "Record": f"{w}-{len(s_) - w}", "Win %": f"{w / len(s_) * 100:.0f}%", "Units": f"{s_['profit'].sum() / 100:+.2f}"})
+    st.dataframe(pd.DataFrame(t), hide_index=True)
+
+    st.markdown("#### Should the Model trust slider move?")
+    a = g[g["side_role"].isin(["home", "over"])].copy()
+    a["y"] = (a["result"] == "W").astype(float)
+    a = a.dropna(subset=["model_p", "book_p"])
+    if len(a) < 60:
+        st.info(f"Only {len(a)} graded games so far. This needs about 60 or more to say anything useful, so keep running the slate.")
+        return
+    brier = lambda p: float(np.mean((p - a["y"]) ** 2))
+    b_model, b_book = brier(a["model_p"]), brier(a["book_p"])
+    ws = np.arange(0.0, 3.01, 0.25)
+    scores = [brier(a["book_p"] + w * (a["model_p"] - a["book_p"])) for w in ws]
+    wbest = float(ws[int(np.argmin(scores))])
+    cur = st.session_state.get("model_trust") or int(round(BETA_M * 100))
+    sug = int(max(10, min(100, round(cur * wbest / 5) * 5))) if wbest > 0 else 10
+    c1, c2 = st.columns(2)
+    c1.metric("Model error (lower is better)", f"{b_model:.4f}", f"{(b_model - b_book):+.4f} vs sportsbook {b_book:.4f}", delta_color="inverse")
+    c2.metric("Best blend vs today", f"{wbest:.2f}x", f"slider is at {cur}%")
+    if wbest > 1.1:
+        st.success(f"The model has been **more accurate than your current blend implies**. Moving the slider up to about **{sug}%** would have scored better.")
+    elif wbest < 0.9:
+        st.warning(f"The sportsbook has been the better guide. Moving the slider down toward about **{sug}%** would have scored better.")
+    else:
+        st.info(f"Your slider setting ({cur}%) is about right for the results so far.")
+    st.caption(f"Based on {len(a)} graded games, scored with the Brier score (the average squared miss of each win chance). It assumes your slider was near its current setting when the picks were saved. Treat it as a hint until you have a few hundred games.")
+
+
+# ---------- Discord ----------
+def _u(x):
+    return f"{x:g}u"
+
+
+def discord_open_bets(only_cord, units, with_book):
+    df = load_bets()
+    df = df[df["result"] == ""]
+    if only_cord:
+        df = df[df["cord"] == "Y"]
+    if df.empty:
+        return ""
+    lines = [f"🏀 **{'Cord plays' if only_cord else 'Open plays'} · {local_today().strftime('%a, %b %-d')}**", ""]
+    for i, r in enumerate(df.sort_values("date").itertuples(), 1):
+        stake, payout = float(r.stake or 0), float(r.payout or 0)
+        sz = f"{_u(round(stake / 100, 2))} to win {_u(round((payout - stake) / 100, 2))}" if units else f"${stake:,.0f} to win ${payout - stake:,.0f}"
+        legs = split_legs(r.desc)
+        head = f"**{i}) " + (f"{r.book} · " if with_book else "") + (f"{len(legs)}-leg parlay" if len(legs) > 1 else "Straight") + f"** — {sz}"
+        lines.append(head)
+        lines += [f"> {x}" for x in legs]
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+def discord_value_plays(date, units):
+    res_list = st.session_state.get(f"slate_{date.isoformat()}")
+    if not res_list:
+        return None
+    rows = sorted([(res, r) for res in res_list for r in res["rows"] if strength(r["edge"], r["ev"])], key=lambda x: -x[1]["edge"])
+    if not rows:
+        return ""
+    lines = [f"🔥 **NBA value plays · {date.strftime('%a, %b %-d')}**", ""]
+    for res, r in rows:
+        g = res["game"]
+        stake = stake_for(r["model_p"], r["book_odds"])
+        sz = _u(round(stake / 100, 2)) if units else f"${stake:,.0f}"
+        lines.append(f"{'🔥' if r['edge'] >= LEAN_STRONG else '✅'} **{pick_name(r)}** ({r['book_odds']:+d}) · {short(g['away'])} @ {short(g['home'])}\n"
+                     f"　model {r['model_p'] * 100:.0f}% vs book {r['book_p'] * 100:.0f}% · {r['edge'] * 100:+.1f} pts · {sz}")
+    lines += ["", "_Model estimates, not guarantees._"]
+    return "\n".join(lines)
+
+
+def discord_view(date):
+    st.caption("One block of text, formatted for Discord. Hit the copy icon in the top right of the box, then paste it into your channel.")
+    src = st.radio("What to post", ["Cord plays (open)", "All open bets", "Today's value plays"], horizontal=True, key="dc_src")
+    c1, c2 = st.columns(2)
+    units = c1.toggle("Show units instead of dollars", value=True, key="dc_units")
+    book = c2.toggle("Show the book", value=True, key="dc_book", disabled=src == "Today's value plays")
+    if src == "Today's value plays":
+        txt = discord_value_plays(date, units)
+        if txt is None:
+            st.info("Run the **Full slate** for this date first, then come back here.")
+            return
+    else:
+        txt = discord_open_bets(src.startswith("Cord"), units, book)
+    if not txt:
+        st.info("Nothing to post right now.")
+        return
+    st.code(txt, language=None)
+    if len(txt) > 1900:
+        st.warning(f"This is {len(txt):,} characters and Discord stops at 2,000 per message. Post it in two parts.")
+    else:
+        st.caption(f"{len(txt):,} of 2,000 characters.")
+
+
+# ---------- Arbitrage and +EV ----------
+ODDS_BOOKS = {"draftkings": "DraftKings", "fanduel": "FanDuel", "betmgm": "BetMGM", "williamhill_us": "Caesars", "espnbet": "ESPN BET",
+              "betrivers": "BetRivers", "fanatics": "Fanatics", "hardrockbet": "Hard Rock"}
+
+
+def odds_api_key():
+    try:
+        k = st.secrets.get("ODDS_API_KEY")
+    except Exception:
+        k = None
+    return k or os.environ.get("ODDS_API_KEY")
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_multi_book(books_key, api_key):
+    return _get("https://api.the-odds-api.com/v4/sports/basketball_nba/odds",
+                {"apiKey": api_key, "bookmakers": ",".join(books_key), "markets": "h2h,spreads,totals", "oddsFormat": "american"}, tries=2)
+
+
+def scan_markets(events, min_ev):
+    # Groups every book's price for the same bet, then looks for arbitrage (both sides priced so the implied chances add to under 100%)
+    # and +EV (a price better than the other books' no-vig consensus).
+    arbs, evs = [], []
+    for ev in events:
+        home, away = ev["home_team"], ev["away_team"]
+        grp = {}
+        for bk in ev.get("bookmakers", []):
+            bname = ODDS_BOOKS.get(bk["key"], bk["title"])
+            for m in bk.get("markets", []):
+                for o in m.get("outcomes", []):
+                    p = o.get("point")
+                    if m["key"] == "h2h":
+                        key, side = ("Moneyline", None), ("A" if o["name"] == home else "B")
+                    elif m["key"] == "spreads":
+                        hp = p if o["name"] == home else (-p if p is not None else None)
+                        key, side = ("Spread", hp), ("A" if o["name"] == home else "B")
+                    else:
+                        key, side = ("Total", p), ("A" if o["name"] == "Over" else "B")
+                    if key[1] is None and key[0] != "Moneyline":
+                        continue
+                    grp.setdefault(key, {"A": {}, "B": {}})[side][bname] = int(o["price"])
+        for (mk, pt), sides in grp.items():
+            A, B = sides["A"], sides["B"]
+            if not A or not B:
+                continue
+            nameA = {"Moneyline": home, "Spread": f"{home} {pt:+g}" if pt is not None else home, "Total": f"Over {pt:g}" if pt is not None else "Over"}[mk]
+            nameB = {"Moneyline": away, "Spread": f"{away} {-pt:+g}" if pt is not None else away, "Total": f"Under {pt:g}" if pt is not None else "Under"}[mk]
+            game = f"{short(away)} @ {short(home)}"
+            bA, bB = max(A, key=A.get), max(B, key=B.get)
+            ia, ib = implied(A[bA]), implied(B[bB])
+            if ia + ib < 1.0:
+                tot = ia + ib
+                arbs.append({"Game": game, "Market": mk, "Bet 1": f"{nameA} {A[bA]:+d} @ {bA}", "Bet 2": f"{nameB} {B[bB]:+d} @ {bB}",
+                             "Guaranteed profit": f"{(1 / tot - 1) * 100:.2f}%", "_m": 1 / tot - 1,
+                             "Stakes per $100": f"${100 * ia / tot:.0f} on bet 1, ${100 * ib / tot:.0f} on bet 2"})
+            both = [b for b in A if b in B]
+            if len(both) >= 3:
+                fair = np.mean([novig(A[b], B[b])[0] for b in both])
+                for side, nm, S, pf in (("A", nameA, A, fair), ("B", nameB, B, 1 - fair)):
+                    for b, pr in S.items():
+                        e = pf * dec(pr) - 1
+                        if e >= min_ev:
+                            evs.append({"Game": game, "Market": mk, "Pick": nm, "Book": b, "Odds": f"{pr:+d}", "Fair chance": pct(pf),
+                                        "EV per $100": f"${e * 100:.1f}", "_e": e, "Books compared": len(both)})
+    arbs.sort(key=lambda r: -r["_m"])
+    evs.sort(key=lambda r: -r["_e"])
+    return arbs, evs
+
+
+def arb_calc():
+    st.markdown("#### Manual arbitrage check")
+    st.caption("Type in the best price you see for each side at two different books.")
+    c1, c2 = st.columns(2)
+    a = int(c1.number_input("Side 1 odds", -2000, 2000, 105, 5, key="ar_a"))
+    b = int(c2.number_input("Side 2 odds", -2000, 2000, -105, 5, key="ar_b"))
+    if abs(a) < 100 or abs(b) < 100:
+        st.warning("American odds are +100 or higher, or -100 or lower.")
+        return
+    ia, ib = implied(a), implied(b)
+    tot = ia + ib
+    if tot < 1:
+        st.success(f"Arbitrage: bet **${100 * ia / tot:.2f}** on side 1 and **${100 * ib / tot:.2f}** on side 2 for every $200 total. Guaranteed profit about **{(1 / tot - 1) * 100:.2f}%**.")
+    else:
+        st.info(f"No arbitrage: the two prices imply {tot * 100:.1f}% together (the book's cut is {(tot - 1) * 100:.1f}%).")
+
+
+def arb_view():
+    st.caption("Compares the same bet across sportsbooks. An **arbitrage** is a pair of prices that locks in profit whichever side wins. "
+               "A **+EV** spot is a price better than what the other books say the bet is worth.")
+    key = odds_api_key()
+    if not key:
+        st.info("To scan live prices across DraftKings, FanDuel and BetMGM, add a free key from **the-odds-api.com** to your Streamlit secrets as "
+                '`ODDS_API_KEY = "your-key"`. ESPN, where the rest of the app gets its lines, only shows one sportsbook, so it cannot do this on its own. '
+                "The manual check below works without a key.")
+    else:
+        books = st.multiselect("Sportsbooks to compare", list(ODDS_BOOKS), default=["draftkings", "fanduel", "betmgm", "williamhill_us"],
+                               format_func=lambda k: ODDS_BOOKS[k], key="ar_books")
+        min_ev = st.slider("Show +EV spots above (% return)", 0.5, 8.0, 2.0, 0.5, key="ar_minev") / 100
+        if st.button("🔎 Scan the market", type="primary", key="ar_scan"):
+            try:
+                with st.spinner("Pulling prices..."):
+                    events = fetch_multi_book(tuple(sorted(books)), key)
+                st.session_state["ar_res"] = scan_markets(events, min_ev)
+                st.session_state["ar_meta"] = (len(events), len(books), local_now().strftime("%-I:%M %p"))
+            except Exception as e:
+                st.error(f"Could not get prices ({e}). Check that the key is right and has requests left.")
+        if "ar_res" in st.session_state:
+            arbs, evs = st.session_state["ar_res"]
+            n, nb, ts = st.session_state["ar_meta"]
+            st.caption(f"{n} games · {nb} books · scanned at {ts}. Prices move quickly, so check them on the book before betting.")
+            st.markdown("#### Arbitrage")
+            if arbs:
+                st.dataframe(pd.DataFrame([{k: v for k, v in r.items() if not k.startswith("_")} for r in arbs]), hide_index=True)
+            else:
+                st.info("No arbitrage right now. That is normal: they are rare and disappear fast.")
+            st.markdown("#### +EV spots (vs. the other books)")
+            if evs:
+                st.dataframe(pd.DataFrame([{k: v for k, v in r.items() if not k.startswith("_")} for r in evs]), hide_index=True)
+                st.caption("Needs at least 3 books pricing the same line. 'Fair chance' is the average of the books' no-vig numbers.")
+            else:
+                st.info("Nothing above your threshold.")
+    arb_calc()
+
+
+def edge_tab(date):
+    t1, t2, t3, t4, t5 = st.tabs(["💵 Kelly stakes", "🔎 Arbitrage & +EV", "📐 CLV tracker", "🎯 Model accuracy", "📣 Discord post"])
+    with t1:
+        kelly_view(date)
+    with t2:
+        arb_view()
+    with t3:
+        clv_view()
+    with t4:
+        accuracy_view()
+    with t5:
+        discord_view(date)
+
+
+NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "🏆 Pick'em", "🧮 Edge tools", "💬 AI chat"]
 LOCKED_NAV = "🔒 Private"
 
 
@@ -4403,7 +5028,7 @@ def get_passcode():
 
 PASSCODE = get_passcode()
 private_ok = (not PASSCODE) or bool(st.session_state.get("unlocked"))
-menu = NAV if private_ok else NAV[:4] + [NAV[7], LOCKED_NAV]
+menu = NAV if private_ok else NAV[:4] + [NAV[8], LOCKED_NAV]
 if "_goto" in st.session_state:                           # jump to a section after unlocking
     st.session_state["main_nav"] = st.session_state.pop("_goto")
 if st.session_state.get("main_nav") not in menu:
@@ -4843,6 +5468,9 @@ POLISH_CSS = """
 # in the cascade without changing any Streamlit widgets or their state.
 st.markdown(POLISH_CSS, unsafe_allow_html=True)
 
+record_closing(date, games)
+record_closing(date - dt.timedelta(days=1), prev_games if "prev_games" in globals() else [])
+
 if nav == NAV[0]:
     game_picker("game")
     if None in (odds["home_ml"], odds["away_ml"], odds["home_spread"], odds["total"]):
@@ -4919,7 +5547,11 @@ if nav == NAV[6] and private_ok:
     open_warning()
     pickem_tab(M, date, games, injuries, b2b_teams)
 
-if nav == NAV[7]:
+if nav == NAV[7] and private_ok:
+    open_warning()
+    edge_tab(date)
+
+if nav == NAV[8]:
     chat_tab(date, games, injuries)
 
 

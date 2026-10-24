@@ -4249,7 +4249,7 @@ with hero:
     html('<div class="pro-hero pro-hero-s"><div class="hero-ring"></div><div class="hero-ring r2"></div>'
          '<div class="hs-left"><span class="pro-mark">🏀</span><div><div class="pro-title">NBA Prediction Engine</div>'
          '<div class="pro-sub">Live scores<i>·</i>Projections<i>·</i>Props<i>·</i>Picks</div></div></div>'
-         '<div class="hs-right">' + (f'<div class="hs-logos">{_logos}</div>' if _logos else "") +
+         '<div class="hs-right">'
          f'<div class="pro-chips"><span class="pro-live">{H(date.strftime("%A, %B %-d"))}</span>'
          '<span class="pro-live"><span class="pro-dot"></span>Live data from ESPN</span></div></div></div>')
 

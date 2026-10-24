@@ -5428,6 +5428,14 @@ HOME_CSS = """<style>
 .hm-ll{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.65;margin-bottom:.35rem}
 .hm-lr{display:flex;justify-content:space-between;gap:10px;padding:.3rem 0;font-size:.9rem;border-top:1px solid rgba(128,128,128,.12)}
 .hm-lr:first-of-type{border-top:0}.hm-lr i{opacity:.55;font-style:normal;font-size:.78rem}
+.hm-mug{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:1rem;margin-top:.4rem}
+.hm-mu{border:1px solid rgba(128,128,128,.25);border-radius:16px;padding:.8rem 1rem 1rem;background:rgba(128,128,128,.05)}
+.hm-mh{font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;opacity:.65;margin-bottom:.6rem;text-align:center}
+.hm-mh i{font-style:normal;opacity:.6;margin:0 .3rem}
+.hm-mrow{display:grid;grid-template-columns:1fr 1px 1fr;gap:.9rem}
+.hm-mvs{background:rgba(128,128,128,.25)}
+.hm-ms{min-width:0}
+.hm-mt{display:flex;align-items:center;gap:6px;margin-bottom:.45rem;font-size:.95rem}
 .hm-injg{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:.8rem;margin-top:.4rem}
 .hm-inj{border:1px solid rgba(128,128,128,.25);border-radius:14px;padding:.7rem .9rem;background:rgba(128,128,128,.05)}
 .hm-injt{font-weight:700;margin-bottom:.4rem;display:flex;align-items:center;gap:6px}
@@ -5598,28 +5606,32 @@ def _standings_html(rows, n=15):
 
 
 def _injury_section(sb, M, injuries, date):
-    items = []
-    for x in sb:
-        for team in (x["away"], x["home"]):
-            try:
-                rows = injury_rows(team, injuries, ratings_for(M, team, date))
-            except Exception:
-                rows = []
-            rows = [r for r in rows if str(r["Status"]).lower() in ("out", "doubtful", "questionable", "day-to-day")]
-            rows = [r for r in rows if (r["Min/game"] or 0) >= 22]          # rotation stars only
-            rows.sort(key=lambda r: (-(r["Min/game"] or 0)))
-            if rows:
-                pills = "".join(
-                    '<span class="pl pl-{k} hm-ip" tabindex="0">{x}<span class="hm-tip"><b>{n}</b><br>{t}</span></span>'.format(
-                        k="bad" if str(r["Status"]).lower() in ("out", "doubtful") else "warn",
-                        x=H(f'{r["Player"]} · {r["Status"]}'), n=H(f'{r["Player"]} ({r["Status"]})'),
-                        t=H(r["Note"] or "No update from ESPN yet.")) for r in rows[:2])
-                items.append(f'<div class="hm-inj"><div class="hm-injt">{logo(x["away_logo"] if team == x["away"] else x["home_logo"])}{H(short(team))}</div>'
-                             f'<div class="hm-injp">{pills}</div></div>')
-    if not items:
-        st.caption("No key players listed as injured for these games.")
+    def pills_for(team):
+        try:
+            rows = injury_rows(team, injuries, ratings_for(M, team, date))
+        except Exception:
+            rows = []
+        rows = [r for r in rows if str(r["Status"]).lower() in ("out", "doubtful", "questionable", "day-to-day")]
+        rows = [r for r in rows if (r["Min/game"] or 0) >= 22]          # rotation stars only
+        rows.sort(key=lambda r: (-(r["Min/game"] or 0)))
+        if not rows:
+            return '<span class="nb-muted" style="font-size:.8rem">No key injuries</span>'
+        return "".join(
+            '<span class="pl pl-{k} hm-ip" tabindex="0">{x}<span class="hm-tip"><b>{n}</b><br>{t}</span></span>'.format(
+                k="bad" if str(r["Status"]).lower() in ("out", "doubtful") else "warn",
+                x=H(f'{r["Player"]} · {r["Status"]}'), n=H(f'{r["Player"]} ({r["Status"]})'),
+                t=H(r["Note"] or "No update from ESPN yet.")) for r in rows[:3])
+
+    cards = []
+    for x in sorted(sb, key=lambda g: g.get("start", "")):
+        side = lambda team, lg: (f'<div class="hm-ms"><div class="hm-mt">{logo(lg)}<b>{H(short(team))}</b></div>'
+                                 f'<div class="hm-injp">{pills_for(team)}</div></div>')
+        cards.append(f'<div class="hm-mu"><div class="hm-mh">{H(short(x["away"]))} <i>@</i> {H(short(x["home"]))}</div>'
+                     f'<div class="hm-mrow">{side(x["away"], x["away_logo"])}<div class="hm-mvs"></div>{side(x["home"], x["home_logo"])}</div></div>')
+    if not cards:
+        st.caption("No games on this date.")
         return
-    html('<div class="hm-injg">' + "".join(items) + '</div>')
+    html('<div class="hm-mug">' + "".join(cards) + '</div>')
 
 
 def _performers(date_iso):
@@ -5758,7 +5770,7 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
 
     # ---- injuries and standings
     if sb0 and M is not None and injuries is not None:
-        html('<div class="hm-sec">Injury report<small>key players only (22+ minutes a game)</small></div>')
+        html('<div class="hm-sec">Injury report<small>key players only, by matchup</small></div>')
         _injury_section(sb0, M, injuries, date)
     try:
         stand = get_standings()

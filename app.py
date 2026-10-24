@@ -4096,40 +4096,48 @@ def pickem_tab(M, date, games, injuries, b2b):
                 fin = get_finals(iso)
             except Exception:
                 fin = {}
-            todo = 0
-            for g in games:
+            todo = sum(1 for g in games if g["state"] == "pre" and str(g["id"]) not in mine.index)
+
+            def _card(g):
                 eid = str(g["id"])
                 key = f"pk_{iso}_{eid}"
-                title = f"{logo(g.get('away_logo'))}{H(short(g['away']))} @ {logo(g.get('home_logo'))}{H(short(g['home']))}"
-                with st.container(border=True):
+                f = fin.get(eid)
+                win = (f["home"] if f["hs"] > f["as"] else f["away"]) if f else ""
+                title = (f'<div class="nb-top"><span class="nb-title">{logo(g.get("away_logo"))}{H(short(g["away"]))} @ '
+                         f'{logo(g.get("home_logo"))}{H(short(g["home"]))}</span>')
+                with st.container(border=True, key=f"pkcard_{iso}_{eid}"):
                     if eid in mine.index:                                               # locked in
                         r = mine.loc[eid]
-                        f = fin.get(eid)
-                        win = (f["home"] if f["hs"] > f["as"] else f["away"]) if f else ""
                         mark = lambda p: ("" if not win or not p else (" ✅" if p == win else " ❌"))
                         who = lambda p: short(p) if p else "no line"
-                        html(f'<div class="nb-title">{title}</div>')
-                        st.markdown(f"**You:** {who(r['my_pick'])}{mark(r['my_pick'])} &nbsp;·&nbsp; **Book:** {who(r['book_pick'])}"
-                                    + (f" ({int(float(r['book_ml'])):+d})" if r["book_ml"] else "") + f"{mark(r['book_pick'])} &nbsp;·&nbsp; "
-                                    f"**Model:** {who(r['model_pick'])}" + (f" ({float(r['model_p']) * 100:.0f}%)" if r["model_p"] else "") + mark(r["model_pick"]))
-                        if f:
-                            st.caption(f"Final: {short(g['away'])} {int(f['as'])}, {short(g['home'])} {int(f['hs'])}")
-                        elif g["state"] == "pre":
+                        badge_ = (badge("✅ You got it", "ok") if win and r["my_pick"] == win else badge("❌ Missed", "bad")) if win else badge("🔒 Locked", "acc")
+                        html(title + badge_ + '</div>'
+                             f'<div class="nb-muted">Your pick</div><div class="nb-winner">{logo(g.get("home_logo") if r["my_pick"] == g["home"] else g.get("away_logo"))}{H(short(r["my_pick"]))}</div>'
+                             + (f'<div class="nb-fscore">Final: {H(short(g["away"]))} {int(f["as"])}, {H(short(g["home"]))} {int(f["hs"])}</div>' if f else "")
+                             + '<div class="nb-chips">'
+                             f'<span class="nb-chip">Book: <b>{H(who(r["book_pick"]))}</b>' + (f' ({int(float(r["book_ml"])):+d})' if r["book_ml"] else "") + f'{mark(r["book_pick"])}</span>'
+                             f'<span class="nb-chip">Model: <b>{H(who(r["model_pick"]))}</b>' + (f' ({float(r["model_p"]) * 100:.0f}%)' if r["model_p"] else "") + f'{mark(r["model_pick"])}</span></div>')
+                        if not f and g["state"] == "pre":
                             if st.button("Change my pick", key=f"pkc_{iso}_{eid}", type="tertiary"):
                                 _all = load_pickem()
                                 save_pickem(_all[~((_all["date"] == iso) & (_all["event_id"] == eid))])
                                 st.rerun()
                     elif g["state"] == "pre":
-                        todo += 1
-                        html(f'<div class="nb-title">{title}</div>')
+                        html(title + badge("Open", "none") + '</div><div class="nb-muted">Pick the winner</div>')
                         try:
                             st.segmented_control("Winner", [g["away"], g["home"]], key=key, format_func=short, label_visibility="collapsed")
                         except AttributeError:
                             st.radio("Winner", [g["away"], g["home"]], index=None, key=key, format_func=short, horizontal=True, label_visibility="collapsed")
                     else:
-                        html(f'<div class="nb-title">{title}</div>')
-                        st.caption("Already started, so it can't be picked now." if not fin.get(eid) else
-                                   f"Final: {short(g['away'])} {int(fin[eid]['as'])}, {short(g['home'])} {int(fin[eid]['hs'])}. You didn't pick this one.")
+                        html(title + badge("Closed" if not f else "Final", "none") + '</div>'
+                             + (f'<div class="nb-fscore">Final: {H(short(g["away"]))} {int(f["as"])}, {H(short(g["home"]))} {int(f["hs"])}</div><div class="nb-muted">You didn\'t pick this one.</div>'
+                                if f else '<div class="nb-muted">Already started, so it can\'t be picked now.</div>'))
+
+            for k0 in range(0, len(games), 3):                       # cards, three across (they stack on a phone)
+                row = st.columns(3)
+                for c_, g_ in zip(row, games[k0:k0 + 3]):
+                    with c_:
+                        _card(g_)
             chosen = [g for g in games if g["state"] == "pre" and str(g["id"]) not in mine.index and st.session_state.get(f"pk_{iso}_{g['id']}")]
             if todo:
                 if st.button(f"🔒 Lock in {len(chosen)} pick{'s' if len(chosen) != 1 else ''}" if chosen else "🔒 Lock in picks", type="primary", key=f"pk_lock_{iso}", disabled=not chosen):
@@ -4280,6 +4288,7 @@ st.markdown("""<style>
 [class*="_sidewrap"] [data-testid="stButtonGroup"] button *{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:none !important}
 [class*="_sidewrap"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;min-width:0;padding-left:.2rem !important;padding-right:.2rem !important;white-space:nowrap;overflow:visible;height:2.5rem !important;min-height:2.5rem !important;display:flex;align-items:center;justify-content:center}
 [class*="st-key-bet_"][class*="_book"]:not(.st-key-bet_book):not(.st-key-bet_book_c){margin-left:.66rem;width:calc(100% - .66rem) !important}
+[class*="st-key-pkcard_"]{border-radius:14px !important}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}

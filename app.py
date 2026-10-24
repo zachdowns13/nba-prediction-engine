@@ -3791,7 +3791,7 @@ def record_list_html(rows):
 
 
 # ---- icons: Material icons in place of emoji in menus and headings ----
-ICON_BY_TEXT = {"Game odds": "monitoring", "Full slate": "format_list_bulleted", "Player props": "person", "First basket": "sports_basketball",
+ICON_BY_TEXT = {"Home": "home", "Game odds": "monitoring", "Full slate": "format_list_bulleted", "Player props": "person", "First basket": "sports_basketball",
                 "Results": "bar_chart", "My bets": "receipt_long", "Pick'em": "emoji_events", "Edge tools": "calculate",
                 "Kelly stakes": "payments", "CLV tracker": "show_chart", "Model accuracy": "target", "Discord post": "campaign",
                 "Today": "today", "All time": "calendar_month", "Selected date": "event", "Add a bet": "add_circle",
@@ -5301,6 +5301,165 @@ def sub_nav(labels, key):
     return labels.index(pick)
 
 
+# =====================================================================
+# HOME: live scoreboard and play-by-play
+# =====================================================================
+HOME_NAV = "🏠 Home"
+
+
+@st.cache_data(ttl=10, show_spinner=False)
+def home_scoreboard(date_iso):
+    d = dt.date.fromisoformat(date_iso)
+    data = _get(f"{BASE}/scoreboard", {"dates": d.strftime("%Y%m%d")}, tries=2)
+    out = []
+    for ev in data.get("events", []):
+        comp = ev["competitions"][0]
+        h = next(c for c in comp["competitors"] if c["homeAway"] == "home")
+        a = next(c for c in comp["competitors"] if c["homeAway"] == "away")
+        stt = ev["status"]["type"]
+
+        def _rec(c):
+            return next((r.get("summary", "") for r in c.get("records", []) if r.get("type") == "total"), "")
+        out.append({"id": ev["id"], "state": stt.get("state", "pre"), "detail": stt.get("shortDetail") or stt.get("detail") or "",
+                    "home": h["team"]["displayName"], "away": a["team"]["displayName"],
+                    "hs": h.get("score", "0"), "as": a.get("score", "0"),
+                    "home_logo": _team_logo(h["team"]), "away_logo": _team_logo(a["team"]),
+                    "hrec": _rec(h), "arec": _rec(a),
+                    "hwin": bool(h.get("winner")), "awin": bool(a.get("winner")),
+                    "start": ev.get("date", "")})
+    order = {"in": 0, "pre": 1, "post": 2}
+    out.sort(key=lambda x: (order.get(x["state"], 3), x["start"]))
+    return out
+
+
+@st.cache_data(ttl=10, show_spinner=False)
+def get_plays(event_id):
+    data = _get(f"{BASE}/summary", {"event": event_id}, tries=2)
+    plays = data.get("plays") or []
+    out = []
+    for p in plays:
+        out.append({"text": p.get("text") or p.get("shortDescription") or "", "clock": (p.get("clock") or {}).get("displayValue", ""),
+                    "period": (p.get("period") or {}).get("number", 0), "hs": p.get("homeScore"), "as": p.get("awayScore"),
+                    "scoring": bool(p.get("scoringPlay")), "team": (p.get("team") or {}).get("id", "")})
+    return out
+
+
+def _home_card(x):
+    live = x["state"] == "in"
+    pre = x["state"] == "pre"
+    if pre:
+        try:
+            t = pd.Timestamp(x["start"]).tz_convert(LOCAL_TZ if "LOCAL_TZ" in globals() else "America/Los_Angeles")
+            status = t.strftime("%-I:%M %p")
+        except Exception:
+            status = x["detail"]
+        mid = f'<div class="hm-time">{H(status)}</div>'
+    else:
+        mid = (f'<div class="hm-sc"><b class="{"hi" if x["awin"] else ""}">{H(x["as"])}</b><i>–</i><b class="{"hi" if x["hwin"] else ""}">{H(x["hs"])}</b></div>')
+    tag = (f'<span class="hm-tag live"><span class="pro-dot"></span>{H(x["detail"])}</span>' if live
+           else f'<span class="hm-tag">{H("Upcoming" if pre else x["detail"])}</span>')
+    return (f'<div class="hm-card{" is-live" if live else ""}">{tag}<div class="hm-row">'
+            f'<div class="hm-team">{logo_xl(x["away_logo"])}<div class="gc-name">{H(short(x["away"]))}</div><div class="gc-role">{H(x["arec"])}</div></div>'
+            f'<div class="hm-mid">{mid}</div>'
+            f'<div class="hm-team">{logo_xl(x["home_logo"])}<div class="gc-name">{H(short(x["home"]))}</div><div class="gc-role">{H(x["hrec"])}</div></div>'
+            f'</div></div>')
+
+
+HOME_CSS = """<style>
+.hm-hero{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.6rem;padding:.9rem 1.1rem;margin-bottom:.7rem;border-radius:16px;
+ background:linear-gradient(120deg,rgba(59,130,246,.22),rgba(168,85,247,.16) 60%,rgba(236,72,153,.12));border:1px solid rgba(59,130,246,.3)}
+.hm-hi{font-size:1.45rem;font-weight:800;line-height:1.15}.hm-hs{opacity:.7;font-size:.85rem}
+.hm-pills{display:flex;gap:6px;flex-wrap:wrap}
+.hm-p{display:inline-flex;align-items:center;gap:6px;padding:.25rem .7rem;border-radius:99px;background:rgba(128,128,128,.18);font-size:.8rem;font-weight:700}
+.hm-p.live{background:rgba(239,68,68,.2);color:#ef4444}
+.hm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:.7rem}
+.hm-card{border:1px solid var(--nb-border,rgba(128,128,128,.25));border-radius:14px;padding:.7rem .9rem .8rem;background:rgba(128,128,128,.05)}
+.hm-card.is-live{border-color:rgba(239,68,68,.55);box-shadow:0 0 0 1px rgba(239,68,68,.15)}
+.hm-tag{display:inline-flex;align-items:center;gap:6px;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.75}
+.hm-tag.live{color:#ef4444;opacity:1}
+.hm-row{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:.45rem}
+.hm-team{flex:1;text-align:center;min-width:0}
+.hm-mid{flex:none;text-align:center}
+.hm-sc{display:flex;align-items:center;gap:8px;font-size:1.9rem;font-weight:800;line-height:1}
+.hm-sc i{opacity:.4;font-style:normal;font-size:1.2rem}
+.hm-sc b{opacity:.75}.hm-sc b.hi{opacity:1}
+.hm-time{font-size:1.1rem;font-weight:700}
+.pbp{display:grid;gap:4px}
+.pbp-r{display:grid;grid-template-columns:62px 1fr auto;gap:10px;align-items:center;padding:7px 10px;border-radius:9px;background:rgba(128,128,128,.05);font-size:.88rem}
+.pbp-r.sc{background:rgba(59,130,246,.13);font-weight:600}
+.pbp-c{font-variant-numeric:tabular-nums;opacity:.65;font-size:.8rem}
+.pbp-s{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+.pbp-q{font-size:.7rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;opacity:.55;margin:8px 2px 2px}
+</style>"""
+
+
+def _home_body(date_iso):
+    try:
+        sb = home_scoreboard(date_iso)
+    except Exception as e:
+        st.error(f"Could not reach ESPN for live scores ({e}).")
+        return
+    if not sb:
+        st.info("No games on this date.")
+        return
+    n_live = sum(1 for x in sb if x["state"] == "in")
+    st.caption(f"{n_live} live now" if n_live else "No games live right now" + " · scores refresh automatically")
+    html('<div class="hm-grid">' + "".join(_home_card(x) for x in sb) + '</div>')
+
+    started = [x for x in sb if x["state"] in ("in", "post")]
+    st.markdown("### Play-by-play")
+    if not started:
+        st.caption("Play-by-play appears here once a game tips off.")
+        return
+    labels = {x["id"]: f'{short(x["away"])} {x["as"]} – {x["hs"]} {short(x["home"])}  ({"LIVE " if x["state"] == "in" else ""}{x["detail"]})' for x in started}
+    ids = list(labels)
+    if st.session_state.get("home_game") not in ids:
+        st.session_state["home_game"] = ids[0]
+    gid = st.selectbox("Game", ids, format_func=lambda i: labels[i], key="home_game")
+    try:
+        plays = get_plays(gid)
+    except Exception as e:
+        st.warning(f"Play-by-play isn't available right now ({e}).")
+        return
+    if not plays:
+        st.caption("No plays posted yet for this game.")
+        return
+    only_sc = st.toggle("Scoring plays only", key="home_scoring")
+    shown = [p for p in plays if p["scoring"]] if only_sc else plays
+    shown = list(reversed(shown))[:80]
+    parts, last_q = [], None
+    for p in shown:
+        if p["period"] != last_q:
+            last_q = p["period"]
+            parts.append(f'<div class="pbp-q">{"Quarter " + str(last_q) if last_q <= 4 else "Overtime " + str(last_q - 4)}</div>')
+        sc = f'{p["as"]}–{p["hs"]}' if p["scoring"] and p["as"] is not None else ""
+        parts.append(f'<div class="pbp-r{" sc" if p["scoring"] else ""}"><span class="pbp-c">{H(p["clock"])}</span><span>{H(p["text"])}</span><span class="pbp-s">{sc}</span></div>')
+    html('<div class="pbp">' + "".join(parts) + '</div>')
+    st.caption("Newest play first. Showing the latest 80.")
+
+
+def home_tab(date):
+    html(HOME_CSS)
+    try:
+        sb0 = home_scoreboard(date.isoformat())
+    except Exception:
+        sb0 = []
+    nl = sum(x["state"] == "in" for x in sb0)
+    nu = sum(x["state"] == "pre" for x in sb0)
+    nf = sum(x["state"] == "post" for x in sb0)
+    html(f'<div class="hm-hero"><div><div class="hm-hi">{H(date.strftime("%A, %B %-d"))}</div>'
+         f'<div class="hm-hs">{len(sb0)} games on the slate</div></div><div class="hm-pills">'
+         f'<span class="hm-p live"><span class="pro-dot"></span>{nl} live</span><span class="hm-p">{nu} upcoming</span><span class="hm-p">{nf} final</span></div></div>')
+    qc = st.columns(4)
+    for c, (lab, tgt, ic) in zip(qc, (("Simulate a game", NAV[0], "monitoring"), ("Full slate", NAV[1], "format_list_bulleted"),
+                                      ("Player props", NAV[2], "person"), ("First basket", NAV[3], "sports_basketball"))):
+        if c.button(lab, key=f"hmq_{tgt}", icon=f":material/{ic}:", use_container_width=True):
+            st.session_state["_goto"] = tgt
+            st.rerun()
+    run = _refreshing(_home_body)
+    run(date.isoformat())
+
+
 NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "🏆 Pick'em", "🧮 Edge tools"]
 LOCKED_NAV = "🔒 Private"
 
@@ -5315,7 +5474,7 @@ def get_passcode():
 
 PASSCODE = get_passcode()
 private_ok = (not PASSCODE) or bool(st.session_state.get("unlocked"))
-menu = NAV if private_ok else NAV[:4] + [LOCKED_NAV]
+menu = [HOME_NAV] + (NAV if private_ok else NAV[:4] + [LOCKED_NAV])
 if "_goto" in st.session_state:                           # jump to a section after unlocking
     st.session_state["main_nav"] = st.session_state.pop("_goto")
 if st.session_state.get("main_nav") not in menu:
@@ -5442,6 +5601,40 @@ with _nav_box:
     if nav not in menu:                                  # tapping the selected button again clears it; stay on the same page
         nav = st.session_state.get("_main_last") if st.session_state.get("_main_last") in menu else menu[0]
     st.session_state["_main_last"] = nav
+
+def tab_colors():
+    # A touch of color on each main tab (matched by its label, so it survives re-renders).
+    try:
+        import streamlit.components.v1 as components
+        components.html("""<script>
+        (function () {
+          const d = window.parent.document;
+          if (d.__tabColors) return; d.__tabColors = true;
+          const C = {'Home':'#38bdf8','Game odds':'#3b82f6','Full slate':'#a855f7','Player props':'#f59e0b','First basket':'#f97316',
+                     'Results':'#22c55e','My bets':'#14b8a6','Pick':'#ec4899','Edge tools':'#ef4444','Private':'#94a3b8'};
+          function rgba(h,a){const n=parseInt(h.slice(1),16);return 'rgba('+(n>>16)+','+((n>>8)&255)+','+(n&255)+','+a+')';}
+          function paint(){
+            d.querySelectorAll('.st-key-main_nav button').forEach(function(b){
+              const t=b.textContent||''; let c=null;
+              for (const k in C) if (t.indexOf(k)>-1){c=C[k];break;}
+              if(!c) return;
+              const on=b.getAttribute('aria-pressed')==='true'||b.getAttribute('aria-checked')==='true'||/Active|selected/i.test(b.getAttribute('data-testid')||'');
+              b.style.borderBottom='3px solid '+(on?c:rgba(c,.45));
+              b.style.background=on?rgba(c,.22):rgba(c,.06);
+              b.style.color=on?c:'';
+              b.style.fontWeight=on?'700':'';
+              b.querySelectorAll('span[data-testid="stIconMaterial"]').forEach(function(i){i.style.color=c;});
+            });
+          }
+          setInterval(paint,400); paint();
+        })();
+        </script>""", height=0)
+    except Exception:
+        pass
+
+
+tab_colors()
+
 
 def terms_help():
   with st.expander("What do these terms mean?"):
@@ -5768,7 +5961,8 @@ try:
     _css_slot = st.container(key="csslot")
 except TypeError:
     _css_slot = st.container()
-PAGE_INFO = {NAV[0]: ("Game odds", "Simulate one matchup 10,000 times and compare every price with the model."),
+PAGE_INFO = {HOME_NAV: ("Home", "Live scores for the night's games, with play-by-play."),
+             NAV[0]: ("Game odds", "Simulate one matchup 10,000 times and compare every price with the model."),
              NAV[1]: ("Full slate", "Every game on the date, ranked by where the model sees the most value."),
              NAV[2]: ("Player props", "Projected stat lines for each player, checked against the book's number."),
              NAV[3]: ("First basket", "Who is most likely to score first, from lineups, tip-off odds and recent play."),
@@ -5781,6 +5975,9 @@ if _pi:
     html(f'<div class="pro-page"><div class="pro-page-t">{H(_pi[0])}</div><div class="pro-page-s">{H(_pi[1])}</div></div>')
 record_closing(date, games)
 record_closing(date - dt.timedelta(days=1), prev_games if "prev_games" in globals() else [])
+
+if nav == HOME_NAV:
+    home_tab(date)
 
 if nav == NAV[0]:
     game_picker("game")

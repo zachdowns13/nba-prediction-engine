@@ -2133,13 +2133,18 @@ def market_dropdowns(base, by_date):
             st.markdown("  \n".join(lines))
 
 
-def model_period_view(log, graded, day, k):
+def model_period_view(log, graded, day, k, since=None):
     # One period (today / all time / the picked date): choose All plays or Value plays, then cards, dropdowns and lists.
     if day and not log.empty:
         log = log[log["date"].astype(str).str[:10] == day]
         graded = graded[graded["date"].astype(str).str[:10] == day]
+    elif since and not log.empty:
+        log = log[log["date"].astype(str).str[:10] >= since]
+        graded = graded[graded["date"].astype(str).str[:10] >= since]
     if log.empty:
-        if day:
+        if since:
+            st.info("No picks were saved in the last 7 days. Run the **Full slate** tab before games start and they will show up here.")
+        elif day:
             st.info(f"No picks were saved for {_nice_date(day)}. Run the **Full slate** tab before that day's games start and they will show up here.")
         else:
             st.info("Nothing saved yet. Open the **Full slate** tab and press **Run full slate** before games start. "
@@ -2162,7 +2167,7 @@ def model_period_view(log, graded, day, k):
     if base.empty:
         st.info("Nothing to show for this period yet.")
         return
-    model_cards(base, f"For {_nice_date(day)}." if day else "All time, every saved day.")
+    model_cards(base, f"For {_nice_date(day)}." if day else (f"Last 7 days, {_nice_date(since)} to today." if since else "All time, every saved day."))
     market_dropdowns(base, by_date=not day)
     if view == "Value plays" and not gd.empty:
         groups = [(f"{x} value", gd[gd["strength"] == x]) for x in gd["strength"].dropna().unique() if str(x)]
@@ -2223,12 +2228,14 @@ def game_results_view():
     graded = log[log["result"].isin(["W", "L", "P"])].copy()
     for c in ("odds", "model_p", "book_p", "edge", "profit"):
         graded[c] = pd.to_numeric(graded[c])
-    _sub = sub_nav(["📅 Today", "📊 All time", "🗓️ Selected date"], "results")
+    _sub = sub_nav(["📅 Today", "🗓️ Week", "📊 All time", "🗓️ Selected date"], "results")
     if _sub == 0:
         model_period_view(log, graded, local_today().isoformat(), "today")
     if _sub == 1:
-        model_period_view(log, graded, None, "all")
+        model_period_view(log, graded, None, "week", since=(local_today() - dt.timedelta(days=6)).isoformat())
     if _sub == 2:
+        model_period_view(log, graded, None, "all")
+    if _sub == 3:
         model_period_view(log, graded, st.session_state["sel_date"].isoformat(), "sel")
 
 

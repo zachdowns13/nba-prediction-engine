@@ -169,7 +169,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
                "Model expected": "How often the model said these picks would win, on average."}
 
 
-st.set_page_config(page_title="NBA Simulator", page_icon="🏀", layout="wide")
+st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
 
@@ -4240,11 +4240,11 @@ except Exception:
 
 with hero:
     _n = len(games)
-    html('<div class="pro-hero"><div class="pro-hero-top"><div class="pro-brand"><span class="pro-mark">🏀</span>'
-         '<div><div class="pro-title">NBA Simulator</div>'
-         '<div class="pro-sub">10,000 simulations per game, priced against the sportsbooks, with injuries weighted automatically.</div></div></div>'
-         f'<div class="pro-chips"><span class="pro-live">{H(date.strftime("%A, %b %-d"))}</span>'
-         '<span class="pro-live"><span class="pro-dot"></span>Live data from ESPN</span></div></div></div>')
+    html('<div class="pro-hero pro-hero-c"><div class="hero-ring"></div><div class="hero-ring r2"></div>'
+         '<span class="pro-mark">🏀</span><div class="pro-title">NBA Hub</div>'
+         '<div class="pro-sub">Live scores<i>·</i>Projections<i>·</i>Props<i>·</i>Picks</div>'
+         f'<div class="pro-chips"><span class="pro-live">{H(date.strftime("%A, %B %-d"))}</span>'
+         '<span class="pro-live"><span class="pro-dot"></span>Live data from ESPN</span></div></div>')
 
 labels = [f"{g['away']} @ {g['home']}" for g in games] + ["✏️ Manual matchup"]
 choice = st.session_state.get("sel_game")
@@ -6516,6 +6516,21 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
   background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); backdrop-filter:blur(8px); white-space:nowrap; }
 .pro-dot{ width:8px; height:8px; border-radius:50%; background:#4ade80; box-shadow:0 0 0 0 rgba(74,222,128,.7); animation:proPulse 2s infinite; }
 @keyframes proPulse{ 70%{ box-shadow:0 0 0 8px rgba(74,222,128,0) } 100%{ box-shadow:0 0 0 0 rgba(74,222,128,0) } }
+
+.pro-hero-c{ display:flex; flex-direction:column; align-items:center; text-align:center; gap:.4rem; padding:1.35rem 1.2rem 1.15rem;
+  background:radial-gradient(420px 200px at 12% 130%, rgba(249,115,22,.40), transparent 70%),
+             radial-gradient(520px 240px at 88% -40%, rgba(96,165,250,.55), transparent 70%),
+             linear-gradient(130deg,#060a14 0%,#0d1a3d 55%,#16348f 130%); }
+.pro-hero-c:after{ mask-image:radial-gradient(60% 90% at 50% 50%, #000 0%, transparent 85%); -webkit-mask-image:radial-gradient(60% 90% at 50% 50%, #000 0%, transparent 85%); }
+.pro-hero-c > *:not(.hero-ring){ position:relative; z-index:1; }
+.hero-ring{ position:absolute; left:50%; top:50%; width:340px; height:340px; transform:translate(-50%,-50%); border-radius:50%; border:1px solid rgba(255,255,255,.09); pointer-events:none; }
+.hero-ring.r2{ width:210px; height:210px; border-color:rgba(255,255,255,.07); }
+.pro-hero-c .pro-mark{ width:46px; height:46px; font-size:1.5rem; margin-bottom:.1rem; }
+.pro-hero-c .pro-title{ font-size:2.35rem; letter-spacing:-.05em; line-height:1.05;
+  background:linear-gradient(90deg,#ffffff 10%,#bfdbfe 50%,#fdba74 100%); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent; }
+.pro-hero-c .pro-sub{ margin:0; font-size:.78rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase; opacity:.8; }
+.pro-hero-c .pro-sub i{ font-style:normal; margin:0 .6rem; opacity:.5; }
+.pro-hero-c .pro-chips{ justify-content:center; margin-top:.45rem; }
 .pro-stats{ position:relative; z-index:1; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:.6rem; margin-top:1.15rem; }
 .pro-stat{ padding:.65rem .85rem; border-radius:12px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); }
 .pro-sv{ font-size:1.25rem; font-weight:750; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
@@ -6665,5 +6680,5 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 """
 with _css_slot:
     st.markdown(PRO_CSS, unsafe_allow_html=True)
-html('<div class="pro-foot"><div><b>NBA Simulator</b> · Projections are model estimates, not guarantees. Lines, scores and injuries come from ESPN.</div>'
+html('<div class="pro-foot"><div><b>NBA Hub</b> · Projections are model estimates, not guarantees. Lines, scores and injuries come from ESPN.</div>'
      '<div>For entertainment. Please bet responsibly. Help is available at 1-800-GAMBLER.</div></div>')

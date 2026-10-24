@@ -5374,7 +5374,7 @@ HOME_CSS = """<style>
 .hm-p.live{background:rgba(239,68,68,.2);color:#ef4444}
 .hm-model{margin-top:.7rem;padding-top:.6rem;border-top:1px solid rgba(128,128,128,.2);font-size:.78rem;opacity:.85;text-align:center}
 .hm-ok{margin-left:4px}.hm-ok.good{color:#22c55e}.hm-ok.bad{color:#ef4444}
-.hm-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-top:.4rem}
+.hm-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-top:.4rem}
 .hm-tile{border:1px solid rgba(128,128,128,.25);border-radius:16px;padding:.9rem 1.1rem;background:rgba(128,128,128,.05)}
 .hm-tl{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.65}
 .hm-tb{font-size:1.9rem;font-weight:800;line-height:1.2;margin:.15rem 0}
@@ -5607,7 +5607,7 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
     html(f'<div class="hm-hero"><div><div class="hm-hi">{H(hdate.strftime("%A, %B %-d"))}</div>'
          f'<div class="hm-hs">{(d_lab + " · ") if d_lab else ""}{len(sb0)} games on the slate</div></div><div class="hm-pills">'
          f'<span class="hm-p live"><span class="pro-dot"></span>{nl} live</span><span class="hm-p">{nu} upcoming</span><span class="hm-p">{nf} final</span></div></div>')
-    d1, d2, d3, _sp = st.columns([1, 1, 1, 3], gap="small")
+    d1, d2, d3 = st.columns(3, gap="medium")
     if d1.button("Previous day", key="hm_prev", icon=":material/chevron_left:", use_container_width=True):
         st.session_state["home_off"] = off - 1
         st.rerun()
@@ -5637,12 +5637,11 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
                 st.session_state[gk] = True
             log = add_pick_flag(expand_wide(wide)) if len(wide) else pd.DataFrame(columns=["date", "result", "profit", "is_pick"])
             bets = load_bets()
-            w7, w30 = _window_stats(log, bets, local_today(), 7), _window_stats(log, bets, local_today(), 30)
+            w7 = _window_stats(log, bets, local_today(), 7)
             html('<div class="hm-sec">Your record</div><div class="hm-tiles">'
                  + _tile("Model picks · 7 days", w7["model"][0], f'{_pm(w7["model"][1])} per $100 flat')
-                 + _tile("Model picks · 30 days", w30["model"][0], f'{_pm(w30["model"][1])} per $100 flat')
                  + _tile("My bets · 7 days", w7["bets"][0], f'{_pm(w7["bets"][1])} profit')
-                 + _tile("My bets · 30 days", w30["bets"][0], f'{_pm(w30["bets"][1])} profit') + '</div>')
+                 + '</div>')
             # yesterday's recap (relative to the day being viewed)
             ry = (hdate - dt.timedelta(days=1)).isoformat()
             dy = log[(log["date"].astype(str) == ry) & (log["is_pick"]) & (log["result"].isin(["W", "L", "P"]))] if len(log) else log

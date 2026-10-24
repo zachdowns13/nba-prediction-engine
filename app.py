@@ -5392,6 +5392,11 @@ HOME_CSS = """<style>
 .hm-injp{display:flex;flex-wrap:wrap;gap:6px}
 .hm-stl{display:grid;gap:3px;margin-top:.2rem}
 .hm-st{display:flex;align-items:center;gap:8px;padding:.35rem .6rem;border-radius:9px;background:rgba(128,128,128,.06);font-size:.9rem}
+.hm-st.z-in{background:rgba(34,197,94,.13);box-shadow:inset 3px 0 0 #22c55e}
+.hm-st.z-pi{background:rgba(245,158,11,.13);box-shadow:inset 3px 0 0 #f59e0b}
+.hm-st.z-out{background:rgba(128,128,128,.06);box-shadow:inset 3px 0 0 rgba(148,163,184,.4);opacity:.8}
+.hm-key{display:flex;gap:14px;flex-wrap:wrap;font-size:.78rem;opacity:.85;margin:.2rem 0 .5rem}
+.hm-key i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle}
 .hm-n{width:18px;opacity:.55;font-size:.78rem}.hm-sn{flex:1;font-weight:600}.hm-sr{font-variant-numeric:tabular-nums;opacity:.85}
 .hm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:1rem}
 .hm-sec{font-size:1.15rem;font-weight:800;margin:1.4rem 0 .2rem;display:flex;align-items:baseline;gap:.6rem}
@@ -5537,8 +5542,10 @@ def get_standings():
     return out
 
 
-def _standings_html(rows, n=8):
-    body = "".join(f'<div class="hm-st"><span class="hm-n">{i}</span>{logo(r["logo"])}<span class="hm-sn">{H(short(r["team"]))}</span>'
+def _standings_html(rows, n=15):
+    def zone(i):
+        return "in" if i <= 6 else ("pi" if i <= 10 else "out")
+    body = "".join(f'<div class="hm-st z-{zone(i)}"><span class="hm-n">{i}</span>{logo(r["logo"])}<span class="hm-sn">{H(short(r["team"]))}</span>'
                    f'<span class="hm-sr">{r["w"]}-{r["l"]}</span></div>' for i, r in enumerate(rows[:n], 1))
     return f'<div class="hm-stl">{body}</div>'
 
@@ -5687,7 +5694,9 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
     except Exception:
         stand = {}
     if stand:
-        html('<div class="hm-sec">Standings<small>top 8 in each conference</small></div>')
+        html('<div class="hm-sec">Standings<small>every team, by conference</small></div>'
+             '<div class="hm-key"><span><i style="background:#22c55e"></i>1-6 playoffs</span><span><i style="background:#f59e0b"></i>7-10 play-in</span>'
+             '<span><i style="background:rgba(148,163,184,.5)"></i>11-15 out</span></div>')
         cs = st.columns(2, gap="large")
         for c, (nm, rows) in zip(cs, list(stand.items())[:2]):
             with c:

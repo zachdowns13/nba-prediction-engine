@@ -5379,6 +5379,7 @@ HOME_CSS = """<style>
 .hm-tag.live{color:#ef4444;opacity:1}
 .hm-row{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:.45rem}
 .hm-team{flex:1;text-align:center;min-width:0}
+.hm-team .gc-logo{display:block;margin:0 auto .3rem;width:56px;height:56px}
 .hm-mid{flex:none;text-align:center}
 .hm-sc{display:flex;align-items:center;gap:8px;font-size:1.9rem;font-weight:800;line-height:1}
 .hm-sc i{opacity:.4;font-style:normal;font-size:1.2rem}

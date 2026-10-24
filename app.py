@@ -5383,7 +5383,8 @@ HOME_CSS = """<style>
 .hm-rcs{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:.7rem;margin-top:.4rem}
 .hm-rc{border:1px solid rgba(128,128,128,.25);border-radius:12px;padding:.55rem .8rem;background:rgba(128,128,128,.05)}
 .hm-rc.big{border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.1)}
-.hm-rb{font-size:1.3rem;font-weight:800;line-height:1.25}
+.hm-rb{font-size:1.5rem;font-weight:800;line-height:1.25}
+.hm-rc{text-align:center;padding:.8rem .8rem}
 .hm-recap{padding:.9rem 1.1rem;border-radius:14px;border:1px solid rgba(128,128,128,.25);background:rgba(128,128,128,.05);margin-top:.4rem;font-size:1rem}
 .hm-leads{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin-top:.4rem}
 .hm-lead{border:1px solid rgba(128,128,128,.25);border-radius:14px;padding:.8rem 1rem;background:rgba(128,128,128,.05);margin-top:.4rem}
@@ -5842,6 +5843,9 @@ def tab_colors():
           function rgba(h,a){const n=parseInt(h.slice(1),16);return 'rgba('+(n>>16)+','+((n>>8)&255)+','+(n&255)+','+a+')';}
           function paint(){
             d.querySelectorAll('.st-key-main_nav button').forEach(function(b){
+              let q=b.parentElement; if(q){q.style.display='flex';}
+              while(q && !(q.classList && q.classList.contains('st-key-main_nav'))){q.style.width='100%';q.style.maxWidth='100%';q=q.parentElement;}
+              b.style.flex='1 1 0'; b.style.justifyContent='center';
               const t=b.textContent||''; let c=null;
               for (const k in C) if (t.indexOf(k)>-1){c=C[k];break;}
               if(!c) return;
@@ -6499,6 +6503,9 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 [data-testid="stAlert"]{ border-radius:14px !important; }
 
 .st-key-csslot{ display:none; }
+.st-key-main_nav,.st-key-main_nav > *,.st-key-main_nav [data-testid="stButtonGroup"],.st-key-main_nav [data-baseweb="button-group"]{width:100% !important;max-width:100% !important}
+.st-key-main_nav [data-testid="stButtonGroup"],.st-key-main_nav [data-baseweb="button-group"]{display:flex !important}
+.st-key-main_nav button{flex:1 1 0 !important;justify-content:center !important}
 [data-testid="stElementContainer"]:has(style):not(:has(p)):not(:has(table)):not(:has(.nb-card)){ display:none; }
 /* Footer */
 .pro-foot{ margin:2.6rem 0 .6rem; padding-top:1rem; border-top:1px solid var(--p-line); color:var(--p-mute); font-size:.78rem; line-height:1.55; display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; }

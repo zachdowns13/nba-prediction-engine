@@ -5241,27 +5241,37 @@ def dropdown_toggle_fix():
             pinTabs(el);
           }
           function pinTabs(navEl) {
-            // Keep the sub-tabs of the current page pinned just under the main menu (top-level tab bars only).
-            const top = 60 + navEl.getBoundingClientRect().height;
+            // Keeps each top-level tab bar visible just under the main menu once you scroll past it.
+            const top = Math.round(navEl.getBoundingClientRect().bottom) + 2;
             doc.documentElement.style.setProperty('--nb-tabtop', top + 'px');
-            doc.querySelectorAll('[data-baseweb="tab-list"]').forEach(function (tl) {
-              if (tl.closest('[role="tabpanel"]')) return;
-              const root = tl.closest('[data-baseweb="tabs"]');
-              let bar = tl;
-              while (bar.parentElement && bar.parentElement !== root) bar = bar.parentElement;
-              bar.style.position = 'sticky'; bar.style.top = top + 'px'; bar.style.zIndex = '900';
-              bar.style.background = bg() || '';
-              let p = bar.parentElement;
-              while (p && p !== doc.body) {
-                if (p.matches('[data-testid="stMain"], section')) break;
-                const cs = P.getComputedStyle(p);
-                if (cs.overflowY !== 'visible' || cs.overflowX !== 'visible') p.style.overflow = 'visible';
-                p = p.parentElement;
+            doc.querySelectorAll('[data-baseweb="tab-list"]').forEach(function (bar) {
+              if (bar.closest('[role="tabpanel"]')) return;
+              let ph = bar.__ph;
+              if (!ph || !ph.isConnected || ph.nextSibling !== bar) {
+                ph = bar.__ph = doc.createElement('div');
+                ph.style.height = '0px';
+                bar.parentElement.insertBefore(ph, bar);
+              }
+              const pinned = bar.dataset.nbPinned === '1';
+              const natural = pinned ? ph.getBoundingClientRect().top : bar.getBoundingClientRect().top;
+              if (natural < top) {
+                const h = pinned ? parseFloat(ph.style.height) : bar.getBoundingClientRect().height;
+                const r = bar.parentElement.getBoundingClientRect();
+                ph.style.height = h + 'px';
+                bar.dataset.nbPinned = '1';
+                bar.style.position = 'fixed'; bar.style.top = top + 'px'; bar.style.left = r.left + 'px';
+                bar.style.width = r.width + 'px'; bar.style.zIndex = '900';
+                bar.style.background = bg() || '';
+              } else if (pinned) {
+                ph.style.height = '0px';
+                delete bar.dataset.nbPinned;
+                ['position', 'top', 'left', 'width', 'zIndex', 'background'].forEach(function (k) { bar.style[k] = ''; });
               }
             });
           }
           function setBg() { const c = bg(); if (c) doc.documentElement.style.setProperty('--nb-bg', c); pin(); }
           setBg();
+          if (!P.__nbScroll) { P.__nbScroll = true; doc.addEventListener('scroll', function () { try { P.__nbSet(); } catch (e) {} }, true); P.addEventListener('resize', function () { try { P.__nbSet(); } catch (e) {} }); }
           P.__nbSet = setBg;                                  // always run the newest copy, and keep the timer on the page itself
           if (!P.__nbBg) { P.__nbBg = true; P.setInterval(function () { try { P.__nbSet(); } catch (e) {} }, 1000); }
         })();

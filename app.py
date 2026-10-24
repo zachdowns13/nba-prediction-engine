@@ -5401,6 +5401,10 @@ HOME_CSS = """<style>
 .hm-injg{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:.8rem;margin-top:.4rem}
 .hm-inj{border:1px solid rgba(128,128,128,.25);border-radius:14px;padding:.7rem .9rem;background:rgba(128,128,128,.05)}
 .hm-injt{font-weight:700;margin-bottom:.4rem;display:flex;align-items:center;gap:6px}
+.hm-ip{position:relative;cursor:help;outline:none}
+.hm-tip{display:none;position:absolute;left:0;bottom:calc(100% + 8px);z-index:9999;width:260px;white-space:normal;text-align:left;font-weight:500;font-size:.8rem;line-height:1.35;
+ padding:.55rem .7rem;border-radius:10px;background:#0f172a;color:#e6edf7;border:1px solid rgba(148,163,184,.35);box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.hm-ip:hover .hm-tip,.hm-ip:focus .hm-tip{display:block}
 .hm-injp{display:flex;flex-wrap:wrap;gap:6px}
 .hm-stl{display:grid;gap:3px;margin-top:.2rem}
 .hm-st{display:flex;align-items:center;gap:8px;padding:.35rem .6rem;border-radius:9px;background:rgba(128,128,128,.06);font-size:.9rem}
@@ -5575,10 +5579,10 @@ def _injury_section(sb, M, injuries, date):
             rows.sort(key=lambda r: (-(r["Min/game"] or 0)))
             if rows:
                 pills = "".join(
-                    '<span class="pl pl-{k}" style="cursor:help" title="{t}">{x}</span>'.format(
+                    '<span class="pl pl-{k} hm-ip" tabindex="0">{x}<span class="hm-tip"><b>{n}</b><br>{t}</span></span>'.format(
                         k="bad" if str(r["Status"]).lower() in ("out", "doubtful") else "warn",
-                        t=H(f'{r["Player"]} ({r["Status"]}): ' + (r["Note"] or "No update from ESPN yet."))
-                        .replace('"', "&quot;"), x=H(f'{r["Player"]} · {r["Status"]}')) for r in rows[:2])
+                        x=H(f'{r["Player"]} · {r["Status"]}'), n=H(f'{r["Player"]} ({r["Status"]})'),
+                        t=H(r["Note"] or "No update from ESPN yet.")) for r in rows[:2])
                 items.append(f'<div class="hm-inj"><div class="hm-injt">{logo(x["away_logo"] if team == x["away"] else x["home_logo"])}{H(short(team))}</div>'
                              f'<div class="hm-injp">{pills}</div></div>')
     if not items:
@@ -5652,23 +5656,6 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
                 st.session_state[gk] = True
             log = add_pick_flag(expand_wide(wide)) if len(wide) else pd.DataFrame(columns=["date", "result", "profit", "is_pick"])
             bets = load_bets()
-            # recap: on Today it covers last night; on any other day it covers that day's own picks (0-0 when there are none)
-            rday = hdate - dt.timedelta(days=1) if off == 0 else hdate
-            ry = rday.isoformat()
-            if len(log):
-                dy = log[(log["date"].astype(str).str[:10] == ry) & (log["is_pick"]) & (log["result"].isin(["W", "L", "P"]))]
-            else:
-                dy = pd.DataFrame(columns=["date", "result", "profit", "is_pick", "market"])
-
-            def _rc(label, d_, big=False):
-                pr = pd.to_numeric(d_["profit"], errors="coerce").fillna(0).sum()
-                rec = record_line(d_) if len(d_) else "0-0"
-                return (f'<div class="hm-rc{" big" if big else ""}"><div class="hm-tl">{label}</div>'
-                        f'<div class="hm-rb">{rec}</div><div class="hm-ts">{_pm(pr) if len(d_) else _pm(0)}</div></div>')
-            parts = _rc("Overall", dy, True) + "".join(_rc(nm + "s", dy[dy["market"] == nm]) for nm in ("Moneyline", "Spread", "Total"))
-            _who = "Yesterday's" if (off == 0 or off == -1) else ("Tomorrow's" if off == 1 else rday.strftime("%A's"))
-            html(f'<div class="hm-sec">{_who} recap<small>{H(rday.strftime("%A, %b %-d"))}</small></div>'
-                 f'<div class="hm-rcs">{parts}</div>')
             # open bets
             ob = bets[~bets["result"].isin(["W", "L", "P"])] if len(bets) else bets
             if len(ob):

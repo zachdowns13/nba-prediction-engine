@@ -4612,8 +4612,16 @@ def kelly_view(date):
         st.info("Run the **Full slate** for this date first. The value plays then show up here with a stake.")
     else:
         show_all = st.radio("Show", ["All plays", "Value plays only"], horizontal=True, key="kelly_show",
-                            help="All plays lists every moneyline, spread and total side. Kelly only bets when the model sees an edge, so sides without one show $0.") == "All plays"
-        rows = [(res, r) for res in res_list for r in res["rows"] if show_all or strength(r["edge"], r["ev"])]
+                            help="All plays lists every game's moneyline, spread and total once, showing the side the model likes more. Kelly only bets when the model sees an edge, so a side without one shows $0.") == "All plays"
+        if show_all:                       # each market once: the side the model likes more than the book does
+            rows = []
+            for res in res_list:
+                for mk in ("Moneyline", "Spread", "Total"):
+                    sides = [r for r in res["rows"] if r["market"] == mk]
+                    if sides:
+                        rows.append((res, max(sides, key=lambda r: r["edge"])))
+        else:
+            rows = [(res, r) for res in res_list for r in res["rows"] if strength(r["edge"], r["ev"])]
         rows.sort(key=lambda x: -x[1]["edge"])
         if not rows:
             st.info("No value plays on this slate.")

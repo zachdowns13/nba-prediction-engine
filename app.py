@@ -1472,7 +1472,7 @@ def props_tab(M, g, odds, injuries, date, b2b):
 import base64 as _b64
 import threading as _th
 
-_DATA_FILES = ["bets_log.csv", "bets_trash.csv", "picks_log.csv", "props_log.csv", "value_reset.txt"]
+_DATA_FILES = ["bets_log.csv", "bets_trash.csv", "picks_log.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv"]
 _GH = {"sha": {}, "lock": _th.Lock(), "restored": False, "err": ""}
 
 
@@ -4015,7 +4015,190 @@ def game_picker(tab):
         st.info("No games found for this date (the season may not have started). Pick another date or use the manual matchup.")
 
 
-NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "💬 AI chat"]
+# =====================================================================
+# PICK'EM  (you pick every winner, then see how you stack up against the book and the model)
+# =====================================================================
+PICKEM_PATH = "pickem_log.csv"
+PICKEM_COLS = ["date", "event_id", "away", "home", "my_pick", "book_pick", "book_ml", "model_pick", "model_p", "saved_at"]
+
+
+def load_pickem():
+    try:
+        df = pd.read_csv(PICKEM_PATH, dtype=str)
+    except Exception:
+        df = st.session_state.get("pickem_df", pd.DataFrame(columns=PICKEM_COLS))
+    return df.reindex(columns=PICKEM_COLS).fillna("").reset_index(drop=True)
+
+
+def save_pickem(df):
+    df = df.reindex(columns=PICKEM_COLS).fillna("").reset_index(drop=True)
+    st.session_state["pickem_df"] = df
+    try:
+        df.to_csv(PICKEM_PATH, index=False)
+        cloud_save(PICKEM_PATH)
+        return True
+    except Exception:
+        return False
+
+
+def book_favorite(g):
+    # The sportsbook's pick = the moneyline favorite (no-vig). Returns (team, favorite's moneyline) or ("", "") with no line.
+    o = g.get("odds") or {}
+    h, a = o.get("home_ml"), o.get("away_ml")
+    if h is None or a is None:
+        return "", ""
+    ph, _pa = novig(h, a)
+    if abs(ph - 0.5) < 1e-9:
+        return "", ""
+    return (g["home"], h) if ph > 0.5 else (g["away"], a)
+
+
+def _wl(oks):
+    oks = [x for x in oks if x is not None]
+    w = sum(1 for x in oks if x)
+    return w, len(oks) - w
+
+
+def _wl_txt(w, l):
+    return f"{w}-{l}" + (f" ({w / (w + l) * 100:.0f}%)" if w + l else "")
+
+
+def graded_pickem(df):
+    # Adds who actually won, and whether you / the book / the model got each finished game right.
+    rows = []
+    for d in sorted(df["date"].unique()):
+        try:
+            fin = get_finals(str(d))
+        except Exception:
+            fin = {}
+        for _, r in df[df["date"] == d].iterrows():
+            f = fin.get(str(r["event_id"]))
+            win = (f["home"] if f["hs"] > f["as"] else f["away"]) if f else ""
+            ok = lambda p: (None if (not win or not p) else (p == win))
+            rows.append({**r.to_dict(), "winner": win, "me_ok": ok(r["my_pick"]), "book_ok": ok(r["book_pick"]), "model_ok": ok(r["model_pick"]),
+                         "score": (f"{int(f['as'])}-{int(f['hs'])}" if f else "")})
+    return pd.DataFrame(rows)
+
+
+def pickem_tab(M, date, games, injuries, b2b):
+    st.caption("Pick the winner of every game, then see how you match up against the sportsbook (its moneyline favorite) and the model. "
+               "The book's and the model's picks are saved at the moment you lock yours in, so you can't peek first.")
+    t_pick, t_board = st.tabs(["🎯 Make picks", "📊 Scoreboard"])
+    iso = date.isoformat()
+    saved = load_pickem()
+    with t_pick:
+        date_picker("pickem")
+        if not games:
+            st.info("No games on this date.")
+        else:
+            mine = saved[saved["date"] == iso].set_index("event_id")
+            try:
+                fin = get_finals(iso)
+            except Exception:
+                fin = {}
+            todo = 0
+            for g in games:
+                eid = str(g["id"])
+                key = f"pk_{iso}_{eid}"
+                title = f"{logo(g.get('away_logo'))}{H(short(g['away']))} @ {logo(g.get('home_logo'))}{H(short(g['home']))}"
+                with st.container(border=True):
+                    if eid in mine.index:                                               # locked in
+                        r = mine.loc[eid]
+                        f = fin.get(eid)
+                        win = (f["home"] if f["hs"] > f["as"] else f["away"]) if f else ""
+                        mark = lambda p: ("" if not win or not p else (" ✅" if p == win else " ❌"))
+                        who = lambda p: short(p) if p else "no line"
+                        html(f'<div class="nb-title">{title}</div>')
+                        st.markdown(f"**You:** {who(r['my_pick'])}{mark(r['my_pick'])} &nbsp;·&nbsp; **Book:** {who(r['book_pick'])}"
+                                    + (f" ({int(float(r['book_ml'])):+d})" if r["book_ml"] else "") + f"{mark(r['book_pick'])} &nbsp;·&nbsp; "
+                                    f"**Model:** {who(r['model_pick'])}" + (f" ({float(r['model_p']) * 100:.0f}%)" if r["model_p"] else "") + mark(r["model_pick"]))
+                        if f:
+                            st.caption(f"Final: {short(g['away'])} {int(f['as'])}, {short(g['home'])} {int(f['hs'])}")
+                        elif g["state"] == "pre":
+                            if st.button("Change my pick", key=f"pkc_{iso}_{eid}", type="tertiary"):
+                                _all = load_pickem()
+                                save_pickem(_all[~((_all["date"] == iso) & (_all["event_id"] == eid))])
+                                st.rerun()
+                    elif g["state"] == "pre":
+                        todo += 1
+                        html(f'<div class="nb-title">{title}</div>')
+                        try:
+                            st.segmented_control("Winner", [g["away"], g["home"]], key=key, format_func=short, label_visibility="collapsed")
+                        except AttributeError:
+                            st.radio("Winner", [g["away"], g["home"]], index=None, key=key, format_func=short, horizontal=True, label_visibility="collapsed")
+                    else:
+                        html(f'<div class="nb-title">{title}</div>')
+                        st.caption("Already started, so it can't be picked now." if not fin.get(eid) else
+                                   f"Final: {short(g['away'])} {int(fin[eid]['as'])}, {short(g['home'])} {int(fin[eid]['hs'])}. You didn't pick this one.")
+            chosen = [g for g in games if g["state"] == "pre" and str(g["id"]) not in mine.index and st.session_state.get(f"pk_{iso}_{g['id']}")]
+            if todo:
+                if st.button(f"🔒 Lock in {len(chosen)} pick{'s' if len(chosen) != 1 else ''}" if chosen else "🔒 Lock in picks", type="primary", key=f"pk_lock_{iso}", disabled=not chosen):
+                    new = []
+                    with st.spinner("Saving your picks and the model's..."):
+                        for g in chosen:
+                            bp, bml = book_favorite(g)
+                            mp, mpp = "", ""
+                            try:
+                                res = analyze_game(M, g, g["odds"], team_injury_pts(M, g["home"], injuries, date), team_injury_pts(M, g["away"], injuries, date), b2b)
+                                ph = res["p_home"]
+                                mp, mpp = (g["home"], ph) if ph >= 0.5 else (g["away"], 1 - ph)
+                            except Exception:
+                                pass
+                            new.append({"date": iso, "event_id": str(g["id"]), "away": g["away"], "home": g["home"], "my_pick": st.session_state[f"pk_{iso}_{g['id']}"],
+                                        "book_pick": bp, "book_ml": "" if bml == "" else str(bml), "model_pick": mp, "model_p": "" if mpp == "" else f"{mpp:.4f}",
+                                        "saved_at": local_now().strftime("%Y-%m-%d %H:%M")})
+                    ok = save_pickem(pd.concat([load_pickem(), pd.DataFrame(new)], ignore_index=True))
+                    st.session_state["pk_msg"] = f"Locked in {len(new)} pick{'s' if len(new) != 1 else ''}." + ("" if ok else " (Could not write the file, so they're kept for this session only.)")
+                    st.rerun()
+            if st.session_state.get("pk_msg"):
+                st.success(st.session_state.pop("pk_msg"))
+    with t_board:
+        if saved.empty:
+            st.info("No picks yet. Make some in **Make picks** and your scoreboard will build up as games finish.")
+            return
+        scope = st.radio("Show", ["All time", "Selected date"], horizontal=True, key="pk_scope")
+        use = saved if scope == "All time" else saved[saved["date"] == iso]
+        if use.empty:
+            st.info("You made no picks on this date.")
+            return
+        G = graded_pickem(use)
+        cols = st.columns(3)
+        for col, (lab, k) in zip(cols, (("You", "me_ok"), ("Book", "book_ok"), ("Model", "model_ok"))):
+            w, l = _wl(list(G[k].where(G[k].notna(), None)))
+            col.metric(lab, f"{w}-{l}")
+            col.caption(f"{w / (w + l) * 100:.0f}% right" if w + l else "no finished games yet")
+        pend = int((G["winner"] == "").sum())
+        if pend:
+            st.caption(f"{pend} pick{'s' if pend != 1 else ''} still waiting on a final score.")
+        done = G[G["winner"] != ""]
+        if not done.empty:
+            st.markdown('<div class="nb-sec">Head to head</div>', unsafe_allow_html=True)
+            lines = []
+            for lab, pk in (("the book", "book_pick"), ("the model", "model_pick")):
+                dis = done[(done[pk] != "") & (done["my_pick"] != done[pk])]
+                w, l = _wl(list(dis["me_ok"].where(dis["me_ok"].notna(), None)))
+                lines.append(f"- **When you disagreed with {lab}** ({len(dis)} game{'s' if len(dis) != 1 else ''}): you went **{w}-{l}** and {lab} went **{l}-{w}**."
+                             if len(dis) else f"- You haven't disagreed with {lab} on a finished game yet.")
+            st.markdown("\n".join(lines))
+            by = []
+            for d, grp in done.groupby("date"):
+                row = {"Date": d, "Games": len(grp)}
+                for lab, k in (("You", "me_ok"), ("Book", "book_ok"), ("Model", "model_ok")):
+                    w, l = _wl(list(grp[k].where(grp[k].notna(), None)))
+                    row[lab] = f"{w}-{l}"
+                by.append(row)
+            st.markdown('<div class="nb-sec">By day</div>', unsafe_allow_html=True)
+            st.dataframe(pd.DataFrame(by).sort_values("Date", ascending=False), hide_index=True, use_container_width=True)
+            with st.expander("Every finished pick"):
+                tbl = done.assign(**{"Game": done["away"].map(short) + " @ " + done["home"].map(short), "Final (away-home)": done["score"],
+                                     "Winner": done["winner"].map(short), "You": done["my_pick"].map(lambda x: short(x) if x else "") + done["me_ok"].map({True: " ✅", False: " ❌"}).fillna(""),
+                                     "Book": done["book_pick"].map(lambda x: short(x) if x else "-") + done["book_ok"].map({True: " ✅", False: " ❌"}).fillna(""),
+                                     "Model": done["model_pick"].map(lambda x: short(x) if x else "-") + done["model_ok"].map({True: " ✅", False: " ❌"}).fillna("")})
+                st.dataframe(tbl[["date", "Game", "Final (away-home)", "Winner", "You", "Book", "Model"]].rename(columns={"date": "Date"}).sort_values("Date", ascending=False),
+                             hide_index=True, use_container_width=True)
+
+
+NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "🏆 Pick'em", "💬 AI chat"]
 LOCKED_NAV = "🔒 Private"
 
 
@@ -4029,7 +4212,7 @@ def get_passcode():
 
 PASSCODE = get_passcode()
 private_ok = (not PASSCODE) or bool(st.session_state.get("unlocked"))
-menu = NAV if private_ok else NAV[:4] + [NAV[6], LOCKED_NAV]
+menu = NAV if private_ok else NAV[:4] + [NAV[7], LOCKED_NAV]
 if "_goto" in st.session_state:                           # jump to a section after unlocking
     st.session_state["main_nav"] = st.session_state.pop("_goto")
 if st.session_state.get("main_nav") not in menu:
@@ -4516,7 +4699,11 @@ if nav == NAV[5] and private_ok:
     open_warning()
     bets_tab()
 
-if nav == NAV[6]:
+if nav == NAV[6] and private_ok:
+    open_warning()
+    pickem_tab(M, date, games, injuries, b2b_teams)
+
+if nav == NAV[7]:
     chat_tab(date, games, injuries)
 
 

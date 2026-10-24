@@ -5397,7 +5397,7 @@ HOME_CSS = """<style>
 .hm-chev{display:block;font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.55;margin-top:.45rem}
 .hm-dd[open] .hm-chev:after{content:" ▴"}.hm-dd:not([open]) .hm-chev:after{content:" ▾"}
 .hm-dd:hover{border-color:rgba(96,165,250,.5)}
-.hm-pk{max-height:260px;overflow-y:auto;text-align:left;padding:.4rem .8rem .7rem;border-top:1px solid rgba(128,128,128,.2)}
+.hm-pk{text-align:left;padding:.4rem .8rem .7rem;border-top:1px solid rgba(128,128,128,.2)}
 .hm-pkr{display:flex;gap:8px;font-size:.8rem;padding:.25rem 0;line-height:1.3}
 .hm-rb{font-size:1.5rem;font-weight:800;line-height:1.25}
 .hm-rc{text-align:center;padding:.8rem .8rem}

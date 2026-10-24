@@ -5656,23 +5656,24 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
                 st.session_state[gk] = True
             log = add_pick_flag(expand_wide(wide)) if len(wide) else pd.DataFrame(columns=["date", "result", "profit", "is_pick"])
             bets = load_bets()
-            # recap: on Today it covers last night; on any other day it covers that day's own picks (0-0 when there are none)
-            rday = hdate - dt.timedelta(days=1) if off == 0 else hdate
-            ry = rday.isoformat()
-            if len(log):
-                dy = log[(log["date"].astype(str).str[:10] == ry) & (log["is_pick"]) & (log["result"].isin(["W", "L", "P"]))]
-            else:
-                dy = pd.DataFrame(columns=["date", "result", "profit", "is_pick", "market"])
+            # recap: only on the current day, showing the previous day's picks
+            if off == 0:
+                rday = hdate - dt.timedelta(days=1)
+                ry = rday.isoformat()
+                if len(log):
+                    dy = log[(log["date"].astype(str).str[:10] == ry) & (log["is_pick"]) & (log["result"].isin(["W", "L", "P"]))]
+                else:
+                    dy = pd.DataFrame(columns=["date", "result", "profit", "is_pick", "market"])
 
-            def _rc(label, d_, big=False):
-                pr = pd.to_numeric(d_["profit"], errors="coerce").fillna(0).sum()
-                rec = record_line(d_) if len(d_) else "0-0"
-                return (f'<div class="hm-rc{" big" if big else ""}"><div class="hm-tl">{label}</div>'
-                        f'<div class="hm-rb">{rec}</div><div class="hm-ts">{_pm(pr) if len(d_) else _pm(0)}</div></div>')
-            parts = _rc("Overall", dy, True) + "".join(_rc(nm + "s", dy[dy["market"] == nm]) for nm in ("Moneyline", "Spread", "Total"))
-            _who = "Yesterday's" if (off == 0 or off == -1) else ("Tomorrow's" if off == 1 else rday.strftime("%A's"))
-            html(f'<div class="hm-sec">{_who} recap<small>{H(rday.strftime("%A, %b %-d"))}</small></div>'
-                 f'<div class="hm-rcs">{parts}</div>')
+                def _rc(label, d_, big=False):
+                    pr = pd.to_numeric(d_["profit"], errors="coerce").fillna(0).sum()
+                    rec = record_line(d_) if len(d_) else "0-0"
+                    return (f'<div class="hm-rc{" big" if big else ""}"><div class="hm-tl">{label}</div>'
+                            f'<div class="hm-rb">{rec}</div><div class="hm-ts">{_pm(pr) if len(d_) else _pm(0)}</div></div>')
+                parts = _rc("Overall", dy, True) + "".join(_rc(nm + "s", dy[dy["market"] == nm]) for nm in ("Moneyline", "Spread", "Total"))
+                _who = "Yesterday's" if (off == 0 or off == -1) else ("Tomorrow's" if off == 1 else rday.strftime("%A's"))
+                html(f'<div class="hm-sec">{_who} recap<small>{H(rday.strftime("%A, %b %-d"))}</small></div>'
+                     f'<div class="hm-rcs">{parts}</div>')
             # open bets
             ob = bets[~bets["result"].isin(["W", "L", "P"])] if len(bets) else bets
             if len(ob):

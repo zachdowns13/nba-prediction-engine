@@ -5366,14 +5366,17 @@ def _home_card(x):
 
 
 HOME_CSS = """<style>
-.hm-hero{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.6rem;padding:.9rem 1.1rem;margin-bottom:.7rem;border-radius:16px;
+.hm-hero{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.6rem;padding:1.3rem 1.5rem;margin:.6rem 0 1rem;border-radius:18px;
  background:linear-gradient(120deg,rgba(59,130,246,.22),rgba(168,85,247,.16) 60%,rgba(236,72,153,.12));border:1px solid rgba(59,130,246,.3)}
 .hm-hi{font-size:1.45rem;font-weight:800;line-height:1.15}.hm-hs{opacity:.7;font-size:.85rem}
 .hm-pills{display:flex;gap:6px;flex-wrap:wrap}
 .hm-p{display:inline-flex;align-items:center;gap:6px;padding:.25rem .7rem;border-radius:99px;background:rgba(128,128,128,.18);font-size:.8rem;font-weight:700}
 .hm-p.live{background:rgba(239,68,68,.2);color:#ef4444}
-.hm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:.7rem}
-.hm-card{border:1px solid var(--nb-border,rgba(128,128,128,.25));border-radius:14px;padding:.7rem .9rem .8rem;background:rgba(128,128,128,.05)}
+.hm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:1rem}
+.hm-sec{font-size:1.15rem;font-weight:800;margin:1.4rem 0 .2rem;display:flex;align-items:baseline;gap:.6rem}
+.hm-sec small{font-weight:500;opacity:.6;font-size:.8rem}
+.hm-sp{height:.9rem}
+.hm-card{border:1px solid var(--nb-border,rgba(128,128,128,.25));border-radius:16px;padding:1rem 1.1rem 1.1rem;background:rgba(128,128,128,.05)}
 .hm-card.is-live{border-color:rgba(239,68,68,.55);box-shadow:0 0 0 1px rgba(239,68,68,.15)}
 .hm-tag{display:inline-flex;align-items:center;gap:6px;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.75}
 .hm-tag.live{color:#ef4444;opacity:1}
@@ -5404,11 +5407,11 @@ def _home_body(date_iso):
         st.info("No games on this date.")
         return
     n_live = sum(1 for x in sb if x["state"] == "in")
-    st.caption(f"{n_live} live now" if n_live else "No games live right now" + " · scores refresh automatically")
+    html(f'<div class="hm-sec">Tonight\'s games<small>{"%d live now" % n_live if n_live else "None live right now"} · refreshes automatically</small></div>')
     html('<div class="hm-grid">' + "".join(_home_card(x) for x in sb) + '</div>')
 
     started = [x for x in sb if x["state"] in ("in", "post")]
-    st.markdown("### Play-by-play")
+    html('<div class="hm-sec" style="margin-top:2rem">Play-by-play</div>')
     if not started:
         st.caption("Play-by-play appears here once a game tips off.")
         return
@@ -5451,7 +5454,7 @@ def home_tab(date):
     html(f'<div class="hm-hero"><div><div class="hm-hi">{H(date.strftime("%A, %B %-d"))}</div>'
          f'<div class="hm-hs">{len(sb0)} games on the slate</div></div><div class="hm-pills">'
          f'<span class="hm-p live"><span class="pro-dot"></span>{nl} live</span><span class="hm-p">{nu} upcoming</span><span class="hm-p">{nf} final</span></div></div>')
-    qc = st.columns(4)
+    qc = st.columns(4, gap="medium")
     for c, (lab, tgt, ic) in zip(qc, (("Simulate a game", NAV[0], "monitoring"), ("Full slate", NAV[1], "format_list_bulleted"),
                                       ("Player props", NAV[2], "person"), ("First basket", NAV[3], "sports_basketball"))):
         if c.button(lab, key=f"hmq_{tgt}", icon=f":material/{ic}:", use_container_width=True):
@@ -5962,8 +5965,7 @@ try:
     _css_slot = st.container(key="csslot")
 except TypeError:
     _css_slot = st.container()
-PAGE_INFO = {HOME_NAV: ("Home", "Live scores for the night's games, with play-by-play."),
-             NAV[0]: ("Game odds", "Simulate one matchup 10,000 times and compare every price with the model."),
+PAGE_INFO = {NAV[0]: ("Game odds", "Simulate one matchup 10,000 times and compare every price with the model."),
              NAV[1]: ("Full slate", "Every game on the date, ranked by where the model sees the most value."),
              NAV[2]: ("Player props", "Projected stat lines for each player, checked against the book's number."),
              NAV[3]: ("First basket", "Who is most likely to score first, from lineups, tip-off odds and recent play."),

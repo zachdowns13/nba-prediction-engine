@@ -5698,7 +5698,7 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
              '<div class="hm-key"><span><i style="background:#22c55e"></i>Playoffs</span><span><i style="background:#f59e0b"></i>Play-in</span>'
              '<span><i style="background:rgba(148,163,184,.5)"></i>Out</span></div>')
         cs = st.columns(2, gap="large")
-        for c, (nm, rows) in zip(cs, list(stand.items())[:2]):
+        for c, (nm, rows) in zip(cs, sorted(stand.items(), key=lambda kv: 0 if kv[0].lower().startswith("west") else 1)[:2]):
             with c:
                 html(f'<div class="hm-ll">{H(nm)}</div>' + _standings_html(rows))
 

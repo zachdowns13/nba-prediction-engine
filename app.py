@@ -4587,6 +4587,55 @@ def stake_settings(where):
     st.session_state["ks_bankroll"], st.session_state["ks_frac"], st.session_state["ks_cap"] = bank, KELLY_FRACS[lab], cap
 
 
+def beats_record_view():
+    # Every logged bet where the model's win chance was above break-even, graded, with a table for each day.
+    st.markdown("#### Record: bets that beat break-even")
+    try:
+        log = expand_wide(load_wide())
+    except Exception:
+        log = pd.DataFrame()
+    if log.empty:
+        st.info("Nothing logged yet. Run the Full slate each day and the results build up here.")
+        return
+    for c in ("odds", "model_p", "profit"):
+        log[c] = pd.to_numeric(log[c], errors="coerce")
+    d = log[log["model_p"] > log["odds"].map(lambda o: implied(o) if pd.notna(o) else 9)].copy()
+    if d.empty:
+        st.info("No logged bets have beaten break-even yet.")
+        return
+    d["day"] = d["date"].astype(str).str[:10]
+    d["kstake"] = [kelly_stake(p, o) for p, o in zip(d["model_p"], d["odds"])]
+    d["kprofit"] = [(k * (dec(float(o)) - 1) if r == "W" else (-k if r == "L" else 0.0)) for k, o, r in zip(d["kstake"], d["odds"], d["result"])]
+    done = d[d["result"].isin(["W", "L", "P"])]
+    w, l, p = int((done["result"] == "W").sum()), int((done["result"] == "L").sum()), int((done["result"] == "P").sum())
+    flat, kel = float(done["profit"].fillna(0).sum()), float(done["kprofit"].sum())
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Record", f"{w}-{l}" + (f"-{p}" if p else ""), f"{w / (w + l) * 100:.0f}% win rate" if (w + l) else "no results yet", delta_color="off")
+    c2.metric("Flat $100 bets", _signed_money(flat), f"{flat / (100 * len(done)) * 100:+.1f}% return" if len(done) else "", delta_color="off")
+    c3.metric("Kelly-sized bets", _signed_money(kel), f"{kel / done['kstake'].sum() * 100:+.1f}% return" if done["kstake"].sum() else "", delta_color="off")
+    st.caption(f"{len(done)} graded bets across {done['day'].nunique()} days, plus {len(d) - len(done)} still waiting. Kelly uses your current bankroll settings.")
+    sym = {"W": "✅", "L": "❌", "P": "➖"}
+    for day in sorted(d["day"].unique(), reverse=True):
+        g = d[d["day"] == day]
+        gd = g[g["result"].isin(["W", "L", "P"])]
+        gw, gl = int((gd["result"] == "W").sum()), int((gd["result"] == "L").sum())
+        tag = f"{gw}-{gl}" + (f" · {_signed_money(float(gd['profit'].fillna(0).sum()))} flat" if len(gd) else "") + (f" · {len(g) - len(gd)} waiting" if len(g) > len(gd) else "")
+        with st.expander(f"{_nice_date(day)}  ·  {tag}"):
+            t = pd.DataFrame([{"Game": r.game, "Pick": pick_label(pd.Series(r._asdict())).split(" (")[0], "Odds": int(r.odds),
+                               "Model": r.model_p * 100, "Break-even": implied(r.odds) * 100, "Beats": (r.model_p - implied(r.odds)) * 100,
+                               "Result": sym.get(r.result, "⏳"), "Flat": (float(r.profit) if r.result in ("W", "L", "P") else None),
+                               "Kelly stake": r.kstake, "Kelly": (r.kprofit if r.result in ("W", "L", "P") else None)} for r in g.sort_values("game").itertuples()])
+            cc = st.column_config
+            try:
+                st.dataframe(t, hide_index=True, column_config={
+                    "Odds": cc.NumberColumn("Odds", format="%+d"), "Model": cc.NumberColumn("Model", format="%.1f%%"),
+                    "Break-even": cc.NumberColumn("Break-even", format="%.1f%%"), "Beats": cc.NumberColumn("Beats", format="%+.1f"),
+                    "Flat": cc.NumberColumn("Flat", format="$%+.0f"), "Kelly stake": cc.NumberColumn("Kelly stake", format="$%.0f"),
+                    "Kelly": cc.NumberColumn("Kelly", format="$%+.2f")})
+            except Exception:
+                st.dataframe(t, hide_index=True)
+
+
 def kelly_view(date):
     st.caption("Kelly sizing bets a share of your bankroll that grows with your edge. It uses the model's win chance, which is already "
                "blended with the sportsbook's, so it stays on the cautious side. Turn it on and the Full slate and Game odds pages show a stake next to every value play.")
@@ -4608,13 +4657,13 @@ def kelly_view(date):
                        f"your stake is **{md_money(s_)}** ({s_ / 100:.2f} units). Break-even is {be * 100:.1f}%.")
     st.markdown("#### Today's value plays")
     res_list = st.session_state.get(f"slate_{date.isoformat()}")
+    mode_ = st.radio("Show", ["Beats break-even", "All plays", "Value plays only"], horizontal=True, key="kelly_show",
+                     help="Beats break-even: only bets where the model's win chance is above what you need to profit at those odds. "
+                          "All plays: every game's moneyline, spread and total once, showing the side the model likes more. "
+                          "Kelly only bets when there is an edge, so a side without one shows $0.")
     if not res_list:
         st.info("Run the **Full slate** for this date first. The value plays then show up here with a stake.")
     else:
-        mode_ = st.radio("Show", ["Beats break-even", "All plays", "Value plays only"], horizontal=True, key="kelly_show",
-                         help="Beats break-even: only bets where the model's win chance is above what you need to profit at those odds. "
-                              "All plays: every game's moneyline, spread and total once, showing the side the model likes more. "
-                              "Kelly only bets when there is an edge, so a side without one shows $0.")
         if mode_ == "All plays":           # each market once: the side the model likes more than the book does
             rows = []
             for res in res_list:
@@ -4643,6 +4692,8 @@ def kelly_view(date):
                     "Flat": cc.NumberColumn("Flat", format="$%.0f"), "Kelly": cc.NumberColumn("Kelly", format="$%.0f")})
             except Exception:
                 st.dataframe(kdf, hide_index=True)
+    if mode_ == "Beats break-even":
+        beats_record_view()
     st.markdown("#### What Kelly would have done with your logged value plays")
     log = value_log()
     if log.empty:
@@ -5027,16 +5078,14 @@ def arb_view():
 
 
 def edge_tab(date):
-    _sub = sub_nav(["💵 Kelly stakes", "🔎 Arbitrage & +EV", "📐 CLV tracker", "🎯 Model accuracy", "📣 Discord post"], "edge")
+    _sub = sub_nav(["💵 Kelly stakes", "📐 CLV tracker", "🎯 Model accuracy", "📣 Discord post"], "edge")
     if _sub == 0:
         kelly_view(date)
     if _sub == 1:
-        arb_view()
-    if _sub == 2:
         clv_view()
-    if _sub == 3:
+    if _sub == 2:
         accuracy_view()
-    if _sub == 4:
+    if _sub == 3:
         discord_view(date)
 
 

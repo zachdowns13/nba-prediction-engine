@@ -4103,8 +4103,8 @@ def pickem_tab(M, date, games, injuries, b2b):
                 key = f"pk_{iso}_{eid}"
                 f = fin.get(eid)
                 win = (f["home"] if f["hs"] > f["as"] else f["away"]) if f else ""
-                title = (f'<div class="nb-top"><span class="nb-title">{logo(g.get("away_logo"))}{H(short(g["away"]))} @ '
-                         f'{logo(g.get("home_logo"))}{H(short(g["home"]))}</span>')
+                title = (f'<div class="nb-top"><span class="nb-title nb-vs">{logo(g.get("away_logo"))}<span>{H(short(g["away"]))}</span>'
+                         f'<span class="nb-at">@</span>{logo(g.get("home_logo"))}<span>{H(short(g["home"]))}</span></span>')
                 with st.container(border=True, key=f"pkcard_{iso}_{eid}"):
                     if eid in mine.index:                                               # locked in
                         r = mine.loc[eid]
@@ -4292,6 +4292,9 @@ st.markdown("""<style>
 [class*="_sidewrap"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;min-width:0;padding-left:.2rem !important;padding-right:.2rem !important;white-space:nowrap;overflow:visible;height:2.5rem !important;min-height:2.5rem !important;display:flex;align-items:center;justify-content:center}
 [class*="st-key-bet_"][class*="_book"]:not(.st-key-bet_book):not(.st-key-bet_book_c){margin-left:.66rem;width:calc(100% - .66rem) !important}
 [class*="st-key-pkcard_"]{border-radius:14px !important}
+.nb-vs{display:inline-flex !important;align-items:center;flex-wrap:wrap;gap:.3rem .5rem}
+.nb-vs .nb-logo{margin:0 !important;flex:none}
+.nb-vs .nb-at{opacity:.55;font-weight:600;padding:0 .1rem}
 [class*="st-key-pk_20"],[class*="st-key-pk_20"]>div{width:100% !important}
 [class*="st-key-pk_20"] [data-testid="stButtonGroup"],[class*="st-key-pk_20"] [data-testid="stButtonGroup"]>div{display:flex !important;flex-direction:row !important;gap:.5rem;width:100% !important}
 [class*="st-key-pk_20"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;min-width:0;height:2.7rem !important;min-height:2.7rem !important;border-radius:12px !important;

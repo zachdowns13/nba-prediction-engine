@@ -5019,15 +5019,25 @@ def edge_tab(date):
 
 
 def sub_nav(labels, key):
-    # The page's sections, drawn as a small second row under the main menu inside the pinned menu bar, so it stays put while you scroll.
+    # The page's sections, as a small segmented control under the main menu inside the pinned menu bar, so it stays put while you scroll.
     box = globals().get("_nav_box")
-    cur = st.session_state.get(f"subnav_{key}")
-    idx = labels.index(cur) if cur in labels else 0
+    k = f"subnav_{key}"
+    if st.session_state.get(k) not in labels:
+        st.session_state[k] = st.session_state.get(f"{k}_last") if st.session_state.get(f"{k}_last") in labels else labels[0]
+
+    def draw():
+        try:
+            return st.segmented_control("Page section", labels, key=k, label_visibility="collapsed")
+        except (TypeError, AttributeError):
+            return st.radio("Page section", labels, key=k, horizontal=True, label_visibility="collapsed")
     if box is None:
-        pick = st.radio("Page section", labels, index=idx, horizontal=True, key=f"subnav_{key}", label_visibility="collapsed")
+        pick = draw()
     else:
         with box:
-            pick = st.radio("Page section", labels, index=idx, horizontal=True, key=f"subnav_{key}", label_visibility="collapsed")
+            pick = draw()
+    if pick not in labels:                    # tapping the selected button again clears it; keep the page where it was
+        pick = st.session_state.get(f"{k}_last") if st.session_state.get(f"{k}_last") in labels else labels[0]
+    st.session_state[f"{k}_last"] = pick
     return labels.index(pick)
 
 
@@ -5159,13 +5169,7 @@ st.markdown("""<style>
 .st-key-navbar label:hover{background:rgba(128,128,128,.14)}
 .st-key-navbar label:has(input:checked){background:rgba(255,75,75,.16);color:#ff4b4b;font-weight:600}
 .st-key-navbar label p{font-size:.95rem}
-[class*="st-key-subnav_"]{margin-top:.1rem;padding-top:.2rem;border-top:1px solid rgba(128,128,128,.2)}
-[class*="st-key-subnav_"] [role="radiogroup"]{gap:.1rem;flex-wrap:wrap}
-[class*="st-key-subnav_"] label[data-baseweb="radio"]{padding:.15rem .65rem .25rem !important;margin:0;border-radius:6px 6px 0 0;cursor:pointer;background:transparent !important;box-shadow:none;border:0 !important;opacity:.7}
-[class*="st-key-subnav_"] label[data-baseweb="radio"] > div:first-child{display:none !important}
-[class*="st-key-subnav_"] label[data-baseweb="radio"]:hover{background:rgba(128,128,128,.12) !important;opacity:1}
-[class*="st-key-subnav_"] label[data-baseweb="radio"]:has(input:checked){box-shadow:inset 0 -2px 0 #3b82f6 !important;font-weight:600;background:transparent !important;color:inherit !important;opacity:1}
-[class*="st-key-subnav_"] label p{font-size:.8rem !important}
+[class*="st-key-subnav_"]{margin-top:.2rem}
 </style>""", unsafe_allow_html=True)
 try:
     _nav_box = st.container(key="navbar")

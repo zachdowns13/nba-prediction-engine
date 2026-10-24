@@ -5344,7 +5344,7 @@ def get_plays(event_id):
     return out
 
 
-def _home_card(x):
+def _home_card(x, res=None):
     live = x["state"] == "in"
     pre = x["state"] == "pre"
     if pre:
@@ -5362,7 +5362,7 @@ def _home_card(x):
             f'<div class="hm-team">{logo_xl(x["away_logo"])}<div class="gc-name">{H(short(x["away"]))}</div><div class="gc-role">{H(x["arec"])}</div></div>'
             f'<div class="hm-mid">{mid}</div>'
             f'<div class="hm-team">{logo_xl(x["home_logo"])}<div class="gc-name">{H(short(x["home"]))}</div><div class="gc-role">{H(x["hrec"])}</div></div>'
-            f'</div></div>')
+            f'</div>{_model_line(x, res)}</div>')
 
 
 HOME_CSS = """<style>
@@ -5372,6 +5372,27 @@ HOME_CSS = """<style>
 .hm-pills{display:flex;gap:6px;flex-wrap:wrap}
 .hm-p{display:inline-flex;align-items:center;gap:6px;padding:.25rem .7rem;border-radius:99px;background:rgba(128,128,128,.18);font-size:.8rem;font-weight:700}
 .hm-p.live{background:rgba(239,68,68,.2);color:#ef4444}
+.hm-model{margin-top:.7rem;padding-top:.6rem;border-top:1px solid rgba(128,128,128,.2);font-size:.78rem;opacity:.85;text-align:center}
+.hm-ok{margin-left:4px}.hm-ok.good{color:#22c55e}.hm-ok.bad{color:#ef4444}
+.hm-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-top:.4rem}
+.hm-tile{border:1px solid rgba(128,128,128,.25);border-radius:16px;padding:.9rem 1.1rem;background:rgba(128,128,128,.05)}
+.hm-tl{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.65}
+.hm-tb{font-size:1.9rem;font-weight:800;line-height:1.2;margin:.15rem 0}
+.hm-ts{font-size:.82rem;opacity:.85}
+.hm-pm.good{color:#22c55e;font-weight:700}.hm-pm.bad{color:#ef4444;font-weight:700}
+.hm-recap{padding:.9rem 1.1rem;border-radius:14px;border:1px solid rgba(128,128,128,.25);background:rgba(128,128,128,.05);margin-top:.4rem;font-size:1rem}
+.hm-leads{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin-top:.4rem}
+.hm-lead{border:1px solid rgba(128,128,128,.25);border-radius:14px;padding:.8rem 1rem;background:rgba(128,128,128,.05);margin-top:.4rem}
+.hm-ll{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.65;margin-bottom:.35rem}
+.hm-lr{display:flex;justify-content:space-between;gap:10px;padding:.3rem 0;font-size:.9rem;border-top:1px solid rgba(128,128,128,.12)}
+.hm-lr:first-of-type{border-top:0}.hm-lr i{opacity:.55;font-style:normal;font-size:.78rem}
+.hm-injg{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:.8rem;margin-top:.4rem}
+.hm-inj{border:1px solid rgba(128,128,128,.25);border-radius:14px;padding:.7rem .9rem;background:rgba(128,128,128,.05)}
+.hm-injt{font-weight:700;margin-bottom:.4rem;display:flex;align-items:center;gap:6px}
+.hm-injp{display:flex;flex-wrap:wrap;gap:6px}
+.hm-stl{display:grid;gap:3px;margin-top:.2rem}
+.hm-st{display:flex;align-items:center;gap:8px;padding:.35rem .6rem;border-radius:9px;background:rgba(128,128,128,.06);font-size:.9rem}
+.hm-n{width:18px;opacity:.55;font-size:.78rem}.hm-sn{flex:1;font-weight:600}.hm-sr{font-variant-numeric:tabular-nums;opacity:.85}
 .hm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:1rem}
 .hm-sec{font-size:1.15rem;font-weight:800;margin:1.4rem 0 .2rem;display:flex;align-items:baseline;gap:.6rem}
 .hm-sec small{font-weight:500;opacity:.6;font-size:.8rem}
@@ -5408,7 +5429,9 @@ def _home_body(date_iso):
         return
     n_live = sum(1 for x in sb if x["state"] == "in")
     html(f'<div class="hm-sec">Tonight\'s games<small>{"%d live now" % n_live if n_live else "None live right now"} · refreshes automatically</small></div>')
-    html('<div class="hm-grid">' + "".join(_home_card(x) for x in sb) + '</div>')
+    _rs = {r["game"]["id"]: r for r in (st.session_state.get(f"slate_{date_iso}") or [])}
+    html('<div class="hm-grid">' + "".join(_home_card(x, _rs.get(x["id"])) for x in sb) + '</div>')
+    _performers(date_iso)
 
     started = [x for x in sb if x["state"] in ("in", "post")]
     html('<div class="hm-sec" style="margin-top:2rem">Play-by-play</div>')
@@ -5442,26 +5465,233 @@ def _home_body(date_iso):
     st.caption("Newest play first. Showing the latest 80.")
 
 
-def home_tab(date):
-    html(HOME_CSS)
+def _model_line(x, res):
+    # Model's pick and projected score for this game, plus whether it's currently right once the game has started.
+    if not res:
+        return ""
+    ph = res["p_home"]
+    fav_home = ph >= 0.5
+    fav = short(x["home"] if fav_home else x["away"])
+    wp = ph if fav_home else 1 - ph
+    txt = f'Model: {H(fav)} {wp * 100:.0f}% · proj {round(res["ap"])}–{round(res["hp"])}'
+    tag = ""
+    if x["state"] in ("in", "post"):
+        try:
+            hs, as_ = float(x["hs"]), float(x["as"])
+            ahead_home = hs > as_
+            if hs != as_:
+                ok = ahead_home == fav_home
+                tag = (f' <b class="hm-ok">{"✓ on track" if ok else "✗ behind"}</b>' if x["state"] == "in"
+                       else f' <b class="hm-ok">{"✓ hit" if ok else "✗ missed"}</b>')
+                tag = tag.replace('class="hm-ok"', 'class="hm-ok good"' if ok else 'class="hm-ok bad"')
+        except (TypeError, ValueError):
+            pass
+    return f'<div class="hm-model">{txt}{tag}</div>'
+
+
+def _tile(label, big, sub="", kind=""):
+    return f'<div class="hm-tile {kind}"><div class="hm-tl">{H(label)}</div><div class="hm-tb">{big}</div><div class="hm-ts">{sub}</div></div>'
+
+
+def _window_stats(log, bets, today, days):
+    lo = (today - dt.timedelta(days=days)).isoformat()
+    out = {}
     try:
-        sb0 = home_scoreboard(date.isoformat())
+        d = log[(log["is_pick"]) & (log["result"].isin(["W", "L", "P"])) & (log["date"].astype(str) >= lo)]
+        prof = pd.to_numeric(d["profit"], errors="coerce").fillna(0).sum()
+        out["model"] = (record_line(d), prof, len(d))
+    except Exception:
+        out["model"] = ("0-0", 0.0, 0)
+    try:
+        b = bets[(bets["result"].isin(["W", "L", "P"])) & (bets["date"].astype(str) >= lo)]
+        out["bets"] = (record_line(b), float(b["profit"].fillna(0).sum()), len(b))
+    except Exception:
+        out["bets"] = ("0-0", 0.0, 0)
+    return out
+
+
+def _pm(x):
+    cls = "good" if x > 0.5 else ("bad" if x < -0.5 else "")
+    return f'<span class="hm-pm {cls}">{"+" if x > 0.5 else ("-" if x < -0.5 else "")}${abs(x):,.0f}</span>'
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_standings():
+    url = "https://site.api.espn.com/apis/v2/sports/basketball/nba/standings"
+    data = _get(url, None, tries=2)
+    out = {}
+    for ch in data.get("children", []):
+        rows = []
+        for e in (ch.get("standings") or {}).get("entries", []):
+            st_ = {s.get("name"): s.get("value") for s in e.get("stats", [])}
+            t = e.get("team") or {}
+            w, l = st_.get("wins"), st_.get("losses")
+            if w is None or l is None:
+                continue
+            rows.append({"team": t.get("displayName", ""), "logo": _team_logo(t), "w": int(w), "l": int(l),
+                         "pct": float(st_.get("winPercent") or (w / (w + l) if (w + l) else 0))})
+        rows.sort(key=lambda r: (-r["pct"], -r["w"]))
+        name = (ch.get("name") or "").replace(" Conference", "")
+        if rows:
+            out[name] = rows
+    return out
+
+
+def _standings_html(rows, n=8):
+    body = "".join(f'<div class="hm-st"><span class="hm-n">{i}</span>{logo(r["logo"])}<span class="hm-sn">{H(short(r["team"]))}</span>'
+                   f'<span class="hm-sr">{r["w"]}-{r["l"]}</span></div>' for i, r in enumerate(rows[:n], 1))
+    return f'<div class="hm-stl">{body}</div>'
+
+
+def _injury_section(sb, M, injuries, date):
+    items = []
+    for x in sb:
+        for team in (x["away"], x["home"]):
+            try:
+                rows = injury_rows(team, injuries, ratings_for(M, team, date))
+            except Exception:
+                rows = []
+            rows = [r for r in rows if str(r["Status"]).lower() in ("out", "doubtful", "questionable", "day-to-day")]
+            rows.sort(key=lambda r: (-(r["Min/game"] or 0)))
+            if rows:
+                pills = "".join(
+                    pill(f'{r["Player"]} · {r["Status"]}', "bad" if str(r["Status"]).lower() in ("out", "doubtful") else "warn") for r in rows[:4])
+                items.append(f'<div class="hm-inj"><div class="hm-injt">{logo(x["away_logo"] if team == x["away"] else x["home_logo"])}{H(short(team))}</div>'
+                             f'<div class="hm-injp">{pills}</div></div>')
+    if not items:
+        st.caption("No notable injuries listed for tonight's teams.")
+        return
+    html('<div class="hm-injg">' + "".join(items) + '</div>')
+
+
+def _performers(date_iso):
+    try:
+        games = live_scores((date_iso,))
+    except Exception:
+        return
+    players = [dict(p) for g in games if g["state"] in ("in", "post") for p in g["players"].values()]
+    if not players:
+        return
+    for p in players:
+        p["reb"] = p.get("oreb", 0) + p.get("dreb", 0)
+    cols = []
+    for lab, k in (("Points", "pts"), ("Rebounds", "reb"), ("Assists", "ast")):
+        top = sorted(players, key=lambda p: -p.get(k, 0))[:3]
+        rows = "".join(f'<div class="hm-lr"><span>{H(p["name"])} <i>{H(short(p["team"] or "?"))}</i></span><b>{p.get(k, 0):g}</b></div>' for p in top)
+        cols.append(f'<div class="hm-lead"><div class="hm-ll">{lab}</div>{rows}</div>')
+    html('<div class="hm-sec">Top performers<small>across tonight\'s games</small></div><div class="hm-leads">' + "".join(cols) + '</div>')
+
+
+def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
+    html(HOME_CSS)
+    off = st.session_state.setdefault("home_off", 0)
+    hdate = date + dt.timedelta(days=off)
+    iso = hdate.isoformat()
+    # ---- header + date switcher
+    try:
+        sb0 = home_scoreboard(iso)
     except Exception:
         sb0 = []
     nl = sum(x["state"] == "in" for x in sb0)
     nu = sum(x["state"] == "pre" for x in sb0)
     nf = sum(x["state"] == "post" for x in sb0)
-    html(f'<div class="hm-hero"><div><div class="hm-hi">{H(date.strftime("%A, %B %-d"))}</div>'
-         f'<div class="hm-hs">{len(sb0)} games on the slate</div></div><div class="hm-pills">'
+    d_lab = "Today" if off == 0 else ("Yesterday" if off == -1 else ("Tomorrow" if off == 1 else ""))
+    html(f'<div class="hm-hero"><div><div class="hm-hi">{H(hdate.strftime("%A, %B %-d"))}</div>'
+         f'<div class="hm-hs">{(d_lab + " · ") if d_lab else ""}{len(sb0)} games on the slate</div></div><div class="hm-pills">'
          f'<span class="hm-p live"><span class="pro-dot"></span>{nl} live</span><span class="hm-p">{nu} upcoming</span><span class="hm-p">{nf} final</span></div></div>')
+    d1, d2, d3, _sp = st.columns([1, 1, 1, 3], gap="small")
+    if d1.button("Previous day", key="hm_prev", icon=":material/chevron_left:", use_container_width=True):
+        st.session_state["home_off"] = off - 1
+        st.rerun()
+    if d2.button("Today", key="hm_today", use_container_width=True, disabled=(off == 0)):
+        st.session_state["home_off"] = 0
+        st.rerun()
+    if d3.button("Next day", key="hm_next", icon=":material/chevron_right:", icon_position="right", use_container_width=True):
+        st.session_state["home_off"] = off + 1
+        st.rerun()
+    html('<div class="hm-sp"></div>')
     qc = st.columns(4, gap="medium")
     for c, (lab, tgt, ic) in zip(qc, (("Simulate a game", NAV[0], "monitoring"), ("Full slate", NAV[1], "format_list_bulleted"),
                                       ("Player props", NAV[2], "person"), ("First basket", NAV[3], "sports_basketball"))):
         if c.button(lab, key=f"hmq_{tgt}", icon=f":material/{ic}:", use_container_width=True):
             st.session_state["_goto"] = tgt
             st.rerun()
+
+    # ---- private: record snapshot, yesterday's recap, open bets
+    if private:
+        try:
+            wide = load_wide()
+            gk = f"_hm_graded_{local_today().isoformat()}"
+            if len(wide) and not st.session_state.get(gk):
+                wide, n_new = grade_wide(wide)
+                if n_new:
+                    save_wide(wide)
+                st.session_state[gk] = True
+            log = add_pick_flag(expand_wide(wide)) if len(wide) else pd.DataFrame(columns=["date", "result", "profit", "is_pick"])
+            bets = load_bets()
+            w7, w30 = _window_stats(log, bets, local_today(), 7), _window_stats(log, bets, local_today(), 30)
+            html('<div class="hm-sec">Your record</div><div class="hm-tiles">'
+                 + _tile("Model picks · 7 days", w7["model"][0], f'{_pm(w7["model"][1])} per $100 flat')
+                 + _tile("Model picks · 30 days", w30["model"][0], f'{_pm(w30["model"][1])} per $100 flat')
+                 + _tile("My bets · 7 days", w7["bets"][0], f'{_pm(w7["bets"][1])} profit')
+                 + _tile("My bets · 30 days", w30["bets"][0], f'{_pm(w30["bets"][1])} profit') + '</div>')
+            # yesterday's recap (relative to the day being viewed)
+            ry = (hdate - dt.timedelta(days=1)).isoformat()
+            dy = log[(log["date"].astype(str) == ry) & (log["is_pick"]) & (log["result"].isin(["W", "L", "P"]))] if len(log) else log
+            if len(dy):
+                prof = pd.to_numeric(dy["profit"], errors="coerce").fillna(0).sum()
+                html(f'<div class="hm-sec">Last night\'s recap<small>{H((hdate - dt.timedelta(days=1)).strftime("%A, %b %-d"))}</small></div>'
+                     f'<div class="hm-recap"><b>The model went {record_line(dy)}</b> {_pm(prof)} <span class="nb-muted">on flat $100 picks</span></div>')
+            # open bets
+            ob = bets[~bets["result"].isin(["W", "L", "P"])] if len(bets) else bets
+            if len(ob):
+                rows = "".join(f'<div class="hm-lr"><span>{book_chip(r["book"], 18)}{H(str(r["desc"])[:70])}</span><b>${r["stake"]:,.0f}</b></div>'
+                               for _, r in ob.head(5).iterrows())
+                more = f'<div class="nb-muted" style="margin-top:6px">+ {len(ob) - 5} more in My bets</div>' if len(ob) > 5 else ""
+                html(f'<div class="hm-sec">Open bets<small>{len(ob)} pending · ${ob["stake"].sum():,.0f} at stake</small></div>'
+                     f'<div class="hm-lead" style="max-width:none">{rows}{more}</div>')
+        except Exception:
+            pass
+
+    # ---- best plays (runs the model for the day on request, shares results with Full slate)
+    html('<div class="hm-sec">Best plays<small>where the model sees the most value</small></div>')
+    if off == 0 and games and M is not None:
+        key = f"slate_{iso}"
+        if key not in st.session_state:
+            if st.button("Run the model for today's slate", key="hm_run", type="primary", icon=":material/local_fire_department:"):
+                _sk = st.empty()
+                _sk.markdown(skeleton_cards(min(len(games), 3), f"Simulating {len(games)} games..."), unsafe_allow_html=True)
+                try:
+                    st.session_state[key] = [analyze_game(M, g, g["odds"], team_injury_pts(M, g["home"], injuries, date),
+                                                          team_injury_pts(M, g["away"], injuries, date), b2b) for g in games]
+                finally:
+                    _sk.empty()
+        if key in st.session_state:
+            html(best_plays_html(st.session_state[key], 4))
+        else:
+            st.caption("Runs all of today's games (about a minute) and shows the top value spots here.")
+    else:
+        st.caption("Best plays are shown for today's slate. Press Today to see them." if off else "No games to run.")
+
+    # ---- scoreboard, performers, play-by-play (auto-refreshing)
     run = _refreshing(_home_body)
-    run(date.isoformat())
+    run(iso)
+
+    # ---- injuries and standings
+    if sb0 and M is not None and injuries is not None:
+        html('<div class="hm-sec">Injury report<small>biggest names out or questionable for these games</small></div>')
+        _injury_section(sb0, M, injuries, date)
+    try:
+        stand = get_standings()
+    except Exception:
+        stand = {}
+    if stand:
+        html('<div class="hm-sec">Standings<small>top 8 in each conference</small></div>')
+        cs = st.columns(2, gap="large")
+        for c, (nm, rows) in zip(cs, list(stand.items())[:2]):
+            with c:
+                html(f'<div class="hm-ll">{H(nm)}</div>' + _standings_html(rows))
+
 
 
 NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "🏆 Pick'em", "🧮 Edge tools"]
@@ -5980,7 +6210,7 @@ record_closing(date, games)
 record_closing(date - dt.timedelta(days=1), prev_games if "prev_games" in globals() else [])
 
 if nav == HOME_NAV:
-    home_tab(date)
+    home_tab(date, M, games, injuries, b2b_teams, private_ok)
 
 if nav == NAV[0]:
     game_picker("game")

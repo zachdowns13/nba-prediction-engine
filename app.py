@@ -5403,6 +5403,7 @@ HOME_CSS = """<style>
 .hm-dd summary::-webkit-details-marker{display:none}
 .hm-chev{display:block;font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.55;margin-top:.45rem}
 .hm-dd[open] .hm-chev:after{content:" ▴"}.hm-dd:not([open]) .hm-chev:after{content:" ▾"}
+.hm-rcs:has(.hm-ov[open]) details.hm-dd:not(.hm-ov):not([open])::details-content{content-visibility:visible;height:auto}
 .hm-dd:hover{border-color:rgba(96,165,250,.5)}
 .hm-pk{text-align:left;padding:.4rem .8rem .7rem;border-top:1px solid rgba(128,128,128,.2)}
 .hm-pkr{display:flex;gap:8px;font-size:.8rem;padding:.25rem 0;line-height:1.3}
@@ -5632,12 +5633,14 @@ def home_js():
         components.html("""<script>
         (function () {
           const d = window.parent.document;
-          if (d.__hmOv) return; d.__hmOv = true;
-          d.addEventListener('toggle', function (e) {
-            const t = e.target;
-            if (!t || !t.classList || !t.classList.contains('hm-ov')) return;
-            const grid = t.closest('.hm-rcs'); if (!grid) return;
-            grid.querySelectorAll('details.hm-dd:not(.hm-ov)').forEach(function (x) { x.open = t.open; });
+          if (d.__hmOv2) return; d.__hmOv2 = true;
+          d.addEventListener('click', function (e) {
+            const sm = e.target && e.target.closest ? e.target.closest('details.hm-ov > summary') : null;
+            if (!sm) return;
+            const ov = sm.parentElement;
+            const willOpen = !ov.open;                      // the click is about to flip it
+            const grid = ov.closest('.hm-rcs'); if (!grid) return;
+            grid.querySelectorAll('details.hm-dd:not(.hm-ov)').forEach(function (x) { x.open = willOpen; });
           }, true);
         })();
         </script>""", height=0)

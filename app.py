@@ -4045,15 +4045,11 @@ except Exception:
 
 with hero:
     _n = len(games)
-    _inj = sum(len(v) for v in injuries.values()) if injuries else 0
-    _stats = [("Date", date.strftime("%a, %b %-d")), ("Games", str(_n)), ("Back-to-backs", str(len(b2b_teams))),
-              ("Injury reports", f"{_inj:,}"), ("Games rated", f"{M['n_games']:,}")]
     html('<div class="pro-hero"><div class="pro-hero-top"><div class="pro-brand"><span class="pro-mark">🏀</span>'
          '<div><div class="pro-title">NBA Simulator</div>'
          '<div class="pro-sub">10,000 simulations per game, priced against the sportsbooks, with injuries weighted automatically.</div></div></div>'
-         '<div class="pro-live"><span class="pro-dot"></span>Live data from ESPN</div></div>'
-         '<div class="pro-stats">' + "".join(f'<div class="pro-stat"><div class="pro-sv">{H(v)}</div><div class="pro-sl">{H(k)}</div></div>' for k, v in _stats)
-         + '</div></div>')
+         f'<div class="pro-chips"><span class="pro-live">{H(date.strftime("%A, %b %-d"))}</span>'
+         '<span class="pro-live"><span class="pro-dot"></span>Live data from ESPN</span></div></div></div>')
 
 labels = [f"{g['away']} @ {g['home']}" for g in games] + ["✏️ Manual matchup"]
 choice = st.session_state.get("sel_game")
@@ -5817,7 +5813,7 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 .nb-big,.nb-tile .v,.nb-score .p,.nb-brow .pr,.nb-lb .v,[data-testid="stMetricValue"],[data-testid="stDataFrame"]{ font-variant-numeric:tabular-nums; }
 
 /* Header */
-.pro-hero{ position:relative; overflow:hidden; border-radius:22px; padding:1.5rem 1.6rem 1.15rem; margin:0 0 1.1rem;
+.pro-hero{ position:relative; overflow:hidden; border-radius:22px; padding:1.25rem 1.5rem; margin:0 0 1.1rem;
   background:radial-gradient(520px 240px at 92% -30%, rgba(129,140,248,.55), transparent 70%),
              linear-gradient(130deg,#060a14 0%,#0d1a3d 55%,#1b44b8 130%);
   border:1px solid rgba(148,163,184,.2); box-shadow:0 24px 60px rgba(2,6,23,.5); color:#fff; }
@@ -5830,6 +5826,7 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
   background:linear-gradient(145deg,rgba(255,255,255,.2),rgba(255,255,255,.06)); border:1px solid rgba(255,255,255,.25); box-shadow:0 8px 24px rgba(0,0,0,.35); }
 .pro-title{ font-size:1.95rem; font-weight:800; letter-spacing:-.045em; line-height:1.05; }
 .pro-sub{ opacity:.78; font-size:.92rem; margin-top:.3rem; max-width:46rem; line-height:1.4; }
+.pro-chips{ display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
 .pro-live{ display:inline-flex; align-items:center; gap:.5rem; font-size:.8rem; font-weight:600; padding:.35rem .8rem; border-radius:999px;
   background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); backdrop-filter:blur(8px); white-space:nowrap; }
 .pro-dot{ width:8px; height:8px; border-radius:50%; background:#4ade80; box-shadow:0 0 0 0 rgba(74,222,128,.7); animation:proPulse 2s infinite; }

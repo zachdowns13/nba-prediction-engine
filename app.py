@@ -5390,6 +5390,15 @@ HOME_CSS = """<style>
 .hm-rcs{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:.7rem;margin-top:.4rem}
 .hm-rc{border:1px solid rgba(128,128,128,.25);border-radius:12px;padding:.55rem .8rem;background:rgba(128,128,128,.05)}
 .hm-rc.big{border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.1)}
+.hm-rcs{align-items:start}
+.hm-dd{padding:0 !important;cursor:pointer}
+.hm-dd summary{list-style:none;padding:.8rem .8rem .6rem;cursor:pointer;display:block}
+.hm-dd summary::-webkit-details-marker{display:none}
+.hm-chev{display:block;font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.55;margin-top:.45rem}
+.hm-dd[open] .hm-chev:after{content:" ▴"}.hm-dd:not([open]) .hm-chev:after{content:" ▾"}
+.hm-dd:hover{border-color:rgba(96,165,250,.5)}
+.hm-pk{max-height:240px;overflow-y:auto;text-align:left;padding:.4rem .8rem .7rem;border-top:1px solid rgba(128,128,128,.2)}
+.hm-pkr{display:flex;gap:8px;font-size:.8rem;padding:.25rem 0;line-height:1.3}
 .hm-rb{font-size:1.5rem;font-weight:800;line-height:1.25}
 .hm-rc{text-align:center;padding:.8rem .8rem}
 .hm-recap{padding:.9rem 1.1rem;border-radius:14px;border:1px solid rgba(128,128,128,.25);background:rgba(128,128,128,.05);margin-top:.4rem;font-size:1rem}
@@ -5665,20 +5674,26 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
                 day_all = pd.DataFrame(columns=["date", "result", "profit", "is_pick", "market", "game"])
             dy = day_all[day_all["result"].isin(["W", "L", "P"])]
 
+            sym = {"W": "✅", "L": "❌", "P": "➖"}
+
             def _rc(label, d_, a_, big=False):
                 pr = pd.to_numeric(d_["profit"], errors="coerce").fillna(0).sum()
                 rec = record_line(d_) if len(d_) else "0-0"
                 act = len(a_) - len(d_)
                 sub = _pm(pr) + (f' <span class="nb-muted">· {act} active</span>' if act > 0 else "")
-                return (f'<div class="hm-rc{" big" if big else ""}"><div class="hm-tl">{label}</div>'
-                        f'<div class="hm-rb">{rec}</div><div class="hm-ts">{sub}</div></div>')
+                head = (f'<div class="hm-tl">{label}</div><div class="hm-rb">{rec}</div><div class="hm-ts">{sub}</div>')
+                cls = "hm-rc" + (" big" if big else "")
+                if not len(a_):
+                    return f'<div class="{cls}">{head}</div>'
+                lines = "".join(f'<div class="hm-pkr"><span>{sym.get(r["result"], "⏳")}</span><span>{H(pick_label(r))}</span></div>'
+                                for _, r in a_.sort_values("game").iterrows())
+                return (f'<details class="{cls} hm-dd"><summary>{head}<span class="hm-chev">Show picks</span></summary>'
+                        f'<div class="hm-pk">{lines}</div></details>')
             parts = _rc("Overall", dy, day_all, True) + "".join(
                 _rc(nm + "s", dy[dy["market"] == nm], day_all[day_all["market"] == nm]) for nm in ("Moneyline", "Spread", "Total"))
             _who = "Today's" if off == 0 else rday.strftime("%A's")
             html(f'<div class="hm-sec">{_who} model picks<small>{H(rday.strftime("%A, %b %-d"))}</small></div>'
                  f'<div class="hm-rcs">{parts}</div>')
-            if len(day_all):
-                market_dropdowns(day_all, by_date=False)
             # open bets
             ob = bets[~bets["result"].isin(["W", "L", "P"])] if len(bets) else bets
             if len(ob):

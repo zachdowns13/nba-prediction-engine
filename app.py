@@ -5695,8 +5695,8 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
         stand = {}
     if stand:
         html('<div class="hm-sec">Standings<small>every team, by conference</small></div>'
-             '<div class="hm-key"><span><i style="background:#22c55e"></i>1-6 playoffs</span><span><i style="background:#f59e0b"></i>7-10 play-in</span>'
-             '<span><i style="background:rgba(148,163,184,.5)"></i>11-15 out</span></div>')
+             '<div class="hm-key"><span><i style="background:#22c55e"></i>Playoffs</span><span><i style="background:#f59e0b"></i>Play-in</span>'
+             '<span><i style="background:rgba(148,163,184,.5)"></i>Out</span></div>')
         cs = st.columns(2, gap="large")
         for c, (nm, rows) in zip(cs, list(stand.items())[:2]):
             with c:

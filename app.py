@@ -4289,6 +4289,15 @@ st.markdown("""<style>
 [class*="_sidewrap"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;min-width:0;padding-left:.2rem !important;padding-right:.2rem !important;white-space:nowrap;overflow:visible;height:2.5rem !important;min-height:2.5rem !important;display:flex;align-items:center;justify-content:center}
 [class*="st-key-bet_"][class*="_book"]:not(.st-key-bet_book):not(.st-key-bet_book_c){margin-left:.66rem;width:calc(100% - .66rem) !important}
 [class*="st-key-pkcard_"]{border-radius:14px !important}
+[class*="st-key-pk_20"],[class*="st-key-pk_20"]>div{width:100% !important}
+[class*="st-key-pk_20"] [data-testid="stButtonGroup"],[class*="st-key-pk_20"] [data-testid="stButtonGroup"]>div{display:flex !important;flex-direction:row !important;gap:.5rem;width:100% !important}
+[class*="st-key-pk_20"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;min-width:0;height:2.7rem !important;min-height:2.7rem !important;border-radius:12px !important;
+  font-weight:650 !important;font-size:.95rem !important;background:rgba(148,163,184,.08) !important;border:1px solid rgba(148,163,184,.22) !important;
+  display:flex;align-items:center;justify-content:center;transition:all .18s ease !important}
+[class*="st-key-pk_20"] [data-testid="stButtonGroup"] button:hover{border-color:rgba(96,165,250,.6) !important;background:rgba(59,130,246,.10) !important;transform:translateY(-1px)}
+[class*="st-key-pk_20"] [data-testid="stButtonGroup"] button[aria-checked="true"],[class*="st-key-pk_20"] [data-testid="stButtonGroup"] button[aria-pressed="true"],[class*="st-key-pk_20"] [data-testid="stButtonGroup"] button[kind$="Active"]{
+  background:linear-gradient(135deg,#3b82f6,#6366f1) !important;border-color:transparent !important;color:#fff !important;box-shadow:0 6px 16px rgba(59,130,246,.35)}
+[class*="st-key-pk_20"] [data-testid="stButtonGroup"] button *{color:inherit !important;white-space:nowrap}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}

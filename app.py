@@ -5432,8 +5432,9 @@ HOME_CSS = """<style>
 .hm-mu{border:1px solid rgba(128,128,128,.25);border-radius:16px;padding:.8rem 1rem 1rem;background:rgba(128,128,128,.05)}
 .hm-mh{font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;opacity:.65;margin-bottom:.6rem;text-align:center}
 .hm-mh i{font-style:normal;opacity:.6;margin:0 .3rem}
-.hm-mrow{display:grid;grid-template-columns:1fr 1px 1fr;gap:.9rem}
-.hm-mvs{background:rgba(128,128,128,.25)}
+.hm-mrow{display:grid;grid-template-columns:minmax(0,1fr);gap:.7rem}
+.hm-mvs{height:1px;background:rgba(128,128,128,.25)}
+.hm-injp .pl{white-space:normal;max-width:100%;overflow-wrap:anywhere;line-height:1.3}
 .hm-ms{min-width:0}
 .hm-mt{display:flex;align-items:center;gap:6px;margin-bottom:.45rem;font-size:.95rem}
 .hm-injg{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:.8rem;margin-top:.4rem}

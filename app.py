@@ -2103,7 +2103,20 @@ def model_cards(base, note):
                   f'<div class="{t_}" style="font-size:1.3rem;font-weight:800;line-height:1.3">{H(r_)}</div><div class="nb-muted" style="font-size:.75rem">{H(s2)}</div></div>')
     html('<div class="nb-card" style="padding:16px 20px">' + big
          + ('<div style="display:flex;gap:8px;border-top:1px solid var(--line);padding-top:12px">' + minis + '</div>' if minis else "") + '</div>')
-    st.caption(note + " Units: 1 unit = a $100 bet on each pick.")
+    html(f'<div class="nb-muted" style="margin:.8rem 0 .6rem;font-size:.85rem">{H(note)} Units: 1 unit = a $100 bet on each pick.</div>')
+
+
+def tip_sorted(df):
+    # Picks in the order the games tip off (earliest first). Falls back to the game name if start times can't be loaded.
+    try:
+        starts = {}
+        for d in df["date"].astype(str).str[:10].unique():
+            for x in home_scoreboard(d):
+                starts[str(x["id"])] = x["start"]
+        key = df["date"].astype(str).str[:10] + "|" + df["event_id"].astype(str).map(lambda e: starts.get(e, "9999"))
+        return df.assign(_tip=key).sort_values(["_tip", "game"]).drop(columns="_tip")
+    except Exception:
+        return df.sort_values("game")
 
 
 def market_dropdowns(base, by_date):
@@ -2129,7 +2142,7 @@ def market_dropdowns(base, by_date):
                         txt += f" · {len(d) - len(g_)} waiting"
                     lines.append(txt)
             else:
-                lines = [f"{sym.get(r['result'], '⏳')} {pick_label(r).replace('$', chr(92) + '$')}" for _, r in m.sort_values("game").iterrows()]
+                lines = [f"{sym.get(r['result'], '⏳')} {pick_label(r).replace('$', chr(92) + '$')}" for _, r in tip_sorted(m).iterrows()]
             st.markdown("  \n".join(lines))
 
 
@@ -5718,7 +5731,7 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
                 if not len(a_):
                     return f'<div class="{cls}">{head}</div>'
                 lines = "".join(f'<div class="hm-pkr"><span>{sym.get(r["result"], "⏳")}</span><span>{H(pick_label(r))}</span></div>'
-                                for _, r in a_.sort_values("game").iterrows())
+                                for _, r in tip_sorted(a_).iterrows())
                 if big:                                   # the main card has no list of its own: it opens or closes the three below
                     return f'<details class="{cls} hm-dd hm-ov"><summary>{head}<span class="hm-chev">Show all picks</span></summary></details>'
                 return (f'<details class="{cls} hm-dd"><summary>{head}<span class="hm-chev">Show picks</span></summary>'

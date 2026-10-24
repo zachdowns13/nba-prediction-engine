@@ -4293,7 +4293,7 @@ st.markdown("""<style>
 [class*="st-key-bet_"][class*="_book"]:not(.st-key-bet_book):not(.st-key-bet_book_c){margin-left:.66rem;width:calc(100% - .66rem) !important}
 [class*="st-key-pkcard_"]{border-radius:14px !important}
 .nb-vs{display:inline-flex !important;align-items:center;flex-wrap:wrap;gap:.3rem .5rem}
-.nb-vs .nb-logo{margin:0 !important;flex:none}
+.nb-vs .nb-logo{margin:0 -.22rem 0 0 !important;flex:none}
 .nb-vs .nb-at{opacity:.55;font-weight:600;padding:0 .1rem}
 [class*="st-key-pk_20"],[class*="st-key-pk_20"]>div{width:100% !important}
 [class*="st-key-pk_20"] [data-testid="stButtonGroup"],[class*="st-key-pk_20"] [data-testid="stButtonGroup"]>div{display:flex !important;flex-direction:row !important;gap:.5rem;width:100% !important}

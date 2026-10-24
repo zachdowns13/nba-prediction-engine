@@ -2213,12 +2213,12 @@ def game_results_view():
     graded = log[log["result"].isin(["W", "L", "P"])].copy()
     for c in ("odds", "model_p", "book_p", "edge", "profit"):
         graded[c] = pd.to_numeric(graded[c])
-    t_today, t_all, t_sel = st.tabs(["📅 Today", "📊 All time", "🗓️ Selected date"])
-    with t_today:
+    _sub = sub_nav(["📅 Today", "📊 All time", "🗓️ Selected date"], "results")
+    if _sub == 0:
         model_period_view(log, graded, local_today().isoformat(), "today")
-    with t_all:
+    if _sub == 1:
         model_period_view(log, graded, None, "all")
-    with t_sel:
+    if _sub == 2:
         model_period_view(log, graded, st.session_state["sel_date"].isoformat(), "sel")
 
 
@@ -3637,12 +3637,12 @@ def bets_results_view(cord_only=False):
 
 
 def bets_tab():
-    t_in, t_open, t_res = st.tabs(["➕ Add a bet", "⏳ Open bets", "📈 Results"])
-    with t_in:
+    _sub = sub_nav(["➕ Add a bet", "⏳ Open bets", "📈 Results"], "bets")
+    if _sub == 0:
         bets_input_view()
-    with t_open:
+    if _sub == 1:
         bets_open_view()
-    with t_res:
+    if _sub == 2:
         bets_results_view()
 
 
@@ -4272,10 +4272,10 @@ def model_first_basket(M, g, injuries, date):
 def pickem_tab(M, date, games, injuries, b2b):
     st.caption("Pick the winner of every game, then see how you match up against the sportsbook (its moneyline favorite) and the model. "
                "The book's and the model's picks are saved at the moment you lock yours in, so you can't peek first.")
-    t_pick, t_board, t_fb = st.tabs(["🎯 Make picks", "📊 Scoreboard", "🏀 First basket"])
+    _sub = sub_nav(["🎯 Make picks", "📊 Scoreboard", "🏀 First basket"], "pickem")
     iso = date.isoformat()
     saved = load_pickem()
-    with t_pick:
+    if _sub == 0:
         date_picker("pickem")
         if not games:
             st.info("No games on this date.")
@@ -4353,7 +4353,7 @@ def pickem_tab(M, date, games, injuries, b2b):
                     st.rerun()
             if st.session_state.get("pk_msg"):
                 st.success(st.session_state.pop("pk_msg"))
-    with t_fb:
+    if _sub == 2:
         st.caption("Guess who scores the first basket of each game (free throws don't count). The model's top first scorer is saved when you lock yours in, "
                    "and the real first basket is filled in from ESPN once the game is under way.")
         date_picker("pickem_fb")
@@ -4435,7 +4435,7 @@ def pickem_tab(M, date, games, injuries, b2b):
                     st.dataframe(T_[["Date", "Game", "First basket", "You", "Model"]].sort_values("Date", ascending=False), hide_index=True, use_container_width=True)
             else:
                 st.caption("No finished games with a known first basket yet.")
-    with t_board:
+    if _sub == 1:
         if saved.empty:
             st.info("No picks yet. Make some in **Make picks** and your scoreboard will build up as games finish.")
             return
@@ -5005,17 +5005,30 @@ def arb_view():
 
 
 def edge_tab(date):
-    t1, t2, t3, t4, t5 = st.tabs(["💵 Kelly stakes", "🔎 Arbitrage & +EV", "📐 CLV tracker", "🎯 Model accuracy", "📣 Discord post"])
-    with t1:
+    _sub = sub_nav(["💵 Kelly stakes", "🔎 Arbitrage & +EV", "📐 CLV tracker", "🎯 Model accuracy", "📣 Discord post"], "edge")
+    if _sub == 0:
         kelly_view(date)
-    with t2:
+    if _sub == 1:
         arb_view()
-    with t3:
+    if _sub == 2:
         clv_view()
-    with t4:
+    if _sub == 3:
         accuracy_view()
-    with t5:
+    if _sub == 4:
         discord_view(date)
+
+
+def sub_nav(labels, key):
+    # The page's sections (like Kelly / CLV / Accuracy), shown in the pinned menu bar so they stay at the top while you scroll.
+    box = globals().get("_nav_box")
+    cur = st.session_state.get(f"sub_{key}")
+    idx = labels.index(cur) if cur in labels else 0
+    if box is None:
+        pick = st.radio("Page section", labels, index=idx, horizontal=True, key=f"sub_{key}", label_visibility="collapsed")
+    else:
+        with box:
+            pick = st.radio("Page section", labels, index=idx, horizontal=True, key=f"sub_{key}", label_visibility="collapsed")
+    return labels.index(pick)
 
 
 NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "🏆 Pick'em", "🧮 Edge tools", "💬 AI chat"]
@@ -5238,40 +5251,9 @@ def dropdown_toggle_fix():
               if (cs.overflowY !== 'visible' || cs.overflowX !== 'visible') p.style.overflow = 'visible';
               p = p.parentElement;
             }
-            pinTabs(el);
-          }
-          function pinTabs(navEl) {
-            // Keeps each top-level tab bar visible just under the main menu once you scroll past it.
-            const top = Math.round(navEl.getBoundingClientRect().bottom) + 2;
-            doc.documentElement.style.setProperty('--nb-tabtop', top + 'px');
-            doc.querySelectorAll('[data-baseweb="tab-list"]').forEach(function (bar) {
-              if (bar.closest('[role="tabpanel"]')) return;
-              let ph = bar.__ph;
-              if (!ph || !ph.isConnected || ph.nextSibling !== bar) {
-                ph = bar.__ph = doc.createElement('div');
-                ph.style.height = '0px';
-                bar.parentElement.insertBefore(ph, bar);
-              }
-              const pinned = bar.dataset.nbPinned === '1';
-              const natural = pinned ? ph.getBoundingClientRect().top : bar.getBoundingClientRect().top;
-              if (natural < top) {
-                const h = pinned ? parseFloat(ph.style.height) : bar.getBoundingClientRect().height;
-                const r = bar.parentElement.getBoundingClientRect();
-                ph.style.height = h + 'px';
-                bar.dataset.nbPinned = '1';
-                bar.style.position = 'fixed'; bar.style.top = top + 'px'; bar.style.left = r.left + 'px';
-                bar.style.width = r.width + 'px'; bar.style.zIndex = '900';
-                bar.style.background = bg() || '';
-              } else if (pinned) {
-                ph.style.height = '0px';
-                delete bar.dataset.nbPinned;
-                ['position', 'top', 'left', 'width', 'zIndex', 'background'].forEach(function (k) { bar.style[k] = ''; });
-              }
-            });
           }
           function setBg() { const c = bg(); if (c) doc.documentElement.style.setProperty('--nb-bg', c); pin(); }
           setBg();
-          if (!P.__nbScroll) { P.__nbScroll = true; doc.addEventListener('scroll', function () { try { P.__nbSet(); } catch (e) {} }, true); P.addEventListener('resize', function () { try { P.__nbSet(); } catch (e) {} }); }
           P.__nbSet = setBg;                                  // always run the newest copy, and keep the timer on the page itself
           if (!P.__nbBg) { P.__nbBg = true; P.setInterval(function () { try { P.__nbSet(); } catch (e) {} }, 1000); }
         })();
@@ -5696,10 +5678,6 @@ hr{ border-color:var(--m-edge) !important; }
 ::-webkit-scrollbar-thumb{ background:rgba(148,163,184,.30); border-radius:8px; border:2px solid transparent; background-clip:content-box; }
 ::-webkit-scrollbar-thumb:hover{ background:rgba(148,163,184,.5); background-clip:content-box; }
 
-/* Pinned sub-tabs (top-level tab bars only). The offset below the menu is set by the script. */
-[data-baseweb="tabs"], [data-testid="stTabs"]{ overflow:visible !important; }
-[data-baseweb="tab-list"]{ position:sticky; top:var(--nb-tabtop,7.5rem); z-index:900; background:var(--nb-bg,transparent); }
-[role="tabpanel"] [data-baseweb="tab-list"]{ position:static; background:transparent; }
 @media (max-width:640px){ .nb-card:hover,.nb-tile:hover,.nb-pod:hover{ transform:none; } }
 @media (prefers-reduced-motion:reduce){ [data-testid="stMain"] .block-container{ animation:none; } .nb-card,.nb-tile,.nb-pod{ transition:none; } }
 </style>

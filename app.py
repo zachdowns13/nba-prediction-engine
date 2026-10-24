@@ -4604,19 +4604,23 @@ def kelly_view(date):
         if f <= 0:
             st.info(f"No edge: you need to win more than **{be * 100:.1f}%** at {o:+d} to break even.")
         else:
-            st.success(f"Full Kelly says **{f * 100:.1f}%** of your bankroll. With your settings, bet **{md_money(s_)}** ({s_ / 100:.2f} units). Break-even is {be * 100:.1f}%.")
+            st.success(f"The full-size Kelly bet would be **{f * 100:.1f}%** of your bankroll. Scaled to your setting ({st.session_state.get('ks_frac', 0.25):g}x, max {st.session_state.get('ks_cap', 5.0):g}%), "
+                       f"your stake is **{md_money(s_)}** ({s_ / 100:.2f} units). Break-even is {be * 100:.1f}%.")
     st.markdown("#### Today's value plays")
     res_list = st.session_state.get(f"slate_{date.isoformat()}")
     if not res_list:
         st.info("Run the **Full slate** for this date first. The value plays then show up here with a stake.")
     else:
-        rows = [(res, r) for res in res_list for r in res["rows"] if strength(r["edge"], r["ev"])]
+        show_all = st.radio("Show", ["Value plays only", "All plays"], horizontal=True, key="kelly_show",
+                            help="All plays lists every moneyline, spread and total side. Kelly only bets when the model sees an edge, so sides without one show $0.") == "All plays"
+        rows = [(res, r) for res in res_list for r in res["rows"] if show_all or strength(r["edge"], r["ev"])]
+        rows.sort(key=lambda x: -x[1]["edge"])
         if not rows:
             st.info("No value plays on this slate.")
         else:
             st.dataframe(pd.DataFrame([{"Game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "Pick": pick_name(r),
                                         "Odds": f"{r['book_odds']:+d}", "Model": pct(r["model_p"]), "Edge (pts)": f"{r['edge'] * 100:+.1f}",
-                                        "Flat": "$100", "Kelly": f"${kelly_stake(r['model_p'], r['book_odds']):,.0f}"} for res, r in rows]), hide_index=True)
+                                        "Market": r["market"], "Flat": "$100", "Kelly": f"${kelly_stake(r['model_p'], r['book_odds']):,.0f}"} for res, r in rows]), hide_index=True)
     st.markdown("#### What Kelly would have done with your logged value plays")
     log = value_log()
     if log.empty:

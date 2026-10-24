@@ -5019,15 +5019,15 @@ def edge_tab(date):
 
 
 def sub_nav(labels, key):
-    # The page's sections (like Kelly / CLV / Accuracy), shown in the pinned menu bar so they stay at the top while you scroll.
-    box = globals().get("_sub_box")
-    cur = st.session_state.get(f"sub_{key}")
+    # The page's sections (like Kelly / CLV / Accuracy), drawn as a row under the main menu inside the pinned menu bar, so it stays put while you scroll.
+    box = globals().get("_nav_box")
+    cur = st.session_state.get(f"subnav_{key}")
     idx = labels.index(cur) if cur in labels else 0
     if box is None:
-        pick = st.radio("Page section", labels, index=idx, horizontal=True, key=f"sub_{key}", label_visibility="collapsed")
+        pick = st.radio("Page section", labels, index=idx, horizontal=True, key=f"subnav_{key}", label_visibility="collapsed")
     else:
         with box:
-            pick = st.radio("Page section", labels, index=idx, horizontal=True, key=f"sub_{key}", label_visibility="collapsed")
+            pick = st.radio("Page section", labels, index=idx, horizontal=True, key=f"subnav_{key}", label_visibility="collapsed")
     return labels.index(pick)
 
 
@@ -5159,13 +5159,13 @@ st.markdown("""<style>
 .st-key-navbar label:hover{background:rgba(128,128,128,.14)}
 .st-key-navbar label:has(input:checked){background:rgba(255,75,75,.16);color:#ff4b4b;font-weight:600}
 .st-key-navbar label p{font-size:.95rem}
-.st-key-subnav [role="radiogroup"]{gap:.15rem;flex-wrap:wrap}
-.st-key-subnav label{padding:.25rem .8rem;border-radius:8px;cursor:pointer;margin:0}
-.st-key-subnav label > *:not(:last-child):not(input){display:none}
-.st-key-subnav label:hover{background:rgba(128,128,128,.14)}
-.st-key-subnav label:has(input:checked){background:rgba(59,130,246,.18);color:#60a5fa;font-weight:600}
-.st-key-subnav label p{font-size:.88rem}
-.st-key-subnav{padding:.1rem 0 .3rem;border-bottom:1px solid rgba(128,128,128,.22)}
+[class*="st-key-subnav_"]{margin-top:.15rem;padding-top:.25rem;border-top:1px solid rgba(128,128,128,.22)}
+[class*="st-key-subnav_"] [role="radiogroup"]{gap:.2rem;flex-wrap:wrap}
+[class*="st-key-subnav_"] label[data-baseweb="radio"]{padding:.3rem .85rem .4rem;margin:0;border-radius:6px 6px 0 0;cursor:pointer;background:transparent !important;box-shadow:none}
+[class*="st-key-subnav_"] label[data-baseweb="radio"] > div:first-child{display:none !important}
+[class*="st-key-subnav_"] label[data-baseweb="radio"]:hover{background:rgba(128,128,128,.12) !important}
+[class*="st-key-subnav_"] label[data-baseweb="radio"]:has(input:checked){box-shadow:inset 0 -3px 0 #3b82f6 !important;font-weight:600;background:transparent !important;color:inherit !important;border-color:transparent !important}
+[class*="st-key-subnav_"] label p{font-size:.95rem}
 </style>""", unsafe_allow_html=True)
 try:
     _nav_box = st.container(key="navbar")
@@ -5173,10 +5173,6 @@ except TypeError:                                        # older Streamlit witho
     _nav_box = st.container()
 with _nav_box:
     nav = st.radio("Section", menu, horizontal=True, key="main_nav", label_visibility="collapsed")
-try:
-    _sub_box = st.container(key="subnav")                # a second ribbon under the menu for each page's sections
-except TypeError:
-    _sub_box = st.container()
 
 def terms_help():
   with st.expander("What do these terms mean?"):
@@ -5254,7 +5250,6 @@ def dropdown_toggle_fix():
               if (el === doc.body) return;
             }
             el.style.position = 'sticky'; el.style.top = '3.75rem'; el.style.zIndex = '1000';
-            pinSub(el);
             el.style.background = bg() || '';
             let p = el.parentElement;
             while (p && p !== doc.body) {
@@ -5263,19 +5258,6 @@ def dropdown_toggle_fix():
               if (cs.overflowY !== 'visible' || cs.overflowX !== 'visible') p.style.overflow = 'visible';
               p = p.parentElement;
             }
-          }
-          function pinSub(navEl) {
-            const sub = doc.querySelector('.st-key-subnav');
-            if (!sub) return;
-            let w = sub;
-            while (w.parentElement && !(w.parentElement.matches('[data-testid="stVerticalBlock"]') &&
-                   w.parentElement.parentElement && w.parentElement.parentElement.matches('.block-container, [data-testid="stMainBlockContainer"]'))) {
-              w = w.parentElement;
-              if (w === doc.body) return;
-            }
-            const top = Math.round(60 + navEl.getBoundingClientRect().height - 8);
-            w.style.position = 'sticky'; w.style.top = top + 'px'; w.style.zIndex = '999';
-            w.style.background = sub.querySelector('[role="radiogroup"]') ? (bg() || '') : '';
           }
           function setBg() { const c = bg(); if (c) doc.documentElement.style.setProperty('--nb-bg', c); pin(); }
           setBg();

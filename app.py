@@ -781,10 +781,10 @@ def render_result(res):
     best = max(res["rows"], key=lambda r: r["edge"]) if res["rows"] else None
     if best and strength(best["edge"], best["ev"]):
         label = best["side"] if best["market"] == "Moneyline" else f"{best['side']} {best['line']}"
-        st.success(f"### ✅ Best value: {best['market']}: {label}\n"
+        st.success(f"**Best value: {best['market']}: {label}.** "
                    f"Model gives it **{pct(best['model_p'])}**, the sportsbook's odds only imply **{pct(best['book_p'])}**.")
     elif res["rows"]:
-        st.info("### No clear value\nThe model and the sportsbook roughly agree on all three markets.")
+        st.info("**No clear value.** The model and the sportsbook roughly agree on all three markets.")
     if best and strength(best["edge"], best["ev"]) and st.session_state.get("stake_mode") == "Kelly":
         sk = stake_for(best["model_p"], best["book_odds"])
         st.caption(f"💵 Kelly stake for this spot: **{md_money(sk)}** ({sk / 100:.2f} units) on a {md_money(st.session_state.get('ks_bankroll', 1000))} bankroll.")
@@ -5995,7 +5995,7 @@ PRO_CSS = """
 .stApp{ background-image:
   radial-gradient(1200px 500px at 12% -10%, rgba(59,130,246,.14), transparent 60%),
   radial-gradient(900px 480px at 100% 0%, rgba(99,102,241,.12), transparent 55%); background-attachment:fixed; }
-.block-container{ max-width:1240px; padding-top:2.6rem !important; }
+.block-container{ max-width:1240px; padding-top:4.2rem !important; }
 .block-container [data-testid="stVerticalBlock"]{ gap:.7rem; }
 html{ scroll-behavior:smooth; }
 body, .stApp{ font-feature-settings:"cv11","ss01"; }
@@ -6162,7 +6162,7 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
   .pro-stats{ grid-template-columns:repeat(2,minmax(0,1fr)); }
   .pro-stat:last-child{ grid-column:1 / -1; }
   .pro-page-t{ font-size:1.3rem; }
-  .block-container{ padding-top:2.6rem !important; }
+  .block-container{ padding-top:3.8rem !important; }
 }
 @media (prefers-reduced-motion:reduce){ .pro-dot{ animation:none; } .nb-card,.nb-tile,.nb-pod{ transition:none; transform:none !important; } }
 </style>

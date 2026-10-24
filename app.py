@@ -1472,7 +1472,7 @@ def props_tab(M, g, odds, injuries, date, b2b):
 import base64 as _b64
 import threading as _th
 
-_DATA_FILES = ["bets_log.csv", "bets_trash.csv", "picks_log.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv"]
+_DATA_FILES = ["bets_log.csv", "bets_trash.csv", "picks_log.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv", "pickem_fb_log.csv"]
 _GH = {"sha": {}, "lock": _th.Lock(), "restored": False, "err": ""}
 
 
@@ -4080,10 +4080,107 @@ def graded_pickem(df):
     return pd.DataFrame(rows)
 
 
+PICKFB_PATH = "pickem_fb_log.csv"
+PICKFB_COLS = ["date", "event_id", "away", "home", "my_pick", "model_pick", "model_p", "saved_at"]
+
+
+def load_pickfb():
+    try:
+        df = pd.read_csv(PICKFB_PATH, dtype=str)
+    except Exception:
+        df = st.session_state.get("pickfb_df", pd.DataFrame(columns=PICKFB_COLS))
+    return df.reindex(columns=PICKFB_COLS).fillna("").reset_index(drop=True)
+
+
+def save_pickfb(df):
+    df = df.reindex(columns=PICKFB_COLS).fillna("").reset_index(drop=True)
+    st.session_state["pickfb_df"] = df
+    try:
+        df.to_csv(PICKFB_PATH, index=False)
+        cloud_save(PICKFB_PATH)
+        return True
+    except Exception:
+        return False
+
+
+def _nm(x):
+    # Names compared loosely: no punctuation, case or Jr./Sr./II/III endings.
+    x = re.sub(r"[^a-z ]", "", str(x or "").lower())
+    return " ".join(re.sub(r"\b(jr|sr|ii|iii|iv)\b", "", x).split())
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def actual_first_basket(event_id):
+    # Who made the first field goal of the game (free throws don't count), from ESPN's play-by-play. None if it can't be found yet.
+    try:
+        data = _get(f"{BASE}/summary", {"event": event_id}, tries=2)
+    except Exception:
+        return None
+    names = {}
+    for t in (data.get("boxscore") or {}).get("players", []):
+        for grp in t.get("statistics", []):
+            for a in grp.get("athletes", []):
+                ath = a.get("athlete") or {}
+                if ath.get("id"):
+                    names[str(ath["id"])] = ath.get("displayName", "")
+    for p in data.get("plays") or []:
+        if not p.get("scoringPlay"):
+            continue
+        txt = str(p.get("text") or "")
+        if "free throw" in (txt + " " + str((p.get("type") or {}).get("text") or "")).lower():
+            continue
+        m = re.match(r"^\s*(.+?)\s+(?:makes|made)\b", txt, re.I)
+        nm = m.group(1).strip() if m else ""
+        if not nm:
+            for part in p.get("participants") or []:
+                nm = names.get(str((part.get("athlete") or {}).get("id")), "")
+                if nm:
+                    break
+        return nm or None
+    return None
+
+
+def model_first_basket(M, g, injuries, date):
+    # The model's single most likely first scorer for a game, using the same default lineups and tip-off logic as the First basket tab.
+    try:
+        home, away = g["home"], g["away"]
+        evs = {t: recent_events(M["hist"], t, date.toordinal(), FB_HISTORY_GAMES) for t in (home, away)}
+        boxes = load_boxes(tuple(sorted(set(evs[home]) | set(evs[away]))))
+        tip_evs = {t: recent_events(M["hist"], t, date.toordinal(), TIP_SCAN_GAMES) for t in (home, away)}
+        tip_all = tuple(sorted(set(tip_evs[home]) | set(tip_evs[away])))
+        tboxes = load_boxes(tip_all)
+        cs0 = dt.date(M["season"] - 1, 9, 1).toordinal()
+        fives = []
+        for team, tid in ((home, g.get("home_id")), (away, g.get("away_id"))):
+            cur = {e for (o, e) in M["hist"].get(team, []) if o >= cs0}
+            agg = team_profile([e for e in evs[team] if e in cur] or evs[team], boxes, team)
+            roster = set(get_roster(tid))
+            if roster:
+                agg = {k: a for k, a in agg.items() if k in roster}
+            out = {r["player"].lower() for r in injuries.get(team, []) if r["status"].lower() in ("out", "doubtful")}
+            top = [(k, a) for k, a in sorted(agg.items(), key=lambda kv: (-kv[1]["wstarts"], -kv[1]["min"])) if a["name"].lower() not in out][:5]
+            if len(top) < 5:
+                return "", ""
+            fives.append([player_params(k, a["name"], a) for k, a in top])
+        jump = {}
+        for team in (home, away):
+            allowed = {p["name"] for p in fives[0 if team == home else 1]}
+            cur = {e for (o, e) in M["hist"].get(team, []) if o >= cs0}
+            jump[team] = (usual_jumper(tboxes, [e for e in tip_evs[team] if e in cur], team, allowed)
+                          or usual_jumper(tboxes, tip_evs[team][-TIP_GAMES:], team, allowed))
+        tipm = tip_model(tboxes, tip_all, jump[home], jump[away])
+        _fo, winner, scorer, _done = simulate_first_basket(fives[0], fives[1], SIMS, tipm["p_home"])
+        best = max(((float(np.mean((winner == t) & (scorer == i))), fives[t][i]["name"]) for t in (0, 1) for i in range(5)))
+        return best[1], best[0]
+    except Exception:
+        return "", ""
+
+
+
 def pickem_tab(M, date, games, injuries, b2b):
     st.caption("Pick the winner of every game, then see how you match up against the sportsbook (its moneyline favorite) and the model. "
                "The book's and the model's picks are saved at the moment you lock yours in, so you can't peek first.")
-    t_pick, t_board = st.tabs(["🎯 Make picks", "📊 Scoreboard"])
+    t_pick, t_fb, t_board = st.tabs(["🎯 Make picks", "🏀 First basket", "📊 Scoreboard"])
     iso = date.isoformat()
     saved = load_pickem()
     with t_pick:
@@ -4164,6 +4261,88 @@ def pickem_tab(M, date, games, injuries, b2b):
                     st.rerun()
             if st.session_state.get("pk_msg"):
                 st.success(st.session_state.pop("pk_msg"))
+    with t_fb:
+        st.caption("Guess who scores the first basket of each game (free throws don't count). The model's top first scorer is saved when you lock yours in, "
+                   "and the real first basket is filled in from ESPN once the game is under way.")
+        date_picker("pickem_fb")
+        fsaved = load_pickfb()
+        fmine = fsaved[fsaved["date"] == iso].set_index("event_id")
+        if not games:
+            st.info("No games on this date.")
+        else:
+            def _fcard(g):
+                eid = str(g["id"])
+                title = (f'<div class="nb-top"><span class="nb-title nb-vs">{logo(g.get("away_logo"))}<span>{H(short(g["away"]))}</span>'
+                         f'<span class="nb-at">@</span>{logo(g.get("home_logo"))}<span>{H(short(g["home"]))}</span></span>')
+                with st.container(border=True, key=f"pkfbcard_{iso}_{eid}"):
+                    if eid in fmine.index:
+                        r = fmine.loc[eid]
+                        real = actual_first_basket(eid) if g["state"] != "pre" else None
+                        hit = (lambda p: "" if not real or not p else (" ✅" if _nm(p) == _nm(real) else " ❌"))
+                        bd = (badge("✅ Got it", "ok") if real and _nm(r["my_pick"]) == _nm(real) else badge("❌ Missed", "bad")) if real else badge("🔒 Locked", "acc")
+                        html(title + bd + '</div><div class="nb-muted" style="margin-top:-.35rem;padding-left:.3rem">Your first basket</div>'
+                             f'<div class="nb-winner">{H(r["my_pick"])}</div>'
+                             + (f'<div class="nb-fscore">First basket: {H(real)}</div>' if real else "")
+                             + '<div class="nb-chips">'
+                             f'<span class="nb-chip">Model: <b>{H(r["model_pick"] or "n/a")}</b>' + (f' ({float(r["model_p"]) * 100:.0f}%)' if r["model_p"] else "") + f'{hit(r["model_pick"])}</span></div>')
+                        if g["state"] == "pre" and st.button("Change my pick", key=f"pkfbc_{iso}_{eid}", type="tertiary"):
+                            _a = load_pickfb()
+                            save_pickfb(_a[~((_a["date"] == iso) & (_a["event_id"] == eid))])
+                            st.rerun()
+                    elif g["state"] == "pre":
+                        html(title + badge("Open", "none") + '</div><div class="nb-muted" style="margin-top:-.35rem;padding-left:.3rem">Who scores first?</div>')
+                        opts = sorted(set(get_roster_names(g.get("home_id")).values()) | set(get_roster_names(g.get("away_id")).values()))
+                        try:
+                            st.selectbox("First basket", opts, index=None, placeholder="Start typing a player...", key=f"pkfb_{iso}_{eid}", label_visibility="collapsed")
+                        except TypeError:
+                            st.selectbox("First basket", [""] + opts, key=f"pkfb_{iso}_{eid}", label_visibility="collapsed")
+                    else:
+                        html(title + badge("Closed", "none") + '</div><div class="nb-muted">Already started, so it can\'t be picked now.</div>')
+
+            for k0 in range(0, len(games), 3):
+                row = st.columns(3)
+                for c_, g_ in zip(row, games[k0:k0 + 3]):
+                    with c_:
+                        _fcard(g_)
+            fchosen = [g for g in games if g["state"] == "pre" and str(g["id"]) not in fmine.index and st.session_state.get(f"pkfb_{iso}_{g['id']}")]
+            if any(g["state"] == "pre" and str(g["id"]) not in fmine.index for g in games):
+                if st.button(f"🔒 Lock in {len(fchosen)} first basket pick{'s' if len(fchosen) != 1 else ''}" if fchosen else "🔒 Lock in first basket picks",
+                             type="primary", key=f"pkfb_lock_{iso}", disabled=not fchosen):
+                    new = []
+                    with st.spinner("Saving your picks and the model's (the first time can take a bit)..."):
+                        for g in fchosen:
+                            mn, mp = model_first_basket(M, g, injuries, date)
+                            new.append({"date": iso, "event_id": str(g["id"]), "away": g["away"], "home": g["home"], "my_pick": st.session_state[f"pkfb_{iso}_{g['id']}"],
+                                        "model_pick": mn, "model_p": "" if mp == "" else f"{mp:.4f}", "saved_at": local_now().strftime("%Y-%m-%d %H:%M")})
+                    ok = save_pickfb(pd.concat([load_pickfb(), pd.DataFrame(new)], ignore_index=True))
+                    st.session_state["pkfb_msg"] = f"Locked in {len(new)} first basket pick{'s' if len(new) != 1 else ''}." + ("" if ok else " (Could not write the file, so they're kept for this session only.)")
+                    st.rerun()
+            if st.session_state.get("pkfb_msg"):
+                st.success(st.session_state.pop("pkfb_msg"))
+        if not fsaved.empty:
+            st.markdown('<div class="nb-sec">First basket record</div>', unsafe_allow_html=True)
+            rows_ = []
+            for _, r in fsaved.iterrows():
+                real = actual_first_basket(str(r["event_id"]))
+                if real:
+                    rows_.append({"Date": r["date"], "Game": f"{short(r['away'])} @ {short(r['home'])}", "First basket": real, "You": r["my_pick"],
+                                  "Model": r["model_pick"] or "-", "me": _nm(r["my_pick"]) == _nm(real),
+                                  "model": (None if not r["model_pick"] else _nm(r["model_pick"]) == _nm(real))})
+            if rows_:
+                F = pd.DataFrame(rows_)
+                c1, c2 = st.columns(2)
+                mw, ml = _wl(list(F["me"]))
+                dw, dl = _wl(list(F["model"].where(F["model"].notna(), None)))
+                c1.metric("You", f"{mw}-{ml}")
+                c1.caption(f"{mw / (mw + ml) * 100:.0f}% right" if mw + ml else "")
+                c2.metric("Model", f"{dw}-{dl}")
+                c2.caption(f"{dw / (dw + dl) * 100:.0f}% right" if dw + dl else "no model picks yet")
+                with st.expander("Every finished first basket pick"):
+                    T_ = F.assign(You=F["You"] + F["me"].map({True: " ✅", False: " ❌"}),
+                                  Model=F["Model"] + F["model"].map({True: " ✅", False: " ❌"}).fillna(""))
+                    st.dataframe(T_[["Date", "Game", "First basket", "You", "Model"]].sort_values("Date", ascending=False), hide_index=True, use_container_width=True)
+            else:
+                st.caption("No finished games with a known first basket yet.")
     with t_board:
         if saved.empty:
             st.info("No picks yet. Make some in **Make picks** and your scoreboard will build up as games finish.")

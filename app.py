@@ -4112,7 +4112,7 @@ def pickem_tab(M, date, games, injuries, b2b):
                         who = lambda p: short(p) if p else "no line"
                         badge_ = (badge("✅ You got it", "ok") if win and r["my_pick"] == win else badge("❌ Missed", "bad")) if win else badge("🔒 Locked", "acc")
                         html(title + badge_ + '</div>'
-                             f'<div class="nb-muted">Your pick</div><div class="nb-winner">{logo(g.get("home_logo") if r["my_pick"] == g["home"] else g.get("away_logo"))}{H(short(r["my_pick"]))}</div>'
+                             f'<div class="nb-muted" style="margin-top:-.35rem;padding-left:.3rem">Your pick</div><div class="nb-winner">{logo(g.get("home_logo") if r["my_pick"] == g["home"] else g.get("away_logo"))}{H(short(r["my_pick"]))}</div>'
                              + (f'<div class="nb-fscore">Final: {H(short(g["away"]))} {int(f["as"])}, {H(short(g["home"]))} {int(f["hs"])}</div>' if f else "")
                              + '<div class="nb-chips">'
                              f'<span class="nb-chip">Book: <b>{H(who(r["book_pick"]))}</b>' + (f' ({int(float(r["book_ml"])):+d})' if r["book_ml"] else "") + f'{mark(r["book_pick"])}</span>'
@@ -4123,7 +4123,7 @@ def pickem_tab(M, date, games, injuries, b2b):
                                 save_pickem(_all[~((_all["date"] == iso) & (_all["event_id"] == eid))])
                                 st.rerun()
                     elif g["state"] == "pre":
-                        html(title + badge("Open", "none") + '</div><div class="nb-muted">Pick the winner</div>')
+                        html(title + badge("Open", "none") + '</div><div class="nb-muted" style="margin-top:-.35rem;padding-left:.3rem">Pick the winner</div>')
                         def _set_pick(k_, v_):
                             st.session_state[k_] = None if st.session_state.get(k_) == v_ else v_       # tap again to undo
                         b1, b2 = st.columns(2)                                                           # two equal buttons, side by side

@@ -5637,11 +5637,6 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
                 st.session_state[gk] = True
             log = add_pick_flag(expand_wide(wide)) if len(wide) else pd.DataFrame(columns=["date", "result", "profit", "is_pick"])
             bets = load_bets()
-            w7 = _window_stats(log, bets, local_today(), 7)
-            html('<div class="hm-sec">Your record</div><div class="hm-tiles">'
-                 + _tile("Model picks · 7 days", w7["model"][0], f'{_pm(w7["model"][1])} per $100 flat')
-                 + _tile("My bets · 7 days", w7["bets"][0], f'{_pm(w7["bets"][1])} profit')
-                 + '</div>')
             # yesterday's recap (relative to the day being viewed)
             ry = (hdate - dt.timedelta(days=1)).isoformat()
             dy = log[(log["date"].astype(str) == ry) & (log["is_pick"]) & (log["result"].isin(["W", "L", "P"]))] if len(log) else log
@@ -5659,26 +5654,6 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
                      f'<div class="hm-lead" style="max-width:none">{rows}{more}</div>')
         except Exception:
             pass
-
-    # ---- best plays (runs the model for the day on request, shares results with Full slate)
-    html('<div class="hm-sec">Best plays<small>where the model sees the most value</small></div>')
-    if off == 0 and games and M is not None:
-        key = f"slate_{iso}"
-        if key not in st.session_state:
-            if st.button("Run the model for today's slate", key="hm_run", type="primary", icon=":material/local_fire_department:"):
-                _sk = st.empty()
-                _sk.markdown(skeleton_cards(min(len(games), 3), f"Simulating {len(games)} games..."), unsafe_allow_html=True)
-                try:
-                    st.session_state[key] = [analyze_game(M, g, g["odds"], team_injury_pts(M, g["home"], injuries, date),
-                                                          team_injury_pts(M, g["away"], injuries, date), b2b) for g in games]
-                finally:
-                    _sk.empty()
-        if key in st.session_state:
-            html(best_plays_html(st.session_state[key], 4))
-        else:
-            st.caption("Runs all of today's games (about a minute) and shows the top value spots here.")
-    else:
-        st.caption("Best plays are shown for today's slate. Press Today to see them." if off else "No games to run.")
 
     # ---- scoreboard, performers, play-by-play (auto-refreshing)
     run = _refreshing(_home_body)

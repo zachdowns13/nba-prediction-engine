@@ -5575,7 +5575,10 @@ def _injury_section(sb, M, injuries, date):
             rows.sort(key=lambda r: (-(r["Min/game"] or 0)))
             if rows:
                 pills = "".join(
-                    pill(f'{r["Player"]} · {r["Status"]}', "bad" if str(r["Status"]).lower() in ("out", "doubtful") else "warn") for r in rows[:2])
+                    '<span class="pl pl-{k}" style="cursor:help" title="{t}">{x}</span>'.format(
+                        k="bad" if str(r["Status"]).lower() in ("out", "doubtful") else "warn",
+                        t=H(f'{r["Player"]} ({r["Status"]}): ' + (r["Note"] or "No update from ESPN yet."))
+                        .replace('"', "&quot;"), x=H(f'{r["Player"]} · {r["Status"]}')) for r in rows[:2])
                 items.append(f'<div class="hm-inj"><div class="hm-injt">{logo(x["away_logo"] if team == x["away"] else x["home_logo"])}{H(short(team))}</div>'
                              f'<div class="hm-injp">{pills}</div></div>')
     if not items:

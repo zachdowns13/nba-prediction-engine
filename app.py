@@ -1453,13 +1453,18 @@ def props_tab(M, g, odds, injuries, date, b2b):
         return
     st.session_state.setdefault("props_proj", {})[f"{away} @ {home}"] = [r for r in rows]
     rows.sort(key=lambda r: -r["Pts+Reb+Ast"])          # best combined points+rebounds+assists first, for each team
-    proj_note.caption(f"Projected score: {short(home)} {res['hp']:.0f}, {short(away)} {res['ap']:.0f}. Best points+rebounds+assists first. "
-                      "Players who are out are hidden and teammates already include the boost.", help="Projects each player from his recent games, scaled to this game's projected score. "
-                      "Sportsbook prop lines aren't in ESPN's free data, so type your book's line under 'Check a prop' to see the over/under chance.")
+    def _side(team, lg):
+        return (f'<div style="flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px;font-weight:700">'
+                f'{logo(lg, True)}<span style="font-size:1.2rem">{H(team)}</span></div>')
+    html('<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:2px 0 10px">'
+         + _side(home, g.get("home_logo"))
+         + f'<div style="flex:none;text-align:center"><div style="font-size:2rem;font-weight:800;line-height:1.1">{res["hp"]:.0f} – {res["ap"]:.0f}</div>'
+           '<div class="nb-muted" style="font-size:.7rem;letter-spacing:.06em;text-transform:uppercase">Projected score</div></div>'
+         + _side(away, g.get("away_logo")) + '</div>')
     pcols = st.columns(2)
     for col, team, lg in zip(pcols, (home, away), (g.get("home_logo"), g.get("away_logo"))):
         with col:
-            html(f'<div style="font-weight:700;margin:4px 0 10px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px">{logo(lg, True)}<span style="font-size:1.3rem">{H(team)}</span></div>')
+
             cards = []
             for r in [x for x in rows if x["Team"] == short(team)][:6]:
                 stt = (badge(r["Status"], "bad" if r["Status"].lower() in ("out", "doubtful") else "lean") if r["Status"] else "")

@@ -5449,7 +5449,7 @@ def _home_body(date_iso):
         st.info("No games on this date.")
         return
     n_live = sum(1 for x in sb if x["state"] == "in")
-    html(f'<div class="hm-sec">Tonight\'s games<small>{"%d live now" % n_live if n_live else "None live right now"} · refreshes automatically</small></div>')
+    html(f'<div class="hm-sec">{H(dt.date.fromisoformat(date_iso).strftime("%A, %B %-d"))}<small>{"%d live now" % n_live if n_live else "None live right now"} · refreshes automatically</small></div>')
     _rs = {r["game"]["id"]: r for r in (st.session_state.get(f"slate_{date_iso}") or [])}
     html('<div class="hm-grid">' + "".join(_home_card(x, _rs.get(x["id"])) for x in sb) + '</div>')
     _performers(date_iso)

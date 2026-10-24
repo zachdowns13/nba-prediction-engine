@@ -4629,7 +4629,7 @@ def kelly_view(date):
             st.dataframe(pd.DataFrame([{"Game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "Pick": pick_name(r),
                                         "Odds": f"{r['book_odds']:+d}", "Model": pct(r["model_p"]), "Edge (pts)": f"{r['edge'] * 100:+.1f}",
                                         "Break-even": pct(implied(r["book_odds"])), "Beats break-even": f"{(r['model_p'] - implied(r['book_odds'])) * 100:+.1f}",
-                                        "Market": r["market"], "Flat": "$100", "Kelly": f"${kelly_stake(r['model_p'], r['book_odds']):,.0f}"} for res, r in rows]), hide_index=True)
+                                        "Flat": "$100", "Kelly": f"${kelly_stake(r['model_p'], r['book_odds']):,.0f}"} for res, r in rows]), hide_index=True)
     st.markdown("#### What Kelly would have done with your logged value plays")
     log = value_log()
     if log.empty:

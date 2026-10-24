@@ -5649,7 +5649,8 @@ def home_js():
 
 
 def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
-    html(HOME_CSS)
+    with _css_slot:
+        st.markdown(HOME_CSS, unsafe_allow_html=True)
     home_js()
     off = st.session_state.setdefault("home_off", 0)
     hdate = date + dt.timedelta(days=off)
@@ -6257,7 +6258,6 @@ POLISH_CSS = """
 
 # Inject after legacy layout helpers so these tokens and component styles win
 # in the cascade without changing any Streamlit widgets or their state.
-st.markdown(POLISH_CSS, unsafe_allow_html=True)
 
 # The late style sheets are written into a slot that sits in a fixed place near the top. If they were added at the very end of the page, they
 # shifted position from page to page and the styling dropped out for a moment while the page reloaded.
@@ -6265,6 +6265,8 @@ try:
     _css_slot = st.container(key="csslot")
 except TypeError:
     _css_slot = st.container()
+with _css_slot:
+    st.markdown(POLISH_CSS, unsafe_allow_html=True)
 PAGE_INFO = {NAV[0]: ("Game odds", "Simulate one matchup 10,000 times and compare every price with the model."),
              NAV[1]: ("Full slate", "Every game on the date, ranked by where the model sees the most value."),
              NAV[2]: ("Player props", "Projected stat lines for each player, checked against the book's number."),

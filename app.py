@@ -4180,7 +4180,7 @@ def model_first_basket(M, g, injuries, date):
 def pickem_tab(M, date, games, injuries, b2b):
     st.caption("Pick the winner of every game, then see how you match up against the sportsbook (its moneyline favorite) and the model. "
                "The book's and the model's picks are saved at the moment you lock yours in, so you can't peek first.")
-    t_pick, t_fb, t_board = st.tabs(["🎯 Make picks", "🏀 First basket", "📊 Scoreboard"])
+    t_pick, t_board, t_fb = st.tabs(["🎯 Make picks", "📊 Scoreboard", "🏀 First basket"])
     iso = date.isoformat()
     saved = load_pickem()
     with t_pick:

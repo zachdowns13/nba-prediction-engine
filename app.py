@@ -5543,7 +5543,7 @@ def _window_stats(log, bets, today, days):
 
 def _pm(x):
     cls = "good" if x > 0.5 else ("bad" if x < -0.5 else "")
-    return f'<span class="hm-pm {cls}">{"+" if x > 0.5 else ("-" if x < -0.5 else "")}${abs(x):,.0f}</span>'
+    return f'<span class="hm-pm {cls}">{"+" if x > 0.5 else ("-" if x < -0.5 else "")}{abs(x) / 100:.2f} units</span>'
 
 
 @st.cache_data(ttl=1800, show_spinner=False)

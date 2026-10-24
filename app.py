@@ -5243,6 +5243,7 @@ def dropdown_toggle_fix():
           function pinTabs(navEl) {
             // Keep the sub-tabs of the current page pinned just under the main menu (top-level tab bars only).
             const top = 60 + navEl.getBoundingClientRect().height;
+            doc.documentElement.style.setProperty('--nb-tabtop', top + 'px');
             doc.querySelectorAll('[data-baseweb="tab-list"]').forEach(function (tl) {
               if (tl.closest('[role="tabpanel"]')) return;
               const root = tl.closest('[data-baseweb="tabs"]');
@@ -5261,7 +5262,8 @@ def dropdown_toggle_fix():
           }
           function setBg() { const c = bg(); if (c) doc.documentElement.style.setProperty('--nb-bg', c); pin(); }
           setBg();
-          if (!P.__nbBg) { P.__nbBg = true; setInterval(setBg, 1500); }
+          P.__nbSet = setBg;                                  // always run the newest copy, and keep the timer on the page itself
+          if (!P.__nbBg) { P.__nbBg = true; P.setInterval(function () { try { P.__nbSet(); } catch (e) {} }, 1000); }
         })();
         </script>
         <script>
@@ -5684,6 +5686,10 @@ hr{ border-color:var(--m-edge) !important; }
 ::-webkit-scrollbar-thumb{ background:rgba(148,163,184,.30); border-radius:8px; border:2px solid transparent; background-clip:content-box; }
 ::-webkit-scrollbar-thumb:hover{ background:rgba(148,163,184,.5); background-clip:content-box; }
 
+/* Pinned sub-tabs (top-level tab bars only). The offset below the menu is set by the script. */
+[data-baseweb="tabs"], [data-testid="stTabs"]{ overflow:visible !important; }
+[data-baseweb="tab-list"]{ position:sticky; top:var(--nb-tabtop,7.5rem); z-index:900; background:var(--nb-bg,transparent); }
+[role="tabpanel"] [data-baseweb="tab-list"]{ position:static; background:transparent; }
 @media (max-width:640px){ .nb-card:hover,.nb-tile:hover,.nb-pod:hover{ transform:none; } }
 @media (prefers-reduced-motion:reduce){ [data-testid="stMain"] .block-container{ animation:none; } .nb-card,.nb-tile,.nb-pod{ transition:none; } }
 </style>

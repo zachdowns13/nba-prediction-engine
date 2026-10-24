@@ -4587,11 +4587,13 @@ def stake_settings(where):
     st.session_state["ks_bankroll"], st.session_state["ks_frac"], st.session_state["ks_cap"] = bank, KELLY_FRACS[lab], cap
 
 
-def beats_record_view():
-    # Every logged bet where the model's win chance was above break-even, graded, with a table for each day.
-    st.markdown("#### Record: bets that beat break-even")
+def beats_record_view(mode_="Beats break-even"):
+    # The graded record for whichever list is showing above, with a table for each day.
+    titles = {"Beats break-even": "bets that beat break-even", "All plays": "all plays (the side the model liked in every market)",
+              "Value plays only": "value plays"}
+    st.markdown(f"#### Record: {titles.get(mode_, 'plays')}")
     try:
-        log = expand_wide(load_wide())
+        log = add_pick_flag(expand_wide(load_wide()))
     except Exception:
         log = pd.DataFrame()
     if log.empty:
@@ -4599,9 +4601,14 @@ def beats_record_view():
         return
     for c in ("odds", "model_p", "profit"):
         log[c] = pd.to_numeric(log[c], errors="coerce")
-    d = log[log["model_p"] > log["odds"].map(lambda o: implied(o) if pd.notna(o) else 9)].copy()
+    if mode_ == "All plays":
+        d = log[log["is_pick"]].copy()
+    elif mode_ == "Value plays only":
+        d = log[log["flagged"] & (log["date"].astype(str) >= str(value_cutoff()))].copy()
+    else:
+        d = log[log["model_p"] > log["odds"].map(lambda o: implied(o) if pd.notna(o) else 9)].copy()
     if d.empty:
-        st.info("No logged bets have beaten break-even yet.")
+        st.info("Nothing logged in this view yet.")
         return
     d["day"] = d["date"].astype(str).str[:10]
     d["kstake"] = [kelly_stake(p, o) for p, o in zip(d["model_p"], d["odds"])]
@@ -4692,8 +4699,7 @@ def kelly_view(date):
                     "Flat": cc.NumberColumn("Flat", format="$%.0f"), "Kelly": cc.NumberColumn("Kelly", format="$%.0f")})
             except Exception:
                 st.dataframe(kdf, hide_index=True)
-    if mode_ == "Beats break-even":
-        beats_record_view()
+    beats_record_view(mode_)
     st.markdown("#### What Kelly would have done with your logged value plays")
     log = value_log()
     if log.empty:

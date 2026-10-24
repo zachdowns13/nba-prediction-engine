@@ -5396,10 +5396,8 @@ HOME_CSS = """<style>
 .hm-dd summary::-webkit-details-marker{display:none}
 .hm-chev{display:block;font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.55;margin-top:.45rem}
 .hm-dd[open] .hm-chev:after{content:" ▴"}.hm-dd:not([open]) .hm-chev:after{content:" ▾"}
-.hm-rcs:has(.hm-ov[open]) .hm-pk{display:block}
-.hm-rc .hm-pk{margin:.5rem -.8rem -.8rem;text-align:left}
 .hm-dd:hover{border-color:rgba(96,165,250,.5)}
-.hm-pk{display:none;max-height:260px;overflow-y:auto;text-align:left;padding:.4rem .8rem .7rem;border-top:1px solid rgba(128,128,128,.2)}
+.hm-pk{max-height:260px;overflow-y:auto;text-align:left;padding:.4rem .8rem .7rem;border-top:1px solid rgba(128,128,128,.2)}
 .hm-pkr{display:flex;gap:8px;font-size:.8rem;padding:.25rem 0;line-height:1.3}
 .hm-rb{font-size:1.5rem;font-weight:800;line-height:1.25}
 .hm-rc{text-align:center;padding:.8rem .8rem}
@@ -5686,13 +5684,12 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
                 sub = _pm(pr) + (f' <span class="nb-muted">· {act} active</span>' if act > 0 else "")
                 head = (f'<div class="hm-tl">{label}</div><div class="hm-rb">{rec}</div><div class="hm-ts">{sub}</div>')
                 cls = "hm-rc" + (" big" if big else "")
+                if not len(a_):
+                    return f'<div class="{cls}">{head}</div>'
                 lines = "".join(f'<div class="hm-pkr"><span>{sym.get(r["result"], "⏳")}</span><span>{H(pick_label(r))}</span></div>'
                                 for _, r in a_.sort_values("game").iterrows())
-                if big:                                   # clicking Overall opens the three market cards below it
-                    if not len(a_):
-                        return f'<div class="{cls}">{head}</div>'
-                    return (f'<details class="{cls} hm-dd hm-ov"><summary>{head}<span class="hm-chev">Show picks</span></summary></details>')
-                return f'<div class="{cls}">{head}' + (f'<div class="hm-pk">{lines}</div>' if lines else "") + '</div>'
+                return (f'<details class="{cls} hm-dd"><summary>{head}<span class="hm-chev">Show picks</span></summary>'
+                        f'<div class="hm-pk">{lines}</div></details>')
             parts = _rc("Overall", dy, day_all, True) + "".join(
                 _rc(nm + "s", dy[dy["market"] == nm], day_all[day_all["market"] == nm]) for nm in ("Moneyline", "Spread", "Total"))
             _who = "Today's" if off == 0 else rday.strftime("%A's")

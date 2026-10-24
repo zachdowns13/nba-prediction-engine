@@ -4028,7 +4028,6 @@ M = fit_model(date.isoformat())
 if M is None:
     st.error("Could not download enough game history from ESPN to build team ratings. Try again in a minute.")
     st.stop()
-st.caption(f"Ratings built from {M['n_games']:,} games (this season and last), most recent weighted heaviest.")
 
 try:
     games = get_slate(date.isoformat())
@@ -4046,11 +4045,15 @@ except Exception:
 
 with hero:
     _n = len(games)
-    html(f'<div class="nb-hero"><h1>🏀 NBA Simulator</h1>'
-         f'<div class="sub">Every game simulated 10,000 times, compared with the sportsbooks, with injuries weighted automatically.</div>'
-         f'<span class="pill">📅 {date.strftime("%A, %B %-d, %Y")}</span>'
-         f'<span class="pill">🏟️ {_n} game{"s" if _n != 1 else ""}</span>'
-         f'<span class="pill">🔄 Lines and injuries refresh from ESPN automatically</span></div>')
+    _inj = sum(len(v) for v in injuries.values()) if injuries else 0
+    _stats = [("Date", date.strftime("%a, %b %-d")), ("Games", str(_n)), ("Back-to-backs", str(len(b2b_teams))),
+              ("Injury reports", f"{_inj:,}"), ("Games rated", f"{M['n_games']:,}")]
+    html('<div class="pro-hero"><div class="pro-hero-top"><div class="pro-brand"><span class="pro-mark">🏀</span>'
+         '<div><div class="pro-title">NBA Simulator</div>'
+         '<div class="pro-sub">10,000 simulations per game, priced against the sportsbooks, with injuries weighted automatically.</div></div></div>'
+         '<div class="pro-live"><span class="pro-dot"></span>Live data from ESPN</div></div>'
+         '<div class="pro-stats">' + "".join(f'<div class="pro-stat"><div class="pro-sv">{H(v)}</div><div class="pro-sl">{H(k)}</div></div>' for k, v in _stats)
+         + '</div></div>')
 
 labels = [f"{g['away']} @ {g['home']}" for g in games] + ["✏️ Manual matchup"]
 choice = st.session_state.get("sel_game")
@@ -5136,7 +5139,7 @@ menu = NAV if private_ok else NAV[:4] + [LOCKED_NAV]
 if "_goto" in st.session_state:                           # jump to a section after unlocking
     st.session_state["main_nav"] = st.session_state.pop("_goto")
 if st.session_state.get("main_nav") not in menu:
-    st.session_state["main_nav"] = menu[0]
+    st.session_state["main_nav"] = st.session_state.get("_main_last") if st.session_state.get("_main_last") in menu else menu[0]
 
 
 def private_gate():
@@ -5252,7 +5255,13 @@ try:
 except TypeError:                                        # older Streamlit without container keys
     _nav_box = st.container()
 with _nav_box:
-    nav = st.radio("Section", menu, horizontal=True, key="main_nav", label_visibility="collapsed")
+    try:
+        nav = st.segmented_control("Section", menu, key="main_nav", label_visibility="collapsed")
+    except (TypeError, AttributeError):
+        nav = st.radio("Section", menu, horizontal=True, key="main_nav", label_visibility="collapsed")
+    if nav not in menu:                                  # tapping the selected button again clears it; stay on the same page
+        nav = st.session_state.get("_main_last") if st.session_state.get("_main_last") in menu else menu[0]
+    st.session_state["_main_last"] = nav
 
 def terms_help():
   with st.expander("What do these terms mean?"):
@@ -5573,6 +5582,17 @@ POLISH_CSS = """
 # in the cascade without changing any Streamlit widgets or their state.
 st.markdown(POLISH_CSS, unsafe_allow_html=True)
 
+PAGE_INFO = {NAV[0]: ("Game odds", "Simulate one matchup 10,000 times and compare every price with the model."),
+             NAV[1]: ("Full slate", "Every game on the date, ranked by where the model sees the most value."),
+             NAV[2]: ("Player props", "Projected stat lines for each player, checked against the book's number."),
+             NAV[3]: ("First basket", "Who is most likely to score first, from lineups, tip-off odds and recent play."),
+             NAV[4]: ("Results", "How the model's saved picks and value plays have actually done."),
+             NAV[5]: ("My bets", "Log, track and settle your own bets, with live leg progress."),
+             NAV[6]: ("Pick'em", "Pick the winners yourself and see how you stack up against the book and the model."),
+             NAV[7]: ("Edge tools", "Bet sizing, closing line value, model accuracy and ready-to-post picks.")}
+_pi = PAGE_INFO.get(nav)
+if _pi:
+    html(f'<div class="pro-page"><div class="pro-page-t">{H(_pi[0])}</div><div class="pro-page-s">{H(_pi[1])}</div></div>')
 record_closing(date, games)
 record_closing(date - dt.timedelta(days=1), prev_games if "prev_games" in globals() else [])
 
@@ -5768,3 +5788,117 @@ hr{ border-color:var(--m-edge) !important; }
 </style>
 """
 st.markdown(MODERN_CSS, unsafe_allow_html=True)
+
+
+# =====================================================================
+# PRO LAYER
+# The finishing pass: a cleaner type scale, one spacing rhythm, a branded header, calmer cards and controls, and a footer.
+# It only restyles. Nothing here changes how the model or the tools work.
+# =====================================================================
+PRO_CSS = """
+<style>
+:root{
+  --p-ink:#e6edf7; --p-mute:#8b9bb4; --p-line:rgba(148,163,184,.16); --p-line-hi:rgba(96,165,250,.45);
+  --p-panel:linear-gradient(165deg,rgba(148,163,184,.09),rgba(148,163,184,.03));
+  --p-accent:#3b82f6; --p-accent2:#6366f1; --p-good:#22c55e; --p-bad:#ef4444; --p-warn:#f59e0b;
+  --p-r:16px; --p-r-sm:10px;
+  --p-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 10px 30px rgba(2,6,23,.28);
+}
+.stApp{ background-image:
+  radial-gradient(1200px 500px at 12% -10%, rgba(59,130,246,.14), transparent 60%),
+  radial-gradient(900px 480px at 100% 0%, rgba(99,102,241,.12), transparent 55%); background-attachment:fixed; }
+.block-container{ max-width:1240px; padding-top:3.2rem !important; }
+html{ scroll-behavior:smooth; }
+body, .stApp{ font-feature-settings:"cv11","ss01"; }
+h1,h2,h3,h4{ letter-spacing:-.025em; }
+[data-testid="stMarkdownContainer"] h3{ font-size:1.3rem; margin:1.5rem 0 .35rem; }
+[data-testid="stMarkdownContainer"] h4{ font-size:1.02rem; margin:1.2rem 0 .3rem; color:var(--p-ink); }
+[data-testid="stCaptionContainer"]{ color:var(--p-mute) !important; opacity:1 !important; }
+.nb-big,.nb-tile .v,.nb-score .p,.nb-brow .pr,.nb-lb .v,[data-testid="stMetricValue"],[data-testid="stDataFrame"]{ font-variant-numeric:tabular-nums; }
+
+/* Header */
+.pro-hero{ position:relative; overflow:hidden; border-radius:22px; padding:1.5rem 1.6rem 1.15rem; margin:0 0 1.1rem;
+  background:radial-gradient(520px 240px at 92% -30%, rgba(129,140,248,.55), transparent 70%),
+             linear-gradient(130deg,#060a14 0%,#0d1a3d 55%,#1b44b8 130%);
+  border:1px solid rgba(148,163,184,.2); box-shadow:0 24px 60px rgba(2,6,23,.5); color:#fff; }
+.pro-hero:after{ content:""; position:absolute; inset:0; pointer-events:none; opacity:.5;
+  background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);
+  background-size:36px 36px; mask-image:linear-gradient(115deg,transparent 35%,#000 100%); -webkit-mask-image:linear-gradient(115deg,transparent 35%,#000 100%); }
+.pro-hero-top{ position:relative; z-index:1; display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap; }
+.pro-brand{ display:flex; gap:.9rem; align-items:center; min-width:0; }
+.pro-mark{ display:grid; place-items:center; width:54px; height:54px; border-radius:16px; font-size:1.7rem; flex:none;
+  background:linear-gradient(145deg,rgba(255,255,255,.2),rgba(255,255,255,.06)); border:1px solid rgba(255,255,255,.25); box-shadow:0 8px 24px rgba(0,0,0,.35); }
+.pro-title{ font-size:1.95rem; font-weight:800; letter-spacing:-.045em; line-height:1.05; }
+.pro-sub{ opacity:.78; font-size:.92rem; margin-top:.3rem; max-width:46rem; line-height:1.4; }
+.pro-live{ display:inline-flex; align-items:center; gap:.5rem; font-size:.8rem; font-weight:600; padding:.35rem .8rem; border-radius:999px;
+  background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); backdrop-filter:blur(8px); white-space:nowrap; }
+.pro-dot{ width:8px; height:8px; border-radius:50%; background:#4ade80; box-shadow:0 0 0 0 rgba(74,222,128,.7); animation:proPulse 2s infinite; }
+@keyframes proPulse{ 70%{ box-shadow:0 0 0 8px rgba(74,222,128,0) } 100%{ box-shadow:0 0 0 0 rgba(74,222,128,0) } }
+.pro-stats{ position:relative; z-index:1; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:.6rem; margin-top:1.15rem; }
+.pro-stat{ padding:.65rem .85rem; border-radius:12px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); }
+.pro-sv{ font-size:1.25rem; font-weight:750; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+.pro-sl{ font-size:.7rem; text-transform:uppercase; letter-spacing:.07em; opacity:.65; margin-top:.1rem; }
+
+/* Page title under the menu */
+.pro-page{ margin:.15rem 0 .9rem; }
+.pro-page-t{ font-size:1.55rem; font-weight:800; letter-spacing:-.035em; color:var(--p-ink); }
+.pro-page-s{ color:var(--p-mute); font-size:.92rem; margin-top:.1rem; }
+
+/* Menu */
+.st-key-navbar{ border-bottom:0 !important; padding:.5rem 0 .6rem !important; }
+.st-key-navbar [data-testid="stButtonGroup"]{ background:rgba(148,163,184,.07); border:1px solid var(--p-line); border-radius:16px; padding:.3rem; gap:.25rem; flex-wrap:wrap; }
+.st-key-navbar [data-testid="stButtonGroup"] button{ border:0 !important; border-radius:12px !important; background:transparent !important; box-shadow:none !important; padding:.5rem .95rem; font-weight:600; color:var(--p-mute); }
+.st-key-navbar [data-testid="stButtonGroup"] button:hover{ background:rgba(148,163,184,.12) !important; color:var(--p-ink); }
+.st-key-navbar [data-testid="stButtonGroup"] button[aria-checked="true"],
+.st-key-navbar [data-testid="stButtonGroup"] button[aria-pressed="true"],
+.st-key-navbar [data-testid="stButtonGroup"] button[kind$="Active"]{ background:linear-gradient(135deg,var(--p-accent),var(--p-accent2)) !important; color:#fff !important; box-shadow:0 6px 18px rgba(59,130,246,.38) !important; }
+
+/* Cards and tiles */
+.nb-card,.nb-tile,.nb-pod,.nb-prow,[data-testid="stMetric"]{ border-radius:var(--p-r) !important; border:1px solid var(--p-line) !important; background:var(--p-panel) !important; box-shadow:var(--p-shadow) !important; }
+[data-testid="stMetric"]{ padding:.85rem 1rem; }
+[data-testid="stMetricLabel"]{ color:var(--p-mute); }
+.nb-card:hover,.nb-tile:hover,.nb-pod:hover{ border-color:var(--p-line-hi) !important; transform:translateY(-2px); }
+.nb-title{ letter-spacing:-.02em; }
+.nb-winner{ letter-spacing:-.03em; }
+.nb-badge{ border-radius:999px; padding:.18rem .65rem; font-size:.72rem; letter-spacing:.02em; }
+.nb-chip{ border-radius:999px; padding:.15rem .65rem; border:1px solid var(--p-line); background:rgba(148,163,184,.08); }
+.nb-bar,.nb-split{ height:8px; border-radius:99px; background:rgba(148,163,184,.16); }
+.nb-fill{ border-radius:99px; }
+.nb-sec{ letter-spacing:-.03em; }
+
+/* Buttons and inputs */
+[data-testid="stButton"] button, [data-testid="stDownloadButton"] button, [data-testid="stFormSubmitButton"] button{ border-radius:12px !important; font-weight:600; min-height:2.5rem; }
+[data-testid="stButton"] button[kind="primary"], [data-testid="stFormSubmitButton"] button[kind="primary"]{ background:linear-gradient(135deg,var(--p-accent),var(--p-accent2)) !important; border:0 !important; color:#fff !important; box-shadow:0 8px 22px rgba(59,130,246,.38) !important; }
+[data-testid="stTextInput"] input,[data-testid="stNumberInput"] input,[data-testid="stDateInput"] input,[data-testid="stTextArea"] textarea,
+[data-testid="stSelectbox"] [data-baseweb="select"]>div,[data-testid="stMultiSelect"] [data-baseweb="select"]>div{ border-radius:12px !important; }
+[data-testid="stWidgetLabel"] p{ color:var(--p-mute); font-size:.8rem; font-weight:600; letter-spacing:.02em; }
+
+/* Section controls (sub-menu) */
+[class*="st-key-subnav_"]{ margin-top:.1rem; }
+[class*="st-key-subnav_"] [data-testid="stButtonGroup"] button{ min-height:2rem; padding:.2rem .75rem; font-size:.84rem; border-radius:10px !important; }
+
+/* Tables, expanders, alerts */
+[data-testid="stDataFrame"],[data-testid="stDataEditor"]{ border-radius:14px !important; border:1px solid var(--p-line); box-shadow:var(--p-shadow); overflow:hidden; }
+[data-testid="stExpander"]{ border-radius:14px !important; border:1px solid var(--p-line) !important; background:rgba(148,163,184,.04); }
+[data-testid="stExpander"] summary{ font-weight:600; }
+[data-testid="stAlert"]{ border-radius:14px !important; }
+
+/* Footer */
+.pro-foot{ margin:2.6rem 0 .6rem; padding-top:1rem; border-top:1px solid var(--p-line); color:var(--p-mute); font-size:.78rem; line-height:1.55; display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+.pro-foot b{ color:var(--p-ink); font-weight:650; }
+
+@media (max-width:900px){ .pro-stats{ grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width:640px){
+  .pro-hero{ padding:1.1rem 1rem; border-radius:18px; }
+  .pro-title{ font-size:1.5rem; } .pro-mark{ width:44px; height:44px; font-size:1.4rem; border-radius:13px; }
+  .pro-stats{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .pro-stat:last-child{ grid-column:1 / -1; }
+  .pro-page-t{ font-size:1.3rem; }
+  .block-container{ padding-top:2.6rem !important; }
+}
+@media (prefers-reduced-motion:reduce){ .pro-dot{ animation:none; } .nb-card,.nb-tile,.nb-pod{ transition:none; transform:none !important; } }
+</style>
+"""
+st.markdown(PRO_CSS, unsafe_allow_html=True)
+html('<div class="pro-foot"><div><b>NBA Simulator</b> · Projections are model estimates, not guarantees. Lines, scores and injuries come from ESPN.</div>'
+     '<div>For entertainment. Please bet responsibly. Help is available at 1-800-GAMBLER.</div></div>')

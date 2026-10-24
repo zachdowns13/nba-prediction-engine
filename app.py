@@ -5389,7 +5389,7 @@ HOME_CSS = """<style>
 .hm-pm.good{color:#22c55e;font-weight:700}.hm-pm.bad{color:#ef4444;font-weight:700}
 .hm-rcs{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:.7rem;margin-top:.4rem}
 .hm-rc{border:1px solid rgba(128,128,128,.25);border-radius:12px;padding:.55rem .8rem;background:rgba(128,128,128,.05)}
-.hm-rc.big{border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.1)}
+
 .hm-rcs{align-items:start}
 .hm-dd{padding:0 !important;cursor:pointer}
 .hm-dd summary{list-style:none;padding:.8rem .8rem .6rem;cursor:pointer;display:block}

@@ -562,15 +562,23 @@ def team_injury_pts(M, team, injuries, date):
     return injury_total(injury_rows(team, injuries, ratings_for(M, team, date)))
 
 
-def trust_slider():
+def trust_slider(action=None):
+    # One compact row: the trust slider, the schedule toggle and (optionally) the main action button, so the page does not scroll before the button.
     st.session_state.setdefault("model_trust", int(round(BETA_M * 100)))
-    st.slider("Model trust (less sportsbook blend)", 10, 100, step=5, key="model_trust", format="%d%%",
-              help="How far the simulation may move away from the sportsbook's spread and total. 10% is the default: mostly the book's numbers "
-                   "nudged by the model. 100% uses the model's own numbers with no sportsbook blend.")
-    st.caption("Higher = the simulation relies more on the model and less on the sportsbook line. Picks saved to Results use this setting.")
-    st.session_state["sched_on"] = st.toggle("Rest, travel and fatigue factors", value=st.session_state.get("sched_on", True), key="sched_on_w",
-                                             help="Adds small adjustments for a third game in four nights, a long road trip, and a big rest gap between the teams. "
-                                                  "Back-to-backs are already built into the team ratings, so they are not counted twice.")
+    cols = st.columns([3.2, 1.7, 1.3] if action else [3.2, 1.7], gap="medium", **({"vertical_alignment": "bottom"} if _has_valign() else {}))
+    with cols[0]:
+        st.slider("Model trust (less sportsbook blend)", 10, 100, step=5, key="model_trust", format="%d%%",
+                  help="How far the simulation may move away from the sportsbook's spread and total. 10% is the default: mostly the book's numbers "
+                       "nudged by the model. 100% uses the model's own numbers with no sportsbook blend. Higher means the simulation relies more on "
+                       "the model and less on the sportsbook line. Picks saved to Results use this setting.")
+    with cols[1]:
+        st.session_state["sched_on"] = st.toggle("Rest, travel, fatigue", value=st.session_state.get("sched_on", True), key="sched_on_w",
+                                                 help="Adds small adjustments for a third game in four nights, a long road trip, and a big rest gap between the teams. "
+                                                      "Back-to-backs are already built into the team ratings, so they are not counted twice.")
+    if action:
+        with cols[2]:
+            return st.button(action[0], type="primary", key=action[1], use_container_width=True)
+    return False
 
 
 def schedule_spot(M, team, day, is_home):
@@ -3837,8 +3845,7 @@ def slate_tab(M, date, games, injuries, b2b):
         st.info("No games on this date.")
         return
     key = f"slate_{date.isoformat()}"
-    trust_slider()
-    if st.button("🔥 Run full slate", type="primary", key="run_slate"):
+    if trust_slider(("🔥 Run full slate", "run_slate")):
         _sk = st.empty()
         _sk.markdown(skeleton_cards(min(len(games), 6), f"Simulating {len(games)} games..."), unsafe_allow_html=True)
         try:
@@ -5797,9 +5804,7 @@ if nav == NAV[0]:
                 inj_pts[team] = injury_total(edited.to_dict("records"))
                 st.caption(f"Estimated impact: **-{inj_pts[team]:.1f} pts**")
 
-    st.markdown("---")
-    trust_slider()
-    if st.button("🔥 Simulate game", type="primary", key=f"sim_{gid}"):
+    if trust_slider(("🔥 Simulate game", f"sim_{gid}")):
         if g["home"] == g["away"]:
             st.error("A team can't play itself.")
         else:
@@ -5979,7 +5984,8 @@ PRO_CSS = """
 .stApp{ background-image:
   radial-gradient(1200px 500px at 12% -10%, rgba(59,130,246,.14), transparent 60%),
   radial-gradient(900px 480px at 100% 0%, rgba(99,102,241,.12), transparent 55%); background-attachment:fixed; }
-.block-container{ max-width:1240px; padding-top:3.2rem !important; }
+.block-container{ max-width:1240px; padding-top:2.6rem !important; }
+.block-container [data-testid="stVerticalBlock"]{ gap:.7rem; }
 html{ scroll-behavior:smooth; }
 body, .stApp{ font-feature-settings:"cv11","ss01"; }
 h1,h2,h3,h4{ letter-spacing:-.025em; }
@@ -5989,7 +5995,7 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 .nb-big,.nb-tile .v,.nb-score .p,.nb-brow .pr,.nb-lb .v,[data-testid="stMetricValue"],[data-testid="stDataFrame"]{ font-variant-numeric:tabular-nums; }
 
 /* Header */
-.pro-hero{ position:relative; overflow:hidden; border-radius:22px; padding:1.25rem 1.5rem; margin:0 0 1.1rem;
+.pro-hero{ position:relative; overflow:hidden; border-radius:18px; padding:.8rem 1.15rem; margin:0 0 .3rem;
   background:radial-gradient(520px 240px at 92% -30%, rgba(129,140,248,.55), transparent 70%),
              linear-gradient(130deg,#060a14 0%,#0d1a3d 55%,#1b44b8 130%);
   border:1px solid rgba(148,163,184,.2); box-shadow:0 24px 60px rgba(2,6,23,.5); color:#fff; }
@@ -5998,10 +6004,10 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
   background-size:36px 36px; mask-image:linear-gradient(115deg,transparent 35%,#000 100%); -webkit-mask-image:linear-gradient(115deg,transparent 35%,#000 100%); }
 .pro-hero-top{ position:relative; z-index:1; display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap; }
 .pro-brand{ display:flex; gap:.9rem; align-items:center; min-width:0; }
-.pro-mark{ display:grid; place-items:center; width:54px; height:54px; border-radius:16px; font-size:1.7rem; flex:none;
+.pro-mark{ display:grid; place-items:center; width:42px; height:42px; border-radius:13px; font-size:1.35rem; flex:none;
   background:linear-gradient(145deg,rgba(255,255,255,.2),rgba(255,255,255,.06)); border:1px solid rgba(255,255,255,.25); box-shadow:0 8px 24px rgba(0,0,0,.35); }
-.pro-title{ font-size:1.95rem; font-weight:800; letter-spacing:-.045em; line-height:1.05; }
-.pro-sub{ opacity:.78; font-size:.92rem; margin-top:.3rem; max-width:46rem; line-height:1.4; }
+.pro-title{ font-size:1.5rem; font-weight:800; letter-spacing:-.045em; line-height:1.05; }
+.pro-sub{ opacity:.78; font-size:.82rem; margin-top:.15rem; max-width:46rem; line-height:1.4; }
 .pro-chips{ display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
 .pro-live{ display:inline-flex; align-items:center; gap:.5rem; font-size:.8rem; font-weight:600; padding:.35rem .8rem; border-radius:999px;
   background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); backdrop-filter:blur(8px); white-space:nowrap; }
@@ -6013,12 +6019,12 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 .pro-sl{ font-size:.7rem; text-transform:uppercase; letter-spacing:.07em; opacity:.65; margin-top:.1rem; }
 
 /* Page title under the menu */
-.pro-page{ margin:.15rem 0 .9rem; }
-.pro-page-t{ font-size:1.55rem; font-weight:800; letter-spacing:-.035em; color:var(--p-ink); }
-.pro-page-s{ color:var(--p-mute); font-size:.92rem; margin-top:.1rem; }
+.pro-page{ margin:.1rem 0 .2rem; display:flex; align-items:baseline; gap:.7rem; flex-wrap:wrap; }
+.pro-page-t{ font-size:1.3rem; font-weight:800; letter-spacing:-.035em; color:var(--p-ink); }
+.pro-page-s{ color:var(--p-mute); font-size:.86rem; }
 
 /* Menu */
-.st-key-navbar{ border-bottom:0 !important; padding:.5rem 0 .6rem !important; }
+.st-key-navbar{ border-bottom:0 !important; padding:.25rem 0 .3rem !important; margin-bottom:0 !important; }
 .st-key-navbar [data-testid="stButtonGroup"]{ background:rgba(148,163,184,.07); border:1px solid var(--p-line); border-radius:16px; padding:.3rem; gap:.25rem; flex-wrap:wrap; }
 .st-key-navbar [data-testid="stButtonGroup"] button{ border:0 !important; border-radius:12px !important; background:transparent !important; box-shadow:none !important; padding:.5rem .95rem; font-weight:600; color:var(--p-mute); }
 .st-key-navbar [data-testid="stButtonGroup"] button:hover{ background:rgba(148,163,184,.12) !important; color:var(--p-ink); }

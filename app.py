@@ -4124,13 +4124,14 @@ def pickem_tab(M, date, games, injuries, b2b):
                                 st.rerun()
                     elif g["state"] == "pre":
                         html(title + badge("Open", "none") + '</div><div class="nb-muted" style="margin-top:-.35rem;padding-left:.3rem">Pick the winner</div>')
-                        def _set_pick(k_, v_):
-                            st.session_state[k_] = None if st.session_state.get(k_) == v_ else v_       # tap again to undo
-                        b1, b2 = st.columns(2)                                                           # two equal buttons, side by side
-                        for col_, team_ in ((b1, g["away"]), (b2, g["home"])):
-                            col_.button(short(team_), key=f"{key}_{short(team_)}", use_container_width=True,
-                                        type="primary" if st.session_state.get(key) == team_ else "secondary",
-                                        on_click=_set_pick, args=(key, team_))
+                        # Each game's pick is its own native widget, so one game's choice can never touch another's.
+                        try:
+                            try:
+                                st.segmented_control("Winner", [g["away"], g["home"]], key=key, format_func=short, label_visibility="collapsed", width="stretch")
+                            except TypeError:                                  # older Streamlit has no width option
+                                st.segmented_control("Winner", [g["away"], g["home"]], key=key, format_func=short, label_visibility="collapsed")
+                        except AttributeError:
+                            st.radio("Winner", [g["away"], g["home"]], index=None, key=key, format_func=short, horizontal=True, label_visibility="collapsed")
                     else:
                         html(title + badge("Closed" if not f else "Final", "none") + '</div>'
                              + (f'<div class="nb-fscore">Final: {H(short(g["away"]))} {int(f["as"])}, {H(short(g["home"]))} {int(f["hs"])}</div><div class="nb-muted">You didn\'t pick this one.</div>'

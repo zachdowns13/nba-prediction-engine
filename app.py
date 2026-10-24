@@ -6611,6 +6611,8 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 [data-testid="stAlert"]{ border-radius:14px !important; }
 
 .st-key-csslot{ display:none; }
+[data-testid="stElementContainer"]:has(iframe[height="0"]){ position:absolute !important; width:0 !important; height:0 !important; margin:0 !important; padding:0 !important; overflow:hidden !important; }
+.hm-hero{ margin-top:0 !important; }
 .st-key-main_nav,.st-key-main_nav > *,.st-key-main_nav [data-testid="stButtonGroup"],.st-key-main_nav [data-baseweb="button-group"]{width:100% !important;max-width:100% !important}
 .st-key-main_nav [data-testid="stButtonGroup"],.st-key-main_nav [data-baseweb="button-group"]{display:flex !important;justify-content:flex-start !important;align-items:center !important}
 .st-key-main_nav button{flex:0 0 auto !important;min-width:max-content !important;justify-content:center !important}

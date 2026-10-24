@@ -3878,9 +3878,6 @@ def slate_tab(M, date, games, injuries, b2b):
                        + ("" if saved[2] else " The file could not be written, so they are kept for this session only. Download a backup in the Results tab."))
         else:
             st.info("Nothing was saved: every game has already started or has no lines posted.")
-    st.markdown("### 🔥 Best plays today")
-    st.caption("The strongest value spots on the slate, with the Kelly stake for your bankroll settings (change them in Edge tools).")
-    html(best_plays_html(results, 4))
     st.markdown("### 🏆 Predictions for every game")
     st.caption("The model's projected score and winner for each game, before looking at any betting value.")
     cards = []
@@ -3908,6 +3905,9 @@ def slate_tab(M, date, games, injuries, b2b):
         html('<div class="nb-grid">' + "".join(c["html"] for c in shown) + '</div>')
     else:
         st.info("No games with value right now. Switch to **All games** to see every prediction.")
+    st.markdown("### 🔥 Best plays today")
+    st.caption("The strongest value spots on the slate, with the Kelly stake for your bankroll settings (change them in Edge tools).")
+    html(best_plays_html(results, 4))
     with st.expander("See predictions as a table"):
         st.dataframe(pd.DataFrame([{
             "Game": f"{short(c['res']['game']['away'])} @ {short(c['res']['game']['home'])}",

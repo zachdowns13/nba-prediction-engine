@@ -5760,6 +5760,12 @@ POLISH_CSS = """
 # in the cascade without changing any Streamlit widgets or their state.
 st.markdown(POLISH_CSS, unsafe_allow_html=True)
 
+# The late style sheets are written into a slot that sits in a fixed place near the top. If they were added at the very end of the page, they
+# shifted position from page to page and the styling dropped out for a moment while the page reloaded.
+try:
+    _css_slot = st.container(key="csslot")
+except TypeError:
+    _css_slot = st.container()
 PAGE_INFO = {NAV[0]: ("Game odds", "Simulate one matchup 10,000 times and compare every price with the model."),
              NAV[1]: ("Full slate", "Every game on the date, ranked by where the model sees the most value."),
              NAV[2]: ("Player props", "Projected stat lines for each player, checked against the book's number."),
@@ -5968,7 +5974,8 @@ hr{ border-color:var(--m-edge) !important; }
 @media (prefers-reduced-motion:reduce){ [data-testid="stMain"] .block-container{ animation:none; } .nb-card,.nb-tile,.nb-pod{ transition:none; } }
 </style>
 """
-st.markdown(MODERN_CSS, unsafe_allow_html=True)
+with _css_slot:
+    st.markdown(MODERN_CSS, unsafe_allow_html=True)
 
 
 # =====================================================================
@@ -6066,6 +6073,8 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 [data-testid="stExpander"] summary{ font-weight:600; }
 [data-testid="stAlert"]{ border-radius:14px !important; }
 
+.st-key-csslot{ display:none; }
+[data-testid="stElementContainer"]:has(style):not(:has(p)):not(:has(table)):not(:has(.nb-card)){ display:none; }
 /* Footer */
 .pro-foot{ margin:2.6rem 0 .6rem; padding-top:1rem; border-top:1px solid var(--p-line); color:var(--p-mute); font-size:.78rem; line-height:1.55; display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
 .pro-foot b{ color:var(--p-ink); font-weight:650; }
@@ -6158,6 +6167,7 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 @media (prefers-reduced-motion:reduce){ .pro-dot{ animation:none; } .nb-card,.nb-tile,.nb-pod{ transition:none; transform:none !important; } }
 </style>
 """
-st.markdown(PRO_CSS, unsafe_allow_html=True)
+with _css_slot:
+    st.markdown(PRO_CSS, unsafe_allow_html=True)
 html('<div class="pro-foot"><div><b>NBA Simulator</b> · Projections are model estimates, not guarantees. Lines, scores and injuries come from ESPN.</div>'
      '<div>For entertainment. Please bet responsibly. Help is available at 1-800-GAMBLER.</div></div>')

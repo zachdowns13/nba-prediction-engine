@@ -4201,12 +4201,16 @@ elif st.session_state.get("_auto_date") is not None and st.session_state["sel_da
 st.session_state["_auto_date"] = _dd
 st.session_state["_last_nav"] = _cur_nav
 date = st.session_state["sel_date"]          # changed from the date box inside each tab
+_first_load = st.session_state.get("_m_loaded") != date.isoformat()      # only show the placeholder the first time, so switching pages never flashes it
 _skm = st.empty()
-_skm.markdown(skeleton_cards(3, "Loading team ratings... the first load of the day can take a minute"), unsafe_allow_html=True)
+if _first_load:
+    _skm.markdown(skeleton_cards(3, "Loading team ratings... the first load of the day can take a minute"), unsafe_allow_html=True)
 try:
     M = fit_model(date.isoformat())
 finally:
     _skm.empty()
+if M is not None:
+    st.session_state["_m_loaded"] = date.isoformat()
 if M is None:
     st.error("Could not download enough game history from ESPN to build team ratings. Try again in a minute.")
     st.stop()

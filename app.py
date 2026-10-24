@@ -5041,7 +5041,7 @@ def sub_nav(labels, key):
     return labels.index(pick)
 
 
-NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "🏆 Pick'em", "🧮 Edge tools", "💬 AI chat"]
+NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "🏆 Pick'em", "🧮 Edge tools"]
 LOCKED_NAV = "🔒 Private"
 
 
@@ -5055,7 +5055,7 @@ def get_passcode():
 
 PASSCODE = get_passcode()
 private_ok = (not PASSCODE) or bool(st.session_state.get("unlocked"))
-menu = NAV if private_ok else NAV[:4] + [NAV[8], LOCKED_NAV]
+menu = NAV if private_ok else NAV[:4] + [LOCKED_NAV]
 if "_goto" in st.session_state:                           # jump to a section after unlocking
     st.session_state["main_nav"] = st.session_state.pop("_goto")
 if st.session_state.get("main_nav") not in menu:
@@ -5080,8 +5080,7 @@ def private_gate():
 
 
 def open_warning():
-    if not PASSCODE:
-        st.caption("⚠️ Anyone with this link can see this section. To hide it, add `APP_PASSCODE = \"your-passcode\"` in Streamlit Secrets.")
+    return
 st.markdown("""<style>
 /* Pin the menu: the sticky element must be a direct child of the page's main column, so target the wrapper that holds the navbar */
 .block-container > [data-testid="stVerticalBlock"] > *:has(.st-key-navbar),
@@ -5580,8 +5579,6 @@ if nav == NAV[7] and private_ok:
     open_warning()
     edge_tab(date)
 
-if nav == NAV[8]:
-    chat_tab(date, games, injuries)
 
 
 # =====================================================================

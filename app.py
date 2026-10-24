@@ -4240,11 +4240,18 @@ except Exception:
 
 with hero:
     _n = len(games)
-    html('<div class="pro-hero pro-hero-c"><div class="hero-ring"></div><div class="hero-ring r2"></div>'
-         '<span class="pro-mark">🏀</span><div class="pro-title">NBA Hub</div>'
-         '<div class="pro-sub">Live scores<i>·</i>Projections<i>·</i>Props<i>·</i>Picks</div>'
+    _lg = []
+    for _g in (games or [])[:14]:
+        for _u in (_g.get("away_logo"), _g.get("home_logo")):
+            if _u and _u not in _lg:
+                _lg.append(_u)
+    _logos = "".join(f'<span class="hs-lg" style="background-image:url(\'{H(u)}\')"></span>' for u in _lg[:16])
+    html('<div class="pro-hero pro-hero-s"><div class="hero-ring"></div><div class="hero-ring r2"></div>'
+         '<div class="hs-left"><span class="pro-mark">🏀</span><div><div class="pro-title">NBA Prediction Engine</div>'
+         '<div class="pro-sub">Live scores<i>·</i>Projections<i>·</i>Props<i>·</i>Picks</div></div></div>'
+         '<div class="hs-right">' + (f'<div class="hs-logos">{_logos}</div>' if _logos else "") +
          f'<div class="pro-chips"><span class="pro-live">{H(date.strftime("%A, %B %-d"))}</span>'
-         '<span class="pro-live"><span class="pro-dot"></span>Live data from ESPN</span></div></div>')
+         '<span class="pro-live"><span class="pro-dot"></span>Live data from ESPN</span></div></div></div>')
 
 labels = [f"{g['away']} @ {g['home']}" for g in games] + ["✏️ Manual matchup"]
 choice = st.session_state.get("sel_game")
@@ -6531,6 +6538,26 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 .pro-hero-c .pro-sub{ margin:0; font-size:.78rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase; opacity:.8; }
 .pro-hero-c .pro-sub i{ font-style:normal; margin:0 .6rem; opacity:.5; }
 .pro-hero-c .pro-chips{ justify-content:center; margin-top:.45rem; }
+
+.pro-hero-s{ display:flex; align-items:center; justify-content:space-between; gap:1.5rem; flex-wrap:wrap; padding:1.15rem 1.5rem;
+  background:radial-gradient(420px 200px at 8% 140%, rgba(249,115,22,.38), transparent 70%),
+             radial-gradient(560px 260px at 92% -40%, rgba(96,165,250,.55), transparent 70%),
+             linear-gradient(130deg,#060a14 0%,#0d1a3d 55%,#16348f 130%); }
+.pro-hero-s:after{ mask-image:linear-gradient(90deg,transparent 30%,#000 100%); -webkit-mask-image:linear-gradient(90deg,transparent 30%,#000 100%); }
+.pro-hero-s > *:not(.hero-ring){ position:relative; z-index:1; }
+.pro-hero-s .hero-ring{ left:auto; right:-60px; top:50%; transform:translateY(-50%); width:300px; height:300px; }
+.pro-hero-s .hero-ring.r2{ right:-5px; width:190px; height:190px; }
+.hs-left{ display:flex; align-items:center; gap:1rem; min-width:0; }
+.pro-hero-s .pro-mark{ width:52px; height:52px; font-size:1.7rem; }
+.pro-hero-s .pro-title{ font-size:2rem; letter-spacing:-.05em; line-height:1.05; white-space:nowrap;
+  background:linear-gradient(90deg,#ffffff 20%,#bfdbfe 60%,#fdba74 110%); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent; }
+.pro-hero-s .pro-sub{ margin:.3rem 0 0; font-size:.74rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase; opacity:.8; }
+.pro-hero-s .pro-sub i{ font-style:normal; margin:0 .55rem; opacity:.5; }
+.hs-right{ display:flex; flex-direction:column; align-items:flex-end; gap:.6rem; margin-left:auto; }
+.hs-logos{ display:flex; flex-wrap:wrap; justify-content:flex-end; max-width:400px; }
+.hs-lg{ width:34px; height:34px; border-radius:50%; background:#fff center/72% no-repeat; border:2px solid #0d1a3d; margin-left:-9px; box-shadow:0 4px 10px rgba(0,0,0,.35); }
+.pro-hero-s .pro-chips{ justify-content:flex-end; }
+@media (max-width:760px){ .pro-hero-s .pro-title{ font-size:1.5rem; white-space:normal; } .hs-right{ align-items:flex-start; margin-left:0; } .hs-logos{ justify-content:flex-start; } }
 .pro-stats{ position:relative; z-index:1; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:.6rem; margin-top:1.15rem; }
 .pro-stat{ padding:.65rem .85rem; border-radius:12px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); }
 .pro-sv{ font-size:1.25rem; font-weight:750; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }

@@ -5651,8 +5651,8 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
                     rec = record_line(d_) if len(d_) else "–"
                     return (f'<div class="hm-rc{" big" if big else ""}"><div class="hm-tl">{label}</div>'
                             f'<div class="hm-rb">{rec}</div><div class="hm-ts">{_pm(pr) if len(d_) else ""}</div></div>')
-                parts = _rc("Overall", dy, True) + "".join(_rc(nm, dy[dy["market"] == nm]) for nm in ("Moneyline", "Spread", "Total"))
-                html(f'<div class="hm-sec">Last night\'s recap<small>{H((hdate - dt.timedelta(days=1)).strftime("%A, %b %-d"))}</small></div>'
+                parts = _rc("Overall", dy, True) + "".join(_rc(nm + "s", dy[dy["market"] == nm]) for nm in ("Moneyline", "Spread", "Total"))
+                html(f'<div class="hm-sec">Yesterday\'s recap<small>{H((hdate - dt.timedelta(days=1)).strftime("%A, %b %-d"))}</small></div>'
                      f'<div class="hm-rcs">{parts}</div>')
             # open bets
             ob = bets[~bets["result"].isin(["W", "L", "P"])] if len(bets) else bets
@@ -5843,9 +5843,9 @@ def tab_colors():
           function rgba(h,a){const n=parseInt(h.slice(1),16);return 'rgba('+(n>>16)+','+((n>>8)&255)+','+(n&255)+','+a+')';}
           function paint(){
             d.querySelectorAll('.st-key-main_nav button').forEach(function(b){
-              let q=b.parentElement; if(q){q.style.display='flex';q.style.flexWrap='wrap';q.style.justifyContent='space-evenly';q.style.alignItems='center';}
+              let q=b.parentElement; if(q){q.style.display='flex';q.style.flexWrap='wrap';q.style.justifyContent='flex-start';q.style.alignItems='center';}
               while(q && !(q.classList && q.classList.contains('st-key-main_nav'))){q.style.width='100%';q.style.maxWidth='100%';q=q.parentElement;}
-              b.style.flex='1 1 auto'; b.style.minWidth='max-content'; b.style.justifyContent='center';
+              b.style.flex='0 0 auto'; b.style.minWidth='max-content'; b.style.justifyContent='center';
               const t=b.textContent||''; let c=null;
               for (const k in C) if (t.indexOf(k)>-1){c=C[k];break;}
               if(!c) return;
@@ -6504,8 +6504,8 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 
 .st-key-csslot{ display:none; }
 .st-key-main_nav,.st-key-main_nav > *,.st-key-main_nav [data-testid="stButtonGroup"],.st-key-main_nav [data-baseweb="button-group"]{width:100% !important;max-width:100% !important}
-.st-key-main_nav [data-testid="stButtonGroup"],.st-key-main_nav [data-baseweb="button-group"]{display:flex !important;justify-content:space-evenly !important;align-items:center !important}
-.st-key-main_nav button{flex:1 1 auto !important;min-width:max-content !important;justify-content:center !important}
+.st-key-main_nav [data-testid="stButtonGroup"],.st-key-main_nav [data-baseweb="button-group"]{display:flex !important;justify-content:flex-start !important;align-items:center !important}
+.st-key-main_nav button{flex:0 0 auto !important;min-width:max-content !important;justify-content:center !important}
 .st-key-main_nav button,.st-key-main_nav button *{overflow:visible !important;text-overflow:clip !important;white-space:nowrap !important}
 [data-testid="stElementContainer"]:has(style):not(:has(p)):not(:has(table)):not(:has(.nb-card)){ display:none; }
 /* Footer */

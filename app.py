@@ -303,7 +303,7 @@ def _fetch_day(d):
     return out
 
 
-@st.cache_data(ttl=3600, show_spinner="Downloading game history (about a minute the first time)...")
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_history(season, cap_iso):
     cap = dt.date.fromisoformat(cap_iso)
     start, end = dt.date(season - 1, 10, 1), min(dt.date(season, 4, 20), cap)
@@ -489,7 +489,7 @@ def build_hist(G):
     return h
 
 
-@st.cache_data(ttl=3600, show_spinner="Fitting team ratings...")
+@st.cache_data(ttl=3600, show_spinner=False)
 def fit_model(date_iso):
     d = dt.date.fromisoformat(date_iso)
     season = live_season(d)
@@ -3657,6 +3657,179 @@ def pick_name(r):
     return f"{short(r['side'])} {r['line']}"
 
 
+# =====================================================================
+# PRO COMPONENTS: best-plays cards, team-colored game cards, pill lists, loading skeletons, icons
+# =====================================================================
+def _hex_rgba(c, a):
+    c = (c or "#3b82f6").lstrip("#")
+    try:
+        return f"rgba({int(c[0:2], 16)},{int(c[2:4], 16)},{int(c[4:6], 16)},{a})"
+    except Exception:
+        return f"rgba(59,130,246,{a})"
+
+
+def logo_xl(url):
+    return f'<span class="gc-logo" style="background-image:url(\'{H(url)}\')"></span>' if url else '<span class="gc-logo"></span>'
+
+
+def pill(text, kind="mute"):
+    return f'<span class="pl pl-{kind}">{H(text)}</span>'
+
+
+def edge_pill(x, digits=1):
+    kind = "good" if x > 0.0005 else ("bad" if x < -0.0005 else "mute")
+    return pill(f"{x * 100:+.{digits}f}", kind)
+
+
+SK_LINE = '<div class="sk" style="height:12px;width:{w}%;margin:8px 0"></div>'
+
+
+def skeleton_cards(n=6, label=""):
+    card = ('<div class="gc-card sk-card"><div class="sk" style="height:6px;border-radius:99px"></div>'
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 10px">'
+            '<div class="sk" style="width:56px;height:56px;border-radius:50%"></div><div class="sk" style="width:90px;height:26px"></div>'
+            '<div class="sk" style="width:56px;height:56px;border-radius:50%"></div></div>'
+            + SK_LINE.format(w=100) + SK_LINE.format(w=70) + '</div>')
+    cap = f'<div class="sk-cap">{H(label)}</div>' if label else ""
+    return cap + '<div class="nb-grid">' + card * n + '</div>'
+
+
+def best_plays_html(results, n=4):
+    flagged = sorted([(res, r) for res in results for r in res["rows"] if strength(r["edge"], r["ev"])], key=lambda x: -x[1]["edge"])[:n]
+    if not flagged:
+        return ('<div class="bp-empty"><div class="bp-empty-t">No value plays on this slate</div>'
+                '<div class="nb-muted">The model and the sportsbook agree across the board, or lines are not posted yet.</div></div>')
+    cards = []
+    for i, (res, r) in enumerate(flagged, 1):
+        g = res["game"]
+        hc, ac = team_colors(g["home"], g["away"])
+        stake = kelly_stake(r["model_p"], r["book_odds"])
+        beats = (r["model_p"] - implied(r["book_odds"])) * 100
+        cards.append(
+            f'<div class="bp-card" style="--c1:{ac};--c2:{hc}"><div class="bp-glow"></div>'
+            f'<div class="bp-top"><span class="bp-rank">#{i}</span><span class="bp-mk">{H(r["market"])}</span>{value_badge(r["edge"], r["ev"])}</div>'
+            f'<div class="bp-match">{logo(g.get("away_logo"))}{H(short(g["away"]))}<i>@</i>{logo(g.get("home_logo"))}{H(short(g["home"]))}</div>'
+            f'<div class="bp-row"><div class="bp-pick">{H(pick_name(r))}</div><div class="bp-odds">{r["book_odds"]:+d}</div></div>'
+            f'<div class="bp-stats"><div><b>{r["model_p"] * 100:.1f}%</b><i>Model</i></div><div><b>{r["book_p"] * 100:.1f}%</b><i>Book</i></div>'
+            f'<div class="{"pos" if beats > 0 else "neg"}"><b>{beats:+.1f}</b><i>Beats B/E</i></div></div>'
+            f'<div class="bp-kelly"><span>Kelly stake</span><b>${stake:,.0f}</b></div></div>')
+    return '<div class="bp-grid">' + "".join(cards) + '</div>'
+
+
+def game_card_html(res, best, has_val):
+    g = res["game"]
+    hc, ac = team_colors(g["home"], g["away"])
+    ph = res["p_home"]
+    pa = 1 - ph
+    fav_home = ph >= 0.5
+    badge_ = value_badge(best["edge"], best["ev"]) if best else badge("No lines yet", "none")
+    return (f'<div class="gc-card" style="--ca:{ac};--ch:{hc};--ga:{_hex_rgba(ac, .22)};--gh:{_hex_rgba(hc, .22)}">'
+            f'<div class="gc-bar"></div>'
+            f'<div class="gc-top"><span class="gc-tag">{H(g.get("date_label", "Tonight"))}</span>{badge_}</div>'
+            f'<div class="gc-teams">'
+            f'<div class="gc-team{" fav" if not fav_home else ""}">{logo_xl(g.get("away_logo"))}<div class="gc-name">{H(short(g["away"]))}</div><div class="gc-role">Away</div></div>'
+            f'<div class="gc-mid"><div class="gc-score"><b class="{"hi" if not fav_home else ""}">{round(res["ap"])}</b><i>–</i><b class="{"hi" if fav_home else ""}">{round(res["hp"])}</b></div>'
+            f'<div class="gc-proj">Projected</div></div>'
+            f'<div class="gc-team right{" fav" if fav_home else ""}">{logo_xl(g.get("home_logo"))}<div class="gc-name">{H(short(g["home"]))}</div><div class="gc-role">Home</div></div>'
+            f'</div>'
+            f'<div class="gc-split"><span style="width:{pa * 100:.1f}%;background:{ac}"></span><span style="width:{ph * 100:.1f}%;background:{ch_fix(hc)}"></span></div>'
+            f'<div class="gc-pl"><span>{H(short(g["away"]))} {pa * 100:.0f}%</span><span>{ph * 100:.0f}% {H(short(g["home"]))}</span></div>'
+            f'<div class="gc-chips"><span class="nb-chip">Spread {H(short(g["home"]))} {-res["med_m"]:+.1f}</span><span class="nb-chip">Total {res["med_t"]:.0f}</span></div>'
+            + (f'<div class="gc-best"><span>Best spot</span><b>{H(pick_name(best))}</b><em>{best["edge"] * 100:+.1f} pts</em></div>' if has_val else "")
+            + '</div>')
+
+
+def ch_fix(c):
+    return c
+
+
+def play_list_html(items):
+    # items: dicts with game, pick, market, odds, model, book, edge, beats, stake (and optional logos)
+    head = ('<div class="pr-row pr-head"><div>Play</div><div>Odds</div><div>Model</div><div>Book</div><div>Edge</div><div>Beats B/E</div><div>Kelly</div></div>')
+    rows = []
+    for it in items:
+        rows.append(
+            f'<div class="pr-row"><div class="pr-main">{logo(it.get("away_logo"))}{logo(it.get("home_logo"))}'
+            f'<div class="pr-t"><div class="pr-pick">{H(it["pick"])}</div><div class="pr-sub">{H(it["game"])} · {H(it["market"])}</div></div></div>'
+            f'<div data-l="Odds"><b>{it["odds"]:+d}</b></div><div data-l="Model">{it["model"] * 100:.1f}%</div><div data-l="Book">{it["book"] * 100:.1f}%</div>'
+            f'<div data-l="Edge">{edge_pill(it["edge"])}</div><div data-l="Beats B/E">{edge_pill(it["beats"])}</div>'
+            f'<div data-l="Kelly">{pill("$" + format(it["stake"], ",.0f"), "acc" if it["stake"] >= 0.5 else "mute")}</div></div>')
+    return '<div class="pr-list">' + head + "".join(rows) + '</div>'
+
+
+def result_pill(res):
+    return {"W": pill("Win", "good"), "L": pill("Loss", "bad"), "P": pill("Push", "mute")}.get(res, pill("Pending", "warn"))
+
+
+def money_span(x):
+    if x is None or (isinstance(x, float) and np.isnan(x)):
+        return '<span class="nb-muted">–</span>'
+    cls = "pos" if x > 0.5 else ("neg" if x < -0.5 else "")
+    sign = "+" if x > 0.5 else ("-" if x < -0.5 else "")
+    return f'<span class="{cls}"><b>{sign}${abs(x):,.0f}</b></span>'
+
+
+def record_list_html(rows):
+    head = '<div class="pr-row rc-row pr-head"><div>Bet</div><div>Odds</div><div>Beats B/E</div><div>Result</div><div>Flat $100</div><div>Kelly stake</div><div>Kelly P/L</div></div>'
+    out = []
+    for it in rows:
+        out.append(
+            f'<div class="pr-row rc-row"><div class="pr-main"><div class="pr-t"><div class="pr-pick">{H(it["pick"])}</div><div class="pr-sub">{H(it["game"])}</div></div></div>'
+            f'<div data-l="Odds"><b>{it["odds"]:+d}</b></div><div data-l="Beats B/E">{edge_pill(it["beats"] / 100)}</div><div data-l="Result">{result_pill(it["result"])}</div>'
+            f'<div data-l="Flat $100">{money_span(it["flat"])}</div><div data-l="Kelly stake">${it["kstake"]:,.0f}</div><div data-l="Kelly P/L">{money_span(it["kprofit"])}</div></div>')
+    return '<div class="pr-list">' + head + "".join(out) + '</div>'
+
+
+# ---- icons: Material icons in place of emoji in menus and headings ----
+ICON_BY_TEXT = {"Game odds": "monitoring", "Full slate": "format_list_bulleted", "Player props": "person", "First basket": "sports_basketball",
+                "Results": "bar_chart", "My bets": "receipt_long", "Pick'em": "emoji_events", "Edge tools": "calculate",
+                "Kelly stakes": "payments", "CLV tracker": "show_chart", "Model accuracy": "target", "Discord post": "campaign",
+                "Today": "today", "All time": "calendar_month", "Selected date": "event", "Add a bet": "add_circle",
+                "Open bets": "hourglass_empty", "Make picks": "touch_app", "Scoreboard": "leaderboard", "Private": "lock",
+                "Manual matchup": "edit"}
+EMOJI_ICON = {"🏀": "sports_basketball", "💾": "save", "🔄": "refresh", "🔎": "search", "🔒": "lock", "🔥": "local_fire_department",
+              "🗑": "delete", "✏": "edit", "➕": "add", "🎯": "target", "📅": "calendar_month", "📋": "list_alt", "🩹": "healing",
+              "⚙": "settings", "🏆": "emoji_events", "💰": "savings", "📊": "bar_chart", "📈": "show_chart", "💵": "payments",
+              "💬": "chat", "🤖": "smart_toy", "🏦": "account_balance"}
+_EMO_LEAD = re.compile(r"^(#+ )?([\U0001F300-\U0001FAFF☀-➿⬀-⯿])️?\s*")
+
+
+def iconize(text):
+    # Leading emoji -> Material icon (only for the ones we have a clean match for).
+    if not isinstance(text, str):
+        return text
+    m = _EMO_LEAD.match(text)
+    if m and m.group(2) in EMOJI_ICON:
+        return (m.group(1) or "") + f":material/{EMOJI_ICON[m.group(2)]}: " + text[m.end():]
+    return text
+
+
+def nav_label(opt):
+    txt = re.sub(r"^[^A-Za-z0-9]+", "", str(opt)).strip()
+    ic = ICON_BY_TEXT.get(txt)
+    return f":material/{ic}: {txt}" if ic else txt
+
+
+if not getattr(st, "_pro_icons", False):
+    _o_md, _o_btn, _o_exp, _o_sub = st.markdown, st.button, st.expander, st.subheader
+
+    def _md(body, *a, **k):
+        if isinstance(body, str) and body.lstrip().startswith("#") and not k.get("unsafe_allow_html"):
+            body = iconize(body)
+        return _o_md(body, *a, **k)
+
+    def _btn(label, *a, **k):
+        return _o_btn(iconize(label), *a, **k)
+
+    def _exp(label, *a, **k):
+        return _o_exp(iconize(label), *a, **k)
+
+    def _subh(body, *a, **k):
+        return _o_sub(iconize(body), *a, **k)
+    st.markdown, st.button, st.expander, st.subheader = _md, _btn, _exp, _subh
+    st._pro_icons = True
+
+
 def slate_tab(M, date, games, injuries, b2b):
     st.caption("Runs every game on the date and ranks the best spots. Each injured player is rated automatically from his recent "
                "minutes and production. Every pick is saved to your Results log as soon as you run it.")
@@ -3666,9 +3839,14 @@ def slate_tab(M, date, games, injuries, b2b):
     key = f"slate_{date.isoformat()}"
     trust_slider()
     if st.button("🔥 Run full slate", type="primary", key="run_slate"):
-        with st.spinner(f"Simulating {len(games)} games..."):
+        _sk = st.empty()
+        _sk.markdown(skeleton_cards(min(len(games), 6), f"Simulating {len(games)} games..."), unsafe_allow_html=True)
+        try:
             res_list = [analyze_game(M, g, g["odds"], team_injury_pts(M, g["home"], injuries, date),
                                      team_injury_pts(M, g["away"], injuries, date), b2b) for g in games]
+        finally:
+            _sk.empty()
+        if True:
             st.session_state[key] = res_list
             pre_now = [r for r in res_list if r["game"]["state"] == "pre" and r["rows"]]
             new_rows = [game_to_wide(r, date.isoformat()) for r in pre_now]
@@ -3684,6 +3862,9 @@ def slate_tab(M, date, games, injuries, b2b):
                        + ("" if saved[2] else " The file could not be written, so they are kept for this session only. Download a backup in the Results tab."))
         else:
             st.info("Nothing was saved: every game has already started or has no lines posted.")
+    st.markdown("### 🔥 Best plays today")
+    st.caption("The strongest value spots on the slate, with the Kelly stake for your bankroll settings (change them in Edge tools).")
+    html(best_plays_html(results, 4))
     st.markdown("### 🏆 Predictions for every game")
     st.caption("The model's projected score and winner for each game, before looking at any betting value.")
     cards = []
@@ -3698,16 +3879,7 @@ def slate_tab(M, date, games, injuries, b2b):
         best = max(res["rows"], key=lambda r: r["edge"]) if res["rows"] else None
         has_val = bool(best and strength(best["edge"], best["ev"]))
         cards.append({"res": res, "wp": wp, "edge": best["edge"] if has_val else -1.0, "val": has_val, "order": len(cards),
-                      "html": (f'<div class="nb-card"><div class="nb-top"><span class="nb-title">{logo(g.get("away_logo"))}{H(short(g["away"]))} @ {logo(g.get("home_logo"))}{H(short(g["home"]))}</span>'
-                               f'{value_badge(best["edge"], best["ev"]) if best else badge("No lines yet", "none")}</div>'
-                               f'<div class="nb-muted">🏆 Predicted winner</div>'
-                               f'<div class="nb-winner">{logo(g.get("home_logo") if home_fav else g.get("away_logo"))}{H(win_team)}</div>'
-                               f'<div class="nb-fscore">{hi} – {lo} over {H(short(lose_team))}</div>'
-                               + bar(f"{short(win_team)} win chance", wp, "var(--acc)")
-                               + f'<div class="nb-chips"><span class="nb-chip">Spread: {H(short(g["home"]))} {-res["med_m"]:+.1f}</span>'
-                               f'<span class="nb-chip">Total: {res["med_t"]:.0f}</span></div>'
-                               + (f'<div class="nb-muted" style="margin-top:2px">💰 Best spot: <b>{H(pick_name(best))}</b> ({H(best["market"])}, {best["edge"] * 100:+.1f} pts edge)</div>' if has_val else "")
-                               + '</div>')})
+                      "html": game_card_html(res, best, has_val)})
     f1, f2 = st.columns(2)
     show = f1.radio("Show", ["All games", "Only games with value"], horizontal=True, key="slate_show")
     sort_by = f2.selectbox("Sort by", ["Game order", "Biggest edge", "Most confident winner"], key="slate_sort")
@@ -3731,16 +3903,14 @@ def slate_tab(M, date, games, injuries, b2b):
             "Model total": f"{c['res']['med_t']:.0f}"} for c in cards]), hide_index=True)
 
     flagged = sorted([(res, r) for res in results for r in res["rows"] if strength(r["edge"], r["ev"])], key=lambda x: -x[1]["edge"])
-    st.markdown("### 🎯 Best value plays")
+    st.markdown("### 🎯 All value plays")
     if not flagged:
         st.info("No value found: the model and the sportsbook agree across the slate (or no lines are posted yet).")
     else:
-        st.dataframe(pd.DataFrame([{
-            "Game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "Market": r["market"], "Pick": pick_name(r),
-            "Odds": f"{r['book_odds']:+d}", "Model chance": pct(r["model_p"]), "Sportsbook implies": pct(r["book_p"]),
-            "Edge (pts)": f"{r['edge'] * 100:+.1f}", "Profit per $100 if model is right": f"${r['ev']:,.0f}",
-            "Value": strength(r["edge"], r["ev"]),
-            "Stake": md_money(stake_for(r["model_p"], r["book_odds"])).replace("\\", "")} for res, r in flagged]), hide_index=True)
+        html(play_list_html([{"game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "pick": pick_name(r), "market": r["market"],
+                              "odds": int(r["book_odds"]), "model": r["model_p"], "book": r["book_p"], "edge": r["edge"],
+                              "beats": r["model_p"] - implied(r["book_odds"]), "stake": kelly_stake(r["model_p"], r["book_odds"]),
+                              "away_logo": res["game"].get("away_logo"), "home_logo": res["game"].get("home_logo")} for res, r in flagged]))
         st.caption("Sorted by edge. Large edges are worth double-checking against the latest injury news and confirmed lineups.")
 
     st.markdown("### Game details")
@@ -4024,7 +4194,12 @@ elif st.session_state.get("_auto_date") is not None and st.session_state["sel_da
 st.session_state["_auto_date"] = _dd
 st.session_state["_last_nav"] = _cur_nav
 date = st.session_state["sel_date"]          # changed from the date box inside each tab
-M = fit_model(date.isoformat())
+_skm = st.empty()
+_skm.markdown(skeleton_cards(3, "Loading team ratings... the first load of the day can take a minute"), unsafe_allow_html=True)
+try:
+    M = fit_model(date.isoformat())
+finally:
+    _skm.empty()
 if M is None:
     st.error("Could not download enough game history from ESPN to build team ratings. Try again in a minute.")
     st.stop()
@@ -4627,19 +4802,10 @@ def beats_record_view(mode_="Beats break-even"):
         gw, gl = int((gd["result"] == "W").sum()), int((gd["result"] == "L").sum())
         tag = f"{gw}-{gl}" + (f" · {_signed_money(float(gd['profit'].fillna(0).sum()))} flat" if len(gd) else "") + (f" · {len(g) - len(gd)} waiting" if len(g) > len(gd) else "")
         with st.expander(f"{_nice_date(day)}  ·  {tag}"):
-            t = pd.DataFrame([{"Game": r.game, "Pick": pick_label(pd.Series(r._asdict())).split(" (")[0], "Odds": int(r.odds),
-                               "Model": r.model_p * 100, "Break-even": implied(r.odds) * 100, "Beats": (r.model_p - implied(r.odds)) * 100,
-                               "Result": sym.get(r.result, "⏳"), "Flat": (float(r.profit) if r.result in ("W", "L", "P") else None),
-                               "Kelly stake": r.kstake, "Kelly": (r.kprofit if r.result in ("W", "L", "P") else None)} for r in g.sort_values("game").itertuples()])
-            cc = st.column_config
-            try:
-                st.dataframe(t, hide_index=True, column_config={
-                    "Odds": cc.NumberColumn("Odds", format="%+d"), "Model": cc.NumberColumn("Model", format="%.1f%%"),
-                    "Break-even": cc.NumberColumn("Break-even", format="%.1f%%"), "Beats": cc.NumberColumn("Beats", format="%+.1f"),
-                    "Flat": cc.NumberColumn("Flat", format="$%+.0f"), "Kelly stake": cc.NumberColumn("Kelly stake", format="$%.0f"),
-                    "Kelly": cc.NumberColumn("Kelly", format="$%+.2f")})
-            except Exception:
-                st.dataframe(t, hide_index=True)
+            html(record_list_html([{"game": r.game, "pick": pick_label(pd.Series(r._asdict())).split(" (")[0], "odds": int(r.odds),
+                                   "beats": (r.model_p - implied(r.odds)) * 100, "result": r.result if r.result in ("W", "L", "P") else "",
+                                   "flat": (float(r.profit) if r.result in ("W", "L", "P") else None), "kstake": r.kstake,
+                                   "kprofit": (r.kprofit if r.result in ("W", "L", "P") else None)} for r in g.sort_values("game").itertuples()]))
 
 
 def kelly_view(date):
@@ -4685,19 +4851,24 @@ def kelly_view(date):
         if not rows:
             st.info("Nothing in this view for this slate.")
         else:
-            kdf = pd.DataFrame([{"Game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "Pick": pick_name(r),
-                                 "Odds": int(r["book_odds"]), "Model": r["model_p"] * 100, "Book": r["book_p"] * 100, "Edge (pts)": r["edge"] * 100,
-                                 "Break-even": implied(r["book_odds"]) * 100, "Beats break-even": (r["model_p"] - implied(r["book_odds"])) * 100,
-                                 "Flat": 100.0, "Kelly": float(kelly_stake(r["model_p"], r["book_odds"]))} for res, r in rows])
-            cc = st.column_config
-            try:                                            # real numbers, so clicking a column heading sorts them properly
-                st.dataframe(kdf, hide_index=True, column_config={
-                    "Odds": cc.NumberColumn("Odds", format="%+d"), "Model": cc.NumberColumn("Model", format="%.1f%%"),
-                    "Book": cc.NumberColumn("Book", format="%.1f%%"), "Edge (pts)": cc.NumberColumn("Edge (pts)", format="%+.1f"),
-                    "Break-even": cc.NumberColumn("Break-even", format="%.1f%%"), "Beats break-even": cc.NumberColumn("Beats break-even", format="%+.1f"),
-                    "Flat": cc.NumberColumn("Flat", format="$%.0f"), "Kelly": cc.NumberColumn("Kelly", format="$%.0f")})
-            except Exception:
-                st.dataframe(kdf, hide_index=True)
+            items = [{"game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "pick": pick_name(r), "market": r["market"],
+                      "odds": int(r["book_odds"]), "model": r["model_p"], "book": r["book_p"], "edge": r["edge"],
+                      "beats": r["model_p"] - implied(r["book_odds"]), "stake": kelly_stake(r["model_p"], r["book_odds"]),
+                      "away_logo": res["game"].get("away_logo"), "home_logo": res["game"].get("home_logo")} for res, r in rows]
+            f1, f2 = st.columns([3, 2])
+            try:
+                mk_ = f1.segmented_control("Market", ["All", "Moneyline", "Spread", "Total"], default="All", key="kelly_mkt", label_visibility="collapsed") or "All"
+            except (TypeError, AttributeError):
+                mk_ = f1.radio("Market", ["All", "Moneyline", "Spread", "Total"], horizontal=True, key="kelly_mkt")
+            sort_ = f2.selectbox("Sort by", ["Beats break-even", "Edge", "Kelly stake", "Odds"], key="kelly_sort", label_visibility="collapsed")
+            if mk_ != "All":
+                items = [x for x in items if x["market"] == mk_]
+            keyf = {"Beats break-even": lambda x: -x["beats"], "Edge": lambda x: -x["edge"], "Kelly stake": lambda x: -x["stake"], "Odds": lambda x: -x["odds"]}[sort_]
+            items.sort(key=keyf)
+            if items:
+                html(play_list_html(items))
+            else:
+                st.info("Nothing for that market.")
     beats_record_view(mode_)
     st.markdown("#### What Kelly would have done with your logged value plays")
     log = value_log()
@@ -5103,9 +5274,9 @@ def sub_nav(labels, key):
 
     def draw():
         try:
-            return st.segmented_control("Page section", labels, key=k, label_visibility="collapsed")
+            return st.segmented_control("Page section", labels, key=k, label_visibility="collapsed", format_func=nav_label)
         except (TypeError, AttributeError):
-            return st.radio("Page section", labels, key=k, horizontal=True, label_visibility="collapsed")
+            return st.radio("Page section", labels, key=k, horizontal=True, label_visibility="collapsed", format_func=nav_label)
     if box is None:
         pick = draw()
     else:
@@ -5252,9 +5423,9 @@ except TypeError:                                        # older Streamlit witho
     _nav_box = st.container()
 with _nav_box:
     try:
-        nav = st.segmented_control("Section", menu, key="main_nav", label_visibility="collapsed")
+        nav = st.segmented_control("Section", menu, key="main_nav", label_visibility="collapsed", format_func=nav_label)
     except (TypeError, AttributeError):
-        nav = st.radio("Section", menu, horizontal=True, key="main_nav", label_visibility="collapsed")
+        nav = st.radio("Section", menu, horizontal=True, key="main_nav", label_visibility="collapsed", format_func=nav_label)
     if nav not in menu:                                  # tapping the selected button again clears it; stay on the same page
         nav = st.session_state.get("_main_last") if st.session_state.get("_main_last") in menu else menu[0]
     st.session_state["_main_last"] = nav
@@ -5632,7 +5803,12 @@ if nav == NAV[0]:
         if g["home"] == g["away"]:
             st.error("A team can't play itself.")
         else:
-            st.session_state[f"res_{gid}"] = analyze_game(M, g, odds, inj_pts[g["home"]], inj_pts[g["away"]], b2b_teams)
+            _sk1 = st.empty()
+            _sk1.markdown(skeleton_cards(3, "Simulating 10,000 games..."), unsafe_allow_html=True)
+            try:
+                st.session_state[f"res_{gid}"] = analyze_game(M, g, odds, inj_pts[g["home"]], inj_pts[g["away"]], b2b_teams)
+            finally:
+                _sk1.empty()
     if f"res_{gid}" in st.session_state:
         render_result(st.session_state[f"res_{gid}"])
     terms_help()
@@ -5884,6 +6060,82 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 .pro-foot{ margin:2.6rem 0 .6rem; padding-top:1rem; border-top:1px solid var(--p-line); color:var(--p-mute); font-size:.78rem; line-height:1.55; display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
 .pro-foot b{ color:var(--p-ink); font-weight:650; }
 
+
+/* Best plays strip */
+.bp-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; margin:.6rem 0 1.2rem; }
+.bp-card{ position:relative; overflow:hidden; border-radius:18px; padding:1rem 1.1rem 1rem; border:1px solid var(--p-line); background:var(--p-panel); box-shadow:var(--p-shadow); transition:transform .2s ease,border-color .2s ease; }
+.bp-card:hover{ transform:translateY(-3px); border-color:var(--p-line-hi); }
+.bp-card:before{ content:""; position:absolute; left:0; right:0; top:0; height:4px; background:linear-gradient(90deg,var(--c1),var(--c2)); }
+.bp-glow{ position:absolute; inset:-40% -20% auto auto; width:60%; height:90%; background:radial-gradient(closest-side,var(--c2),transparent); opacity:.16; pointer-events:none; }
+.bp-top{ display:flex; align-items:center; gap:.5rem; margin-bottom:.7rem; position:relative; }
+.bp-rank{ font-weight:800; font-size:.8rem; padding:.1rem .5rem; border-radius:8px; background:rgba(148,163,184,.14); }
+.bp-mk{ font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:var(--p-mute); flex:1; }
+.bp-match{ display:flex; align-items:center; gap:.2rem; font-size:.85rem; color:var(--p-mute); font-weight:600; }
+.bp-match i{ font-style:normal; opacity:.5; margin:0 .35rem; }
+.bp-row{ display:flex; align-items:baseline; justify-content:space-between; gap:.6rem; margin:.45rem 0 .75rem; }
+.bp-pick{ font-size:1.3rem; font-weight:800; letter-spacing:-.03em; line-height:1.15; }
+.bp-odds{ font-size:1.25rem; font-weight:800; font-variant-numeric:tabular-nums; color:#93c5fd; }
+.bp-stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:.4rem; padding:.6rem 0; border-top:1px solid var(--p-line); border-bottom:1px solid var(--p-line); }
+.bp-stats div{ text-align:center; } .bp-stats b{ display:block; font-size:1rem; font-variant-numeric:tabular-nums; } .bp-stats i{ font-style:normal; font-size:.66rem; text-transform:uppercase; letter-spacing:.06em; color:var(--p-mute); }
+.bp-kelly{ display:flex; justify-content:space-between; align-items:center; margin-top:.7rem; font-size:.82rem; color:var(--p-mute); }
+.bp-kelly b{ font-size:1.05rem; color:var(--p-ink); padding:.15rem .7rem; border-radius:999px; background:linear-gradient(135deg,rgba(59,130,246,.3),rgba(99,102,241,.25)); border:1px solid rgba(96,165,250,.4); }
+.bp-empty{ border:1px dashed var(--p-line); border-radius:16px; padding:1.1rem 1.2rem; margin:.6rem 0 1.2rem; text-align:center; }
+.bp-empty-t{ font-weight:700; margin-bottom:.2rem; }
+
+/* Game cards */
+.nb-grid{ grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:16px; }
+.gc-card{ display:flex; flex-direction:column; position:relative; overflow:hidden; border-radius:20px; padding:1.1rem 1.15rem 1rem; border:1px solid var(--p-line); box-shadow:var(--p-shadow);
+  background:radial-gradient(260px 160px at 0% 0%, var(--ga,rgba(59,130,246,.18)), transparent 70%), radial-gradient(260px 160px at 100% 0%, var(--gh,rgba(99,102,241,.18)), transparent 70%), var(--p-panel);
+  transition:transform .2s ease,border-color .2s ease; }
+.gc-card:hover{ transform:translateY(-3px); border-color:var(--p-line-hi); }
+.gc-bar{ position:absolute; left:0; right:0; top:0; height:4px; background:linear-gradient(90deg,var(--ca) 0 50%,var(--ch) 50% 100%); }
+.gc-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:.4rem; }
+.gc-tag{ font-size:.7rem; text-transform:uppercase; letter-spacing:.09em; color:var(--p-mute); font-weight:600; }
+.gc-teams{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:.4rem; padding:.3rem 0 .7rem; }
+.gc-team{ display:flex; flex-direction:column; align-items:center; gap:.15rem; min-width:0; opacity:.82; }
+.gc-team.fav{ opacity:1; }
+.gc-logo{ width:58px; height:58px; background-size:contain; background-repeat:no-repeat; background-position:center; filter:drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
+.gc-name{ font-weight:750; font-size:.98rem; letter-spacing:-.02em; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+.gc-role{ font-size:.66rem; text-transform:uppercase; letter-spacing:.09em; color:var(--p-mute); }
+.gc-mid{ text-align:center; }
+.gc-score{ display:flex; align-items:baseline; justify-content:center; gap:.35rem; font-variant-numeric:tabular-nums; }
+.gc-score b{ font-size:1.9rem; font-weight:800; letter-spacing:-.04em; opacity:.7; } .gc-score b.hi{ opacity:1; color:#fff; }
+.gc-score i{ font-style:normal; opacity:.4; }
+.gc-proj{ font-size:.64rem; text-transform:uppercase; letter-spacing:.1em; color:var(--p-mute); margin-top:-.15rem; }
+.gc-split{ display:flex; height:10px; border-radius:99px; overflow:hidden; background:rgba(148,163,184,.15); gap:2px; }
+.gc-split span{ display:block; height:100%; transition:width .9s ease; } .gc-split span:first-child{ border-radius:99px 0 0 99px; } .gc-split span:last-child{ border-radius:0 99px 99px 0; }
+.gc-pl{ display:flex; justify-content:space-between; font-size:.8rem; font-weight:650; margin:.35rem 0 .1rem; font-variant-numeric:tabular-nums; }
+.gc-chips{ margin:.55rem 0 .5rem; }
+.gc-best{ display:flex; align-items:center; gap:.5rem; margin-top:auto;  padding:.5rem .7rem; border-radius:12px; background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.28); font-size:.84rem; }
+.gc-best span{ color:var(--p-mute); font-size:.7rem; text-transform:uppercase; letter-spacing:.07em; } .gc-best b{ flex:1; } .gc-best em{ font-style:normal; color:#4ade80; font-weight:700; }
+
+/* Pills and play lists */
+.pl{ display:inline-block; padding:.12rem .6rem; border-radius:999px; font-size:.76rem; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; border:1px solid transparent; }
+.pl-good{ background:rgba(34,197,94,.14); color:#4ade80; border-color:rgba(34,197,94,.3); }
+.pl-bad{ background:rgba(239,68,68,.14); color:#f87171; border-color:rgba(239,68,68,.3); }
+.pl-warn{ background:rgba(245,158,11,.14); color:#fbbf24; border-color:rgba(245,158,11,.3); }
+.pl-acc{ background:rgba(59,130,246,.18); color:#93c5fd; border-color:rgba(96,165,250,.4); }
+.pl-mute{ background:rgba(148,163,184,.12); color:var(--p-mute); border-color:var(--p-line); }
+.pr-list{ border:1px solid var(--p-line); border-radius:16px; overflow:hidden; background:var(--p-panel); box-shadow:var(--p-shadow); margin:.4rem 0 1rem; }
+.pr-row{ display:grid; grid-template-columns:minmax(0,2.6fr) repeat(6,minmax(0,.9fr)); gap:.6rem; align-items:center; padding:.65rem .95rem; border-top:1px solid var(--p-line); font-variant-numeric:tabular-nums; }
+.pr-row.rc-row{ grid-template-columns:minmax(0,2.4fr) repeat(6,minmax(0,.9fr)); }
+.pr-row:first-child{ border-top:0; } .pr-row:not(.pr-head):hover{ background:rgba(148,163,184,.07); }
+.pr-head{ font-size:.68rem; text-transform:uppercase; letter-spacing:.08em; color:var(--p-mute); font-weight:700; background:rgba(148,163,184,.06); padding-top:.5rem; padding-bottom:.5rem; }
+.pr-main{ display:flex; align-items:center; gap:.2rem; min-width:0; } .pr-main .nb-logo{ margin-right:0; }
+.pr-t{ min-width:0; margin-left:.35rem; } .pr-pick{ font-weight:700; letter-spacing:-.01em; } .pr-sub{ font-size:.76rem; color:var(--p-mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* Loading shimmer */
+.sk{ border-radius:10px; background:linear-gradient(90deg,rgba(148,163,184,.08) 0%,rgba(148,163,184,.2) 50%,rgba(148,163,184,.08) 100%); background-size:200% 100%; animation:skm 1.3s ease-in-out infinite; }
+@keyframes skm{ 0%{ background-position:200% 0 } 100%{ background-position:-200% 0 } }
+.sk-card{ pointer-events:none; } .sk-cap{ color:var(--p-mute); font-size:.85rem; font-weight:600; margin:.4rem 0 .2rem; }
+@media (max-width:760px){
+  .pr-head{ display:none; }
+  .pr-row,.pr-row.rc-row{ grid-template-columns:repeat(3,minmax(0,1fr)); row-gap:.5rem; padding:.8rem .9rem; }
+  .pr-row .pr-main{ grid-column:1 / -1; }
+  .pr-row > div[data-l]:before{ content:attr(data-l); display:block; font-size:.62rem; text-transform:uppercase; letter-spacing:.07em; color:var(--p-mute); margin-bottom:.1rem; font-weight:600; }
+  .nb-grid{ grid-template-columns:1fr; }
+}
+@media (prefers-reduced-motion:reduce){ .sk{ animation:none; } }
 @media (max-width:900px){ .pro-stats{ grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media (max-width:640px){
   .pro-hero{ padding:1.1rem 1rem; border-radius:18px; }

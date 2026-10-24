@@ -5365,9 +5365,9 @@ def _home_card(x, res=None):
         mid = (f'<div class="hm-sc"><b class="{"hi" if x["awin"] else ""}">{H(x["as"])}</b><i>–</i><b class="{"hi" if x["hwin"] else ""}">{H(x["hs"])}</b></div>')
     tag = (f'<span class="hm-tag live"><span class="pro-dot"></span>{H(x["detail"])}</span>' if live
            else f'<span class="hm-tag">{H("Upcoming" if pre else x["detail"])}</span>')
-    return (f'<div class="hm-card{" is-live" if live else ""}">{tag}<div class="hm-row">'
+    return (f'<div class="hm-card{" is-live" if live else ""}"><div class="hm-row">'
             f'<div class="hm-team">{logo_xl(x["away_logo"])}<div class="gc-name">{H(short(x["away"]))}</div><div class="gc-role">{H(x["arec"])}</div></div>'
-            f'<div class="hm-mid">{mid}</div>'
+            f'<div class="hm-mid"><div class="hm-tagc">{tag}</div>{mid}</div>'
             f'<div class="hm-team">{logo_xl(x["home_logo"])}<div class="gc-name">{H(short(x["home"]))}</div><div class="gc-role">{H(x["hrec"])}</div></div>'
             f'</div>{_model_line(x, res)}</div>')
 
@@ -5396,8 +5396,10 @@ HOME_CSS = """<style>
 .hm-dd summary::-webkit-details-marker{display:none}
 .hm-chev{display:block;font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.55;margin-top:.45rem}
 .hm-dd[open] .hm-chev:after{content:" ▴"}.hm-dd:not([open]) .hm-chev:after{content:" ▾"}
+.hm-rcs:has(.hm-ov[open]) .hm-pk{display:block}
+.hm-rc .hm-pk{margin:.5rem -.8rem -.8rem;text-align:left}
 .hm-dd:hover{border-color:rgba(96,165,250,.5)}
-.hm-pk{max-height:240px;overflow-y:auto;text-align:left;padding:.4rem .8rem .7rem;border-top:1px solid rgba(128,128,128,.2)}
+.hm-pk{display:none;max-height:260px;overflow-y:auto;text-align:left;padding:.4rem .8rem .7rem;border-top:1px solid rgba(128,128,128,.2)}
 .hm-pkr{display:flex;gap:8px;font-size:.8rem;padding:.25rem 0;line-height:1.3}
 .hm-rb{font-size:1.5rem;font-weight:800;line-height:1.25}
 .hm-rc{text-align:center;padding:.8rem .8rem}
@@ -5429,6 +5431,7 @@ HOME_CSS = """<style>
 .hm-sp{height:.9rem}
 .hm-card{border:1px solid var(--nb-border,rgba(128,128,128,.25));border-radius:16px;padding:1rem 1.1rem 1.1rem;background:rgba(128,128,128,.05)}
 .hm-card.is-live{border-color:rgba(239,68,68,.55);box-shadow:0 0 0 1px rgba(239,68,68,.15)}
+.hm-tagc{margin-bottom:.35rem}
 .hm-tag{display:inline-flex;align-items:center;gap:6px;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.75}
 .hm-tag.live{color:#ef4444;opacity:1}
 .hm-row{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:.45rem}
@@ -5683,12 +5686,13 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
                 sub = _pm(pr) + (f' <span class="nb-muted">· {act} active</span>' if act > 0 else "")
                 head = (f'<div class="hm-tl">{label}</div><div class="hm-rb">{rec}</div><div class="hm-ts">{sub}</div>')
                 cls = "hm-rc" + (" big" if big else "")
-                if not len(a_):
-                    return f'<div class="{cls}">{head}</div>'
                 lines = "".join(f'<div class="hm-pkr"><span>{sym.get(r["result"], "⏳")}</span><span>{H(pick_label(r))}</span></div>'
                                 for _, r in a_.sort_values("game").iterrows())
-                return (f'<details class="{cls} hm-dd"><summary>{head}<span class="hm-chev">Show picks</span></summary>'
-                        f'<div class="hm-pk">{lines}</div></details>')
+                if big:                                   # clicking Overall opens the three market cards below it
+                    if not len(a_):
+                        return f'<div class="{cls}">{head}</div>'
+                    return (f'<details class="{cls} hm-dd hm-ov"><summary>{head}<span class="hm-chev">Show picks</span></summary></details>')
+                return f'<div class="{cls}">{head}' + (f'<div class="hm-pk">{lines}</div>' if lines else "") + '</div>'
             parts = _rc("Overall", dy, day_all, True) + "".join(
                 _rc(nm + "s", dy[dy["market"] == nm], day_all[day_all["market"] == nm]) for nm in ("Moneyline", "Spread", "Total"))
             _who = "Today's" if off == 0 else rday.strftime("%A's")

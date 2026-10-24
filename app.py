@@ -5238,6 +5238,26 @@ def dropdown_toggle_fix():
               if (cs.overflowY !== 'visible' || cs.overflowX !== 'visible') p.style.overflow = 'visible';
               p = p.parentElement;
             }
+            pinTabs(el);
+          }
+          function pinTabs(navEl) {
+            // Keep the sub-tabs of the current page pinned just under the main menu (top-level tab bars only).
+            const top = 60 + navEl.getBoundingClientRect().height;
+            doc.querySelectorAll('[data-baseweb="tab-list"]').forEach(function (tl) {
+              if (tl.closest('[role="tabpanel"]')) return;
+              const root = tl.closest('[data-baseweb="tabs"]');
+              let bar = tl;
+              while (bar.parentElement && bar.parentElement !== root) bar = bar.parentElement;
+              bar.style.position = 'sticky'; bar.style.top = top + 'px'; bar.style.zIndex = '900';
+              bar.style.background = bg() || '';
+              let p = bar.parentElement;
+              while (p && p !== doc.body) {
+                if (p.matches('[data-testid="stMain"], section')) break;
+                const cs = P.getComputedStyle(p);
+                if (cs.overflowY !== 'visible' || cs.overflowX !== 'visible') p.style.overflow = 'visible';
+                p = p.parentElement;
+              }
+            });
           }
           function setBg() { const c = bg(); if (c) doc.documentElement.style.setProperty('--nb-bg', c); pin(); }
           setBg();

@@ -2213,12 +2213,12 @@ def game_results_view():
     graded = log[log["result"].isin(["W", "L", "P"])].copy()
     for c in ("odds", "model_p", "book_p", "edge", "profit"):
         graded[c] = pd.to_numeric(graded[c])
-    _sub = sub_nav(["📅 Today", "📊 All time", "🗓️ Selected date"], "results")
-    if _sub == 0:
+    t_today, t_all, t_sel = st.tabs(["📅 Today", "📊 All time", "🗓️ Selected date"])
+    with t_today:
         model_period_view(log, graded, local_today().isoformat(), "today")
-    if _sub == 1:
+    with t_all:
         model_period_view(log, graded, None, "all")
-    if _sub == 2:
+    with t_sel:
         model_period_view(log, graded, st.session_state["sel_date"].isoformat(), "sel")
 
 
@@ -3637,12 +3637,12 @@ def bets_results_view(cord_only=False):
 
 
 def bets_tab():
-    _sub = sub_nav(["➕ Add a bet", "⏳ Open bets", "📈 Results"], "bets")
-    if _sub == 0:
+    t_in, t_open, t_res = st.tabs(["➕ Add a bet", "⏳ Open bets", "📈 Results"])
+    with t_in:
         bets_input_view()
-    if _sub == 1:
+    with t_open:
         bets_open_view()
-    if _sub == 2:
+    with t_res:
         bets_results_view()
 
 
@@ -4272,10 +4272,10 @@ def model_first_basket(M, g, injuries, date):
 def pickem_tab(M, date, games, injuries, b2b):
     st.caption("Pick the winner of every game, then see how you match up against the sportsbook (its moneyline favorite) and the model. "
                "The book's and the model's picks are saved at the moment you lock yours in, so you can't peek first.")
-    _sub = sub_nav(["🎯 Make picks", "📊 Scoreboard", "🏀 First basket"], "pickem")
+    t_pick, t_board, t_fb = st.tabs(["🎯 Make picks", "📊 Scoreboard", "🏀 First basket"])
     iso = date.isoformat()
     saved = load_pickem()
-    if _sub == 0:
+    with t_pick:
         date_picker("pickem")
         if not games:
             st.info("No games on this date.")
@@ -4353,7 +4353,7 @@ def pickem_tab(M, date, games, injuries, b2b):
                     st.rerun()
             if st.session_state.get("pk_msg"):
                 st.success(st.session_state.pop("pk_msg"))
-    if _sub == 2:
+    with t_fb:
         st.caption("Guess who scores the first basket of each game (free throws don't count). The model's top first scorer is saved when you lock yours in, "
                    "and the real first basket is filled in from ESPN once the game is under way.")
         date_picker("pickem_fb")
@@ -4435,7 +4435,7 @@ def pickem_tab(M, date, games, injuries, b2b):
                     st.dataframe(T_[["Date", "Game", "First basket", "You", "Model"]].sort_values("Date", ascending=False), hide_index=True, use_container_width=True)
             else:
                 st.caption("No finished games with a known first basket yet.")
-    if _sub == 1:
+    with t_board:
         if saved.empty:
             st.info("No picks yet. Make some in **Make picks** and your scoreboard will build up as games finish.")
             return
@@ -5005,30 +5005,17 @@ def arb_view():
 
 
 def edge_tab(date):
-    _sub = sub_nav(["💵 Kelly stakes", "🔎 Arbitrage & +EV", "📐 CLV tracker", "🎯 Model accuracy", "📣 Discord post"], "edge")
-    if _sub == 0:
+    t1, t2, t3, t4, t5 = st.tabs(["💵 Kelly stakes", "🔎 Arbitrage & +EV", "📐 CLV tracker", "🎯 Model accuracy", "📣 Discord post"])
+    with t1:
         kelly_view(date)
-    if _sub == 1:
+    with t2:
         arb_view()
-    if _sub == 2:
+    with t3:
         clv_view()
-    if _sub == 3:
+    with t4:
         accuracy_view()
-    if _sub == 4:
+    with t5:
         discord_view(date)
-
-
-def sub_nav(labels, key):
-    # The page's sections (like Kelly / CLV / Accuracy), drawn as a row under the main menu inside the pinned menu bar, so it stays put while you scroll.
-    box = globals().get("_nav_box")
-    cur = st.session_state.get(f"subnav_{key}")
-    idx = labels.index(cur) if cur in labels else 0
-    if box is None:
-        pick = st.radio("Page section", labels, index=idx, horizontal=True, key=f"subnav_{key}", label_visibility="collapsed")
-    else:
-        with box:
-            pick = st.radio("Page section", labels, index=idx, horizontal=True, key=f"subnav_{key}", label_visibility="collapsed")
-    return labels.index(pick)
 
 
 NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "🏆 Pick'em", "🧮 Edge tools", "💬 AI chat"]
@@ -5159,13 +5146,6 @@ st.markdown("""<style>
 .st-key-navbar label:hover{background:rgba(128,128,128,.14)}
 .st-key-navbar label:has(input:checked){background:rgba(255,75,75,.16);color:#ff4b4b;font-weight:600}
 .st-key-navbar label p{font-size:.95rem}
-[class*="st-key-subnav_"]{margin-top:.15rem;padding-top:.25rem;border-top:1px solid rgba(128,128,128,.22)}
-[class*="st-key-subnav_"] [role="radiogroup"]{gap:.2rem;flex-wrap:wrap}
-[class*="st-key-subnav_"] label[data-baseweb="radio"]{padding:.3rem .85rem .4rem;margin:0;border-radius:6px 6px 0 0;cursor:pointer;background:transparent !important;box-shadow:none}
-[class*="st-key-subnav_"] label[data-baseweb="radio"] > div:first-child{display:none !important}
-[class*="st-key-subnav_"] label[data-baseweb="radio"]:hover{background:rgba(128,128,128,.12) !important}
-[class*="st-key-subnav_"] label[data-baseweb="radio"]:has(input:checked){box-shadow:inset 0 -3px 0 #3b82f6 !important;font-weight:600;background:transparent !important;color:inherit !important;border-color:transparent !important}
-[class*="st-key-subnav_"] label p{font-size:.95rem}
 </style>""", unsafe_allow_html=True)
 try:
     _nav_box = st.container(key="navbar")

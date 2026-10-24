@@ -5552,14 +5552,15 @@ def _injury_section(sb, M, injuries, date):
             except Exception:
                 rows = []
             rows = [r for r in rows if str(r["Status"]).lower() in ("out", "doubtful", "questionable", "day-to-day")]
+            rows = [r for r in rows if (r["Min/game"] or 0) >= 22]          # rotation stars only
             rows.sort(key=lambda r: (-(r["Min/game"] or 0)))
             if rows:
                 pills = "".join(
-                    pill(f'{r["Player"]} · {r["Status"]}', "bad" if str(r["Status"]).lower() in ("out", "doubtful") else "warn") for r in rows[:4])
+                    pill(f'{r["Player"]} · {r["Status"]}', "bad" if str(r["Status"]).lower() in ("out", "doubtful") else "warn") for r in rows[:2])
                 items.append(f'<div class="hm-inj"><div class="hm-injt">{logo(x["away_logo"] if team == x["away"] else x["home_logo"])}{H(short(team))}</div>'
                              f'<div class="hm-injp">{pills}</div></div>')
     if not items:
-        st.caption("No notable injuries listed for tonight's teams.")
+        st.caption("No key players listed as injured for these games.")
         return
     html('<div class="hm-injg">' + "".join(items) + '</div>')
 
@@ -5679,7 +5680,7 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
 
     # ---- injuries and standings
     if sb0 and M is not None and injuries is not None:
-        html('<div class="hm-sec">Injury report<small>biggest names out or questionable for these games</small></div>')
+        html('<div class="hm-sec">Injury report<small>key players only (22+ minutes a game)</small></div>')
         _injury_section(sb0, M, injuries, date)
     try:
         stand = get_standings()

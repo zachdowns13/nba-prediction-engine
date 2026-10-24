@@ -1421,9 +1421,6 @@ def player_total(proj, stats):
 
 def props_tab(M, g, odds, injuries, date, b2b):
     home, away = g["home"], g["away"]
-    st.caption("Projects each player's points, rebounds, assists and more from his recent games, scaled to this game's projected score, "
-               "and gives extra production to teammates when a starter is out. Sportsbook prop lines are not in ESPN's free data, "
-               "so type the line from your sportsbook to see the model's over/under chance.")
     proj_note = st.empty()
     evs = {t: recent_events(M["hist"], t, date.toordinal(), PROP_GAMES) for t in (home, away)}
     if not evs[home] and not evs[away]:
@@ -1455,10 +1452,10 @@ def props_tab(M, g, odds, injuries, date, b2b):
         st.error("Could not read player stats from ESPN for these teams.")
         return
     st.session_state.setdefault("props_proj", {})[f"{away} @ {home}"] = [r for r in rows]
-    st.markdown('<div style="margin-top:-14px"></div>', unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align:center'>Player projections</h3>", unsafe_allow_html=True)
-    proj_note.caption(f"Model's projection for this game (the {short(home)} are projected for {res['hp']:.0f} points and the {short(away)} for {res['ap']:.0f}). "
-                      "Players who are out are hidden, and their teammates' numbers already include the boost.")
+    rows.sort(key=lambda r: -r["Pts+Reb+Ast"])          # best combined points+rebounds+assists first, for each team
+    proj_note.caption(f"Projected score: {short(home)} {res['hp']:.0f}, {short(away)} {res['ap']:.0f}. Best points+rebounds+assists first. "
+                      "Players who are out are hidden and teammates already include the boost.", help="Projects each player from his recent games, scaled to this game's projected score. "
+                      "Sportsbook prop lines aren't in ESPN's free data, so type your book's line under 'Check a prop' to see the over/under chance.")
     pcols = st.columns(2)
     for col, team, lg in zip(pcols, (home, away), (g.get("home_logo"), g.get("away_logo"))):
         with col:

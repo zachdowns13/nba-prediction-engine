@@ -5409,7 +5409,7 @@ HOME_CSS = """<style>
 .hm-sc i{opacity:.4;font-style:normal;font-size:1.2rem}
 .hm-sc b{opacity:.75}.hm-sc b.hi{opacity:1}
 .hm-time{font-size:1.1rem;font-weight:700}
-.pbp{display:grid;gap:4px}
+.pbp{display:grid;gap:4px;max-height:320px;overflow-y:auto;padding:8px;border:1px solid rgba(128,128,128,.25);border-radius:14px;background:rgba(128,128,128,.04)}
 .pbp-r{display:grid;grid-template-columns:62px 1fr auto;gap:10px;align-items:center;padding:7px 10px;border-radius:9px;background:rgba(128,128,128,.05);font-size:.88rem}
 .pbp-r.sc{background:rgba(59,130,246,.13);font-weight:600}
 .pbp-c{font-variant-numeric:tabular-nums;opacity:.65;font-size:.8rem}
@@ -5462,7 +5462,7 @@ def _home_body(date_iso):
         sc = f'{p["as"]}–{p["hs"]}' if p["scoring"] and p["as"] is not None else ""
         parts.append(f'<div class="pbp-r{" sc" if p["scoring"] else ""}"><span class="pbp-c">{H(p["clock"])}</span><span>{H(p["text"])}</span><span class="pbp-s">{sc}</span></div>')
     html('<div class="pbp">' + "".join(parts) + '</div>')
-    st.caption("Newest play first. Showing the latest 80.")
+    st.caption("Newest play first. Scroll inside the box for earlier plays.")
 
 
 def _model_line(x, res):

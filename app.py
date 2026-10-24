@@ -5607,6 +5607,13 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
     html(f'<div class="hm-hero"><div><div class="hm-hi">{H(hdate.strftime("%A, %B %-d"))}</div>'
          f'<div class="hm-hs">{(d_lab + " · ") if d_lab else ""}{len(sb0)} games on the slate</div></div><div class="hm-pills">'
          f'<span class="hm-p live"><span class="pro-dot"></span>{nl} live</span><span class="hm-p">{nu} upcoming</span><span class="hm-p">{nf} final</span></div></div>')
+    qc = st.columns(4, gap="medium")
+    for c, (lab, tgt, ic) in zip(qc, (("Simulate a game", NAV[0], "monitoring"), ("Full slate", NAV[1], "format_list_bulleted"),
+                                      ("Player props", NAV[2], "person"), ("First basket", NAV[3], "sports_basketball"))):
+        if c.button(lab, key=f"hmq_{tgt}", icon=f":material/{ic}:", use_container_width=True):
+            st.session_state["_goto"] = tgt
+            st.rerun()
+    html('<div class="hm-sp"></div>')
     d1, d2, d3 = st.columns(3, gap="medium")
     if d1.button("Previous day", key="hm_prev", icon=":material/chevron_left:", use_container_width=True):
         st.session_state["home_off"] = off - 1
@@ -5617,13 +5624,6 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
     if d3.button("Next day", key="hm_next", icon=":material/chevron_right:", icon_position="right", use_container_width=True):
         st.session_state["home_off"] = off + 1
         st.rerun()
-    html('<div class="hm-sp"></div>')
-    qc = st.columns(4, gap="medium")
-    for c, (lab, tgt, ic) in zip(qc, (("Simulate a game", NAV[0], "monitoring"), ("Full slate", NAV[1], "format_list_bulleted"),
-                                      ("Player props", NAV[2], "person"), ("First basket", NAV[3], "sports_basketball"))):
-        if c.button(lab, key=f"hmq_{tgt}", icon=f":material/{ic}:", use_container_width=True):
-            st.session_state["_goto"] = tgt
-            st.rerun()
 
     # ---- private: record snapshot, yesterday's recap, open bets
     if private:

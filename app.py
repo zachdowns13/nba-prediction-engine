@@ -4627,7 +4627,7 @@ def kelly_view(date):
             st.info("No value plays on this slate.")
         else:
             st.dataframe(pd.DataFrame([{"Game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "Pick": pick_name(r),
-                                        "Odds": f"{r['book_odds']:+d}", "Model": pct(r["model_p"]), "Edge (pts)": f"{r['edge'] * 100:+.1f}",
+                                        "Odds": f"{r['book_odds']:+d}", "Model": pct(r["model_p"]), "Book": pct(r["book_p"]), "Edge (pts)": f"{r['edge'] * 100:+.1f}",
                                         "Break-even": pct(implied(r["book_odds"])), "Beats break-even": f"{(r['model_p'] - implied(r['book_odds'])) * 100:+.1f}",
                                         "Flat": "$100", "Kelly": f"${kelly_stake(r['model_p'], r['book_odds']):,.0f}"} for res, r in rows]), hide_index=True)
     st.markdown("#### What Kelly would have done with your logged value plays")

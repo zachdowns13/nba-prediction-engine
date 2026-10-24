@@ -5380,6 +5380,10 @@ HOME_CSS = """<style>
 .hm-tb{font-size:1.9rem;font-weight:800;line-height:1.2;margin:.15rem 0}
 .hm-ts{font-size:.82rem;opacity:.85}
 .hm-pm.good{color:#22c55e;font-weight:700}.hm-pm.bad{color:#ef4444;font-weight:700}
+.hm-rcs{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:.7rem;margin-top:.4rem}
+.hm-rc{border:1px solid rgba(128,128,128,.25);border-radius:12px;padding:.55rem .8rem;background:rgba(128,128,128,.05)}
+.hm-rc.big{border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.1)}
+.hm-rb{font-size:1.3rem;font-weight:800;line-height:1.25}
 .hm-recap{padding:.9rem 1.1rem;border-radius:14px;border:1px solid rgba(128,128,128,.25);background:rgba(128,128,128,.05);margin-top:.4rem;font-size:1rem}
 .hm-leads{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin-top:.4rem}
 .hm-lead{border:1px solid rgba(128,128,128,.25);border-radius:14px;padding:.8rem 1rem;background:rgba(128,128,128,.05);margin-top:.4rem}
@@ -5641,9 +5645,14 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
             ry = (hdate - dt.timedelta(days=1)).isoformat()
             dy = log[(log["date"].astype(str) == ry) & (log["is_pick"]) & (log["result"].isin(["W", "L", "P"]))] if len(log) else log
             if len(dy):
-                prof = pd.to_numeric(dy["profit"], errors="coerce").fillna(0).sum()
-                html(f'<div class="hm-sec">Last night\'s recap<small>{H((hdate - dt.timedelta(days=1)).strftime("%A, %b %-d"))}</small></div>'
-                     f'<div class="hm-recap"><b>The model went {record_line(dy)}</b> {_pm(prof)} <span class="nb-muted">on flat $100 picks</span></div>')
+                def _rc(label, d_, big=False):
+                    pr = pd.to_numeric(d_["profit"], errors="coerce").fillna(0).sum()
+                    rec = record_line(d_) if len(d_) else "–"
+                    return (f'<div class="hm-rc{" big" if big else ""}"><div class="hm-tl">{label}</div>'
+                            f'<div class="hm-rb">{rec}</div><div class="hm-ts">{_pm(pr) if len(d_) else ""}</div></div>')
+                parts = _rc("Overall", dy, True) + "".join(_rc(nm, dy[dy["market"] == nm]) for nm in ("Moneyline", "Spread", "Total"))
+                html(f'<div class="hm-sec">Last night\'s recap<small>{H((hdate - dt.timedelta(days=1)).strftime("%A, %b %-d"))} · per $100 flat</small></div>'
+                     f'<div class="hm-rcs">{parts}</div>')
             # open bets
             ob = bets[~bets["result"].isin(["W", "L", "P"])] if len(bets) else bets
             if len(ob):

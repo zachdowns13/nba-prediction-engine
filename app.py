@@ -4630,10 +4630,19 @@ def kelly_view(date):
         if not rows:
             st.info("Nothing in this view for this slate.")
         else:
-            st.dataframe(pd.DataFrame([{"Game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "Pick": pick_name(r),
-                                        "Odds": f"{r['book_odds']:+d}", "Model": pct(r["model_p"]), "Book": pct(r["book_p"]), "Edge (pts)": f"{r['edge'] * 100:+.1f}",
-                                        "Break-even": pct(implied(r["book_odds"])), "Beats break-even": f"{(r['model_p'] - implied(r['book_odds'])) * 100:+.1f}",
-                                        "Flat": "$100", "Kelly": f"${kelly_stake(r['model_p'], r['book_odds']):,.0f}"} for res, r in rows]), hide_index=True)
+            kdf = pd.DataFrame([{"Game": f"{short(res['game']['away'])} @ {short(res['game']['home'])}", "Pick": pick_name(r),
+                                 "Odds": int(r["book_odds"]), "Model": r["model_p"] * 100, "Book": r["book_p"] * 100, "Edge (pts)": r["edge"] * 100,
+                                 "Break-even": implied(r["book_odds"]) * 100, "Beats break-even": (r["model_p"] - implied(r["book_odds"])) * 100,
+                                 "Flat": 100.0, "Kelly": float(kelly_stake(r["model_p"], r["book_odds"]))} for res, r in rows])
+            cc = st.column_config
+            try:                                            # real numbers, so clicking a column heading sorts them properly
+                st.dataframe(kdf, hide_index=True, column_config={
+                    "Odds": cc.NumberColumn("Odds", format="%+d"), "Model": cc.NumberColumn("Model", format="%.1f%%"),
+                    "Book": cc.NumberColumn("Book", format="%.1f%%"), "Edge (pts)": cc.NumberColumn("Edge (pts)", format="%+.1f"),
+                    "Break-even": cc.NumberColumn("Break-even", format="%.1f%%"), "Beats break-even": cc.NumberColumn("Beats break-even", format="%+.1f"),
+                    "Flat": cc.NumberColumn("Flat", format="$%.0f"), "Kelly": cc.NumberColumn("Kelly", format="$%.0f")})
+            except Exception:
+                st.dataframe(kdf, hide_index=True)
     st.markdown("#### What Kelly would have done with your logged value plays")
     log = value_log()
     if log.empty:

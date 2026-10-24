@@ -5619,8 +5619,28 @@ def _performers(date_iso):
     html('<div class="hm-sec">Top performers<small>across tonight\'s games</small></div><div class="hm-leads">' + "".join(cols) + '</div>')
 
 
+def home_js():
+    try:
+        import streamlit.components.v1 as components
+        components.html("""<script>
+        (function () {
+          const d = window.parent.document;
+          if (d.__hmOv) return; d.__hmOv = true;
+          d.addEventListener('toggle', function (e) {
+            const t = e.target;
+            if (!t || !t.classList || !t.classList.contains('hm-ov')) return;
+            const grid = t.closest('.hm-rcs'); if (!grid) return;
+            grid.querySelectorAll('details.hm-dd:not(.hm-ov)').forEach(function (x) { x.open = t.open; });
+          }, true);
+        })();
+        </script>""", height=0)
+    except Exception:
+        pass
+
+
 def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
     html(HOME_CSS)
+    home_js()
     off = st.session_state.setdefault("home_off", 0)
     hdate = date + dt.timedelta(days=off)
     iso = hdate.isoformat()
@@ -5688,6 +5708,8 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
                     return f'<div class="{cls}">{head}</div>'
                 lines = "".join(f'<div class="hm-pkr"><span>{sym.get(r["result"], "⏳")}</span><span>{H(pick_label(r))}</span></div>'
                                 for _, r in a_.sort_values("game").iterrows())
+                if big:                                   # the main card has no list of its own: it opens or closes the three below
+                    return f'<details class="{cls} hm-dd hm-ov"><summary>{head}<span class="hm-chev">Show all picks</span></summary></details>'
                 return (f'<details class="{cls} hm-dd"><summary>{head}<span class="hm-chev">Show picks</span></summary>'
                         f'<div class="hm-pk">{lines}</div></details>')
             parts = _rc("Overall", dy, day_all, True) + "".join(

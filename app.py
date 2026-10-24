@@ -26,7 +26,6 @@ import streamlit as st
 
 import html as _html
 
-# Base component styles. POLISH_CSS below is intentionally layered last for easier UI tuning.
 NB_CSS = """
 <style>
 :root{--ok:#16a34a;--ok-bg:rgba(34,197,94,.16);--lean:#b7791f;--lean-bg:rgba(234,179,8,.18);--none-bg:rgba(128,128,128,.16);
@@ -181,7 +180,7 @@ hero = st.container()          # filled in below once the date and games are kno
 PARAMS = {"half_life": 90.0, "ridge": 10.0, "prev_w": 0.8}      # tuned in the Colab notebook on last season
 BETA_M, BETA_T = 0.10, 0.10      # how far the model may move the sportsbook's margin / total (Colab section 7 measured about 0%, so this is kept small)
 SD_M, SD_T = 13.6, 18.3          # typical miss on the margin / the total (about 1.25 x the average miss measured in Colab)
-SIMS = 10_000
+SIMS = int(st.session_state.get("nb_sim_count", 10_000))
 LEAN_MIN, LEAN_STRONG = 0.02, 0.04
 FB_HISTORY_GAMES = 10            # first-basket: team games used to estimate each player
 TIP_HOME_PROB = 0.50             # chance the home team wins the opening tip when there is no tip data
@@ -1048,10 +1047,7 @@ def first_basket_tab(M, g, injuries, now):
     for col, team, tid in ((cols[0], home, g.get("home_id")), (cols[1], away, g.get("away_id"))):
         with col:
             st.markdown(f"**{team}**")
-            _cs0 = dt.date(M["season"] - 1, 9, 1).toordinal()
-            _cur = {e for (o, e) in M["hist"].get(team, []) if o >= _cs0}                 # this season's games only
-            _evt = [e for e in evs[team] if e in _cur] or evs[team]                        # fall back to last season only if the team has no games yet
-            agg = team_profile(_evt, boxes, team)
+            agg = team_profile(evs[team], boxes, team)
             roster = set(get_roster(tid))
             if roster:
                 agg = {k: a for k, a in agg.items() if k in roster}     # current roster only
@@ -1070,13 +1066,9 @@ def first_basket_tab(M, g, injuries, now):
             aggs[team] = agg
             jsel[team] = st.selectbox(f"Tip-off jumper ({team})", ["Auto (most likely)"] + list(chosen[team]), key=f"fbj_{g['id']}_{team}",
                                       help="Who takes the opening tip. Auto picks the starter who has taken the most recent tips for this team.")
-            _ng = M["cur_counts"].get(team, 0)
-            if _ng == 0:
-                st.warning("No games played this season yet, so this lineup is a GUESS from last season. "
+            if M["cur_counts"].get(team, 0) < 5:
+                st.warning("Fewer than 5 games played this season, so this lineup is a GUESS from older games. "
                            "Set the real starting five above once lineups are announced (about 30 min before tip).")
-            elif _ng < 5:
-                st.caption(f"Lineup built from this season's {_ng} game{'s' if _ng != 1 else ''} only. "
-                           "Double-check it once lineups are announced (about 30 min before tip).")
     with st.expander("🔎 Tip data check (troubleshooting)"):
         st.caption("Shows whether the opening-tip data is being found.")
         tip_check(home, (tip_evs[home] or [None])[-1], tip_all, tboxes)
@@ -1098,15 +1090,7 @@ def first_basket_tab(M, g, injuries, now):
             fives.append(five)
         jump = {}
         for team in (home, away):
-            if jsel[team].startswith("Auto"):
-                _cs0 = dt.date(M["season"] - 1, 9, 1).toordinal()
-                _cur = {e for (o, e) in M["hist"].get(team, []) if o >= _cs0}
-                _tcur = [e for e in tip_evs[team] if e in _cur]
-                jump[team] = usual_jumper(tboxes, _tcur, team, set(chosen[team]))          # this season's tips first
-                if not jump[team]:                                                           # no usable tip yet this season: fall back to recent older games
-                    jump[team] = usual_jumper(tboxes, tip_evs[team][-TIP_GAMES:], team, set(chosen[team]))
-            else:
-                jump[team] = jsel[team]
+            jump[team] = (usual_jumper(tboxes, tip_evs[team][-TIP_GAMES:], team, set(chosen[team])) if jsel[team].startswith("Auto") else jsel[team])
         tipm = tip_model(tboxes, tip_all, jump[home], jump[away])
         first_off, winner, scorer, done = simulate_first_basket(fives[0], fives[1], SIMS, tipm["p_home"])
         rows = []
@@ -1463,101 +1447,6 @@ def props_tab(M, g, odds, injuries, date, b2b):
 # =====================================================================
 # RESULTS LOG (saves every pick, grades it from ESPN's final scores)
 # =====================================================================
-# =====================================================================
-# DURABLE STORAGE
-# Streamlit Cloud erases files saved on the server whenever the app restarts or is redeployed. If GITHUB_TOKEN and DATA_REPO are set
-# in the app's secrets, every save is also copied into that (separate, private) GitHub repo, and anything missing on the server is
-# pulled back from it when the app starts. Without those secrets this does nothing and the app behaves as before.
-# =====================================================================
-import base64 as _b64
-import threading as _th
-
-_DATA_FILES = ["bets_log.csv", "bets_trash.csv", "picks_log.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv", "pickem_fb_log.csv"]
-_GH = {"sha": {}, "lock": _th.Lock(), "restored": False, "err": ""}
-
-
-def _gh_cfg():
-    try:
-        tok, repo = st.secrets.get("GITHUB_TOKEN"), st.secrets.get("DATA_REPO")
-    except Exception:
-        return None
-    if not tok or not repo:
-        return None
-    return {"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github+json"}, str(repo).strip().strip("/")
-
-
-def _gh_get(path):
-    cfg = _gh_cfg()
-    if not cfg:
-        return None, None
-    hdr, repo = cfg
-    r = requests.get(f"https://api.github.com/repos/{repo}/contents/{path}", headers=hdr, timeout=10)
-    if r.status_code == 404:
-        return None, None
-    r.raise_for_status()
-    j = r.json()
-    _GH["sha"][path] = j.get("sha")
-    return _b64.b64decode(j["content"]).decode("utf-8"), j.get("sha")
-
-
-def _gh_put(path):
-    cfg = _gh_cfg()
-    if not cfg or not os.path.exists(path):
-        return
-    hdr, repo = cfg
-    with _GH["lock"]:
-        try:
-            body = open(path, "rb").read()
-            for _ in range(2):
-                sha = _GH["sha"].get(path)
-                if sha is None:
-                    _gh_get(path)
-                    sha = _GH["sha"].get(path)
-                payload = {"message": f"auto-save {path}", "content": _b64.b64encode(body).decode()}
-                if sha:
-                    payload["sha"] = sha
-                r = requests.put(f"https://api.github.com/repos/{repo}/contents/{path}", headers=hdr, json=payload, timeout=15)
-                if r.status_code in (409, 422):                     # stale sha: look it up again and retry once
-                    _GH["sha"].pop(path, None)
-                    continue
-                r.raise_for_status()
-                _GH["sha"][path] = r.json()["content"]["sha"]
-                _GH["err"] = ""
-                break
-        except Exception as e:
-            _GH["err"] = str(e)[:200]
-
-
-def cloud_save(path):
-    # Copy a just-saved file to the data repo without making the app wait for it.
-    if _gh_cfg():
-        try:
-            ThreadPoolExecutor(max_workers=1).submit(_gh_put, path)
-        except Exception:
-            pass
-
-
-def _cloud_restore_once():
-    if _GH["restored"] or not _gh_cfg():
-        return
-    _GH["restored"] = True
-    for p in _DATA_FILES:
-        try:
-            if not os.path.exists(p):                              # wiped by a restart: bring it back
-                txt, _ = _gh_get(p)
-                if txt is not None:
-                    open(p, "w", encoding="utf-8", newline="").write(txt)
-            else:                                                  # first time with backup on: copy what is here up
-                _txt, sha = _gh_get(p)
-                if sha is None:
-                    _gh_put(p)
-        except Exception as e:
-            _GH["err"] = str(e)[:200]
-
-
-_cloud_restore_once()
-
-
 LOG_PATH = "picks_log.csv"
 LOG_COLS = ["key", "date", "event_id", "game", "market", "side", "side_role", "line", "home_spread", "total_line",
             "odds", "model_p", "book_p", "edge", "ev", "flagged", "strength", "saved_at", "result", "profit"]
@@ -1654,7 +1543,6 @@ def save_wide(df):
     st.session_state["log_df"] = df
     try:
         df.to_csv(LOG_PATH, index=False)
-        cloud_save(LOG_PATH)
         return True
     except Exception:
         return False
@@ -1967,7 +1855,6 @@ def set_value_cutoff(day):
     st.session_state["value_reset"] = day
     try:
         open(VALUE_RESET_PATH, "w").write(day)
-        cloud_save(VALUE_RESET_PATH)
     except Exception:
         pass
 
@@ -2257,7 +2144,6 @@ def save_props(df):
     st.session_state["props_df"] = df
     try:
         df.to_csv(PROP_LOG_PATH, index=False)
-        cloud_save(PROP_LOG_PATH)
         return True
     except Exception:
         return False
@@ -2396,8 +2282,7 @@ BET_SORTS = ["Closest to hitting", "Newest", "Oldest", "Biggest stake", "Biggest
 
 
 def filter_sort_bets(df, key, books_label="Books", right=None, compact=False, sort_where=None, top_right=None):
-    _cdf = df[df["cord"] == "Y"] if (not compact and st.session_state.get(f"{key}_cord")) else df      # with "Cord plays only" on, the book counts are the Cord play counts
-    counts = _cdf["book"].value_counts()
+    counts = df["book"].value_counts()
     present = [b for b in BET_BOOKS + ["Other"] if counts.get(b, 0) > 0]
     kb = f"{key}_books"
     if isinstance(st.session_state.get(kb), list):
@@ -2480,7 +2365,6 @@ def save_bets(df):
     st.session_state["bets_df"] = df
     try:
         df.to_csv(BET_LOG_PATH, index=False)
-        cloud_save(BET_LOG_PATH)
         return True
     except Exception:
         return False
@@ -2556,7 +2440,6 @@ def save_trash(tr):
     st.session_state["trash_df"] = tr
     try:
         tr.to_csv(TRASH_PATH, index=False)
-        cloud_save(TRASH_PATH)
     except Exception:
         pass
 
@@ -2891,11 +2774,6 @@ def bets_input_view():
     with st.expander("My bets backup and restore"):
         st.caption("On Streamlit Cloud the saved file can be erased when the app restarts or is redeployed, so download a backup now and then and "
                    "upload it here to restore. Anyone who opens this site can see and change your bets.")
-        if _gh_cfg():
-            st.caption("☁️ **Automatic cloud backup is on.** Every change is also saved to your private GitHub data repo and restored if the app restarts."
-                       + (f" (Last problem: {_GH['err']})" if _GH["err"] else ""))
-        else:
-            st.caption("☁️ Automatic cloud backup is off. Set GITHUB_TOKEN and DATA_REPO in the app's secrets to turn it on.")
         st.download_button("⬇️ Download my bets (CSV)", df.to_csv(index=False), file_name="bets_log.csv", mime="text/csv")
         up = st.file_uploader("Restore from a saved bets file (CSV)", type="csv", key="bets_up")
         if up is not None and st.button("Merge uploaded bets"):
@@ -4015,381 +3893,7 @@ def game_picker(tab):
         st.info("No games found for this date (the season may not have started). Pick another date or use the manual matchup.")
 
 
-# =====================================================================
-# PICK'EM  (you pick every winner, then see how you stack up against the book and the model)
-# =====================================================================
-PICKEM_PATH = "pickem_log.csv"
-PICKEM_COLS = ["date", "event_id", "away", "home", "my_pick", "book_pick", "book_ml", "model_pick", "model_p", "saved_at"]
-
-
-def load_pickem():
-    try:
-        df = pd.read_csv(PICKEM_PATH, dtype=str)
-    except Exception:
-        df = st.session_state.get("pickem_df", pd.DataFrame(columns=PICKEM_COLS))
-    return df.reindex(columns=PICKEM_COLS).fillna("").reset_index(drop=True)
-
-
-def save_pickem(df):
-    df = df.reindex(columns=PICKEM_COLS).fillna("").reset_index(drop=True)
-    st.session_state["pickem_df"] = df
-    try:
-        df.to_csv(PICKEM_PATH, index=False)
-        cloud_save(PICKEM_PATH)
-        return True
-    except Exception:
-        return False
-
-
-def book_favorite(g):
-    # The sportsbook's pick = the moneyline favorite (no-vig). Returns (team, favorite's moneyline) or ("", "") with no line.
-    o = g.get("odds") or {}
-    h, a = o.get("home_ml"), o.get("away_ml")
-    if h is None or a is None:
-        return "", ""
-    ph, _pa = novig(h, a)
-    if abs(ph - 0.5) < 1e-9:
-        return "", ""
-    return (g["home"], h) if ph > 0.5 else (g["away"], a)
-
-
-def _wl(oks):
-    oks = [x for x in oks if x is not None]
-    w = sum(1 for x in oks if x)
-    return w, len(oks) - w
-
-
-def _wl_txt(w, l):
-    return f"{w}-{l}" + (f" ({w / (w + l) * 100:.0f}%)" if w + l else "")
-
-
-def graded_pickem(df):
-    # Adds who actually won, and whether you / the book / the model got each finished game right.
-    rows = []
-    for d in sorted(df["date"].unique()):
-        try:
-            fin = get_finals(str(d))
-        except Exception:
-            fin = {}
-        for _, r in df[df["date"] == d].iterrows():
-            f = fin.get(str(r["event_id"]))
-            win = (f["home"] if f["hs"] > f["as"] else f["away"]) if f else ""
-            ok = lambda p: (None if (not win or not p) else (p == win))
-            rows.append({**r.to_dict(), "winner": win, "me_ok": ok(r["my_pick"]), "book_ok": ok(r["book_pick"]), "model_ok": ok(r["model_pick"]),
-                         "score": (f"{int(f['as'])}-{int(f['hs'])}" if f else "")})
-    return pd.DataFrame(rows)
-
-
-PICKFB_PATH = "pickem_fb_log.csv"
-PICKFB_COLS = ["date", "event_id", "away", "home", "my_pick", "model_pick", "model_p", "saved_at"]
-
-
-def load_pickfb():
-    try:
-        df = pd.read_csv(PICKFB_PATH, dtype=str)
-    except Exception:
-        df = st.session_state.get("pickfb_df", pd.DataFrame(columns=PICKFB_COLS))
-    return df.reindex(columns=PICKFB_COLS).fillna("").reset_index(drop=True)
-
-
-def save_pickfb(df):
-    df = df.reindex(columns=PICKFB_COLS).fillna("").reset_index(drop=True)
-    st.session_state["pickfb_df"] = df
-    try:
-        df.to_csv(PICKFB_PATH, index=False)
-        cloud_save(PICKFB_PATH)
-        return True
-    except Exception:
-        return False
-
-
-def _nm(x):
-    # Names compared loosely: no punctuation, case or Jr./Sr./II/III endings.
-    x = re.sub(r"[^a-z ]", "", str(x or "").lower())
-    return " ".join(re.sub(r"\b(jr|sr|ii|iii|iv)\b", "", x).split())
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def actual_first_basket(event_id):
-    # Who made the first field goal of the game (free throws don't count), from ESPN's play-by-play. None if it can't be found yet.
-    try:
-        data = _get(f"{BASE}/summary", {"event": event_id}, tries=2)
-    except Exception:
-        return None
-    names = {}
-    for t in (data.get("boxscore") or {}).get("players", []):
-        for grp in t.get("statistics", []):
-            for a in grp.get("athletes", []):
-                ath = a.get("athlete") or {}
-                if ath.get("id"):
-                    names[str(ath["id"])] = ath.get("displayName", "")
-    for p in data.get("plays") or []:
-        if not p.get("scoringPlay"):
-            continue
-        txt = str(p.get("text") or "")
-        if "free throw" in (txt + " " + str((p.get("type") or {}).get("text") or "")).lower():
-            continue
-        m = re.match(r"^\s*(.+?)\s+(?:makes|made)\b", txt, re.I)
-        nm = m.group(1).strip() if m else ""
-        if not nm:
-            for part in p.get("participants") or []:
-                nm = names.get(str((part.get("athlete") or {}).get("id")), "")
-                if nm:
-                    break
-        return nm or None
-    return None
-
-
-def model_first_basket(M, g, injuries, date):
-    # The model's single most likely first scorer for a game, using the same default lineups and tip-off logic as the First basket tab.
-    try:
-        home, away = g["home"], g["away"]
-        evs = {t: recent_events(M["hist"], t, date.toordinal(), FB_HISTORY_GAMES) for t in (home, away)}
-        boxes = load_boxes(tuple(sorted(set(evs[home]) | set(evs[away]))))
-        tip_evs = {t: recent_events(M["hist"], t, date.toordinal(), TIP_SCAN_GAMES) for t in (home, away)}
-        tip_all = tuple(sorted(set(tip_evs[home]) | set(tip_evs[away])))
-        tboxes = load_boxes(tip_all)
-        cs0 = dt.date(M["season"] - 1, 9, 1).toordinal()
-        fives = []
-        for team, tid in ((home, g.get("home_id")), (away, g.get("away_id"))):
-            cur = {e for (o, e) in M["hist"].get(team, []) if o >= cs0}
-            agg = team_profile([e for e in evs[team] if e in cur] or evs[team], boxes, team)
-            roster = set(get_roster(tid))
-            if roster:
-                agg = {k: a for k, a in agg.items() if k in roster}
-            out = {r["player"].lower() for r in injuries.get(team, []) if r["status"].lower() in ("out", "doubtful")}
-            top = [(k, a) for k, a in sorted(agg.items(), key=lambda kv: (-kv[1]["wstarts"], -kv[1]["min"])) if a["name"].lower() not in out][:5]
-            if len(top) < 5:
-                return "", ""
-            fives.append([player_params(k, a["name"], a) for k, a in top])
-        jump = {}
-        for team in (home, away):
-            allowed = {p["name"] for p in fives[0 if team == home else 1]}
-            cur = {e for (o, e) in M["hist"].get(team, []) if o >= cs0}
-            jump[team] = (usual_jumper(tboxes, [e for e in tip_evs[team] if e in cur], team, allowed)
-                          or usual_jumper(tboxes, tip_evs[team][-TIP_GAMES:], team, allowed))
-        tipm = tip_model(tboxes, tip_all, jump[home], jump[away])
-        _fo, winner, scorer, _done = simulate_first_basket(fives[0], fives[1], SIMS, tipm["p_home"])
-        best = max(((float(np.mean((winner == t) & (scorer == i))), fives[t][i]["name"]) for t in (0, 1) for i in range(5)))
-        return best[1], best[0]
-    except Exception:
-        return "", ""
-
-
-
-def pickem_tab(M, date, games, injuries, b2b):
-    st.caption("Pick the winner of every game, then see how you match up against the sportsbook (its moneyline favorite) and the model. "
-               "The book's and the model's picks are saved at the moment you lock yours in, so you can't peek first.")
-    t_pick, t_board, t_fb = st.tabs(["🎯 Make picks", "📊 Scoreboard", "🏀 First basket"])
-    iso = date.isoformat()
-    saved = load_pickem()
-    with t_pick:
-        date_picker("pickem")
-        if not games:
-            st.info("No games on this date.")
-        else:
-            mine = saved[saved["date"] == iso].set_index("event_id")
-            try:
-                fin = get_finals(iso)
-            except Exception:
-                fin = {}
-            todo = sum(1 for g in games if g["state"] == "pre" and str(g["id"]) not in mine.index)
-
-            def _card(g):
-                eid = str(g["id"])
-                key = f"pk_{iso}_{eid}"
-                f = fin.get(eid)
-                win = (f["home"] if f["hs"] > f["as"] else f["away"]) if f else ""
-                title = (f'<div class="nb-top"><span class="nb-title nb-vs">{logo(g.get("away_logo"))}<span>{H(short(g["away"]))}</span>'
-                         f'<span class="nb-at">@</span>{logo(g.get("home_logo"))}<span>{H(short(g["home"]))}</span></span>')
-                with st.container(border=True, key=f"pkcard_{iso}_{eid}"):
-                    if eid in mine.index:                                               # locked in
-                        r = mine.loc[eid]
-                        mark = lambda p: ("" if not win or not p else (" ✅" if p == win else " ❌"))
-                        who = lambda p: short(p) if p else "no line"
-                        badge_ = (badge("✅ You got it", "ok") if win and r["my_pick"] == win else badge("❌ Missed", "bad")) if win else badge("🔒 Locked", "acc")
-                        html(title + badge_ + '</div>'
-                             f'<div class="nb-muted" style="margin-top:-.35rem;padding-left:.3rem">Your pick</div><div class="nb-winner">{logo(g.get("home_logo") if r["my_pick"] == g["home"] else g.get("away_logo"))}{H(short(r["my_pick"]))}</div>'
-                             + (f'<div class="nb-fscore">Final: {H(short(g["away"]))} {int(f["as"])}, {H(short(g["home"]))} {int(f["hs"])}</div>' if f else "")
-                             + '<div class="nb-chips">'
-                             f'<span class="nb-chip">Book: <b>{H(who(r["book_pick"]))}</b>' + (f' ({int(float(r["book_ml"])):+d})' if r["book_ml"] else "") + f'{mark(r["book_pick"])}</span>'
-                             f'<span class="nb-chip">Model: <b>{H(who(r["model_pick"]))}</b>' + (f' ({float(r["model_p"]) * 100:.0f}%)' if r["model_p"] else "") + f'{mark(r["model_pick"])}</span></div>')
-                        if not f and g["state"] == "pre":
-                            if st.button("Change my pick", key=f"pkc_{iso}_{eid}", type="tertiary"):
-                                _all = load_pickem()
-                                save_pickem(_all[~((_all["date"] == iso) & (_all["event_id"] == eid))])
-                                st.rerun()
-                    elif g["state"] == "pre":
-                        html(title + badge("Open", "none") + '</div><div class="nb-muted" style="margin-top:-.35rem;padding-left:.3rem">Pick the winner</div>')
-                        # Each game's pick is its own native widget, so one game's choice can never touch another's.
-                        try:
-                            try:
-                                st.segmented_control("Winner", [g["away"], g["home"]], key=key, format_func=short, label_visibility="collapsed", width="stretch")
-                            except TypeError:                                  # older Streamlit has no width option
-                                st.segmented_control("Winner", [g["away"], g["home"]], key=key, format_func=short, label_visibility="collapsed")
-                        except AttributeError:
-                            st.radio("Winner", [g["away"], g["home"]], index=None, key=key, format_func=short, horizontal=True, label_visibility="collapsed")
-                    else:
-                        html(title + badge("Closed" if not f else "Final", "none") + '</div>'
-                             + (f'<div class="nb-fscore">Final: {H(short(g["away"]))} {int(f["as"])}, {H(short(g["home"]))} {int(f["hs"])}</div><div class="nb-muted">You didn\'t pick this one.</div>'
-                                if f else '<div class="nb-muted">Already started, so it can\'t be picked now.</div>'))
-
-            for k0 in range(0, len(games), 3):                       # cards, three across (they stack on a phone)
-                row = st.columns(3)
-                for c_, g_ in zip(row, games[k0:k0 + 3]):
-                    with c_:
-                        _card(g_)
-            chosen = [g for g in games if g["state"] == "pre" and str(g["id"]) not in mine.index and st.session_state.get(f"pk_{iso}_{g['id']}")]
-            if todo:
-                if st.button(f"🔒 Lock in {len(chosen)} pick{'s' if len(chosen) != 1 else ''}" if chosen else "🔒 Lock in picks", type="primary", key=f"pk_lock_{iso}", disabled=not chosen):
-                    new = []
-                    with st.spinner("Saving your picks and the model's..."):
-                        for g in chosen:
-                            bp, bml = book_favorite(g)
-                            mp, mpp = "", ""
-                            try:
-                                res = analyze_game(M, g, g["odds"], team_injury_pts(M, g["home"], injuries, date), team_injury_pts(M, g["away"], injuries, date), b2b)
-                                ph = res["p_home"]
-                                mp, mpp = (g["home"], ph) if ph >= 0.5 else (g["away"], 1 - ph)
-                            except Exception:
-                                pass
-                            new.append({"date": iso, "event_id": str(g["id"]), "away": g["away"], "home": g["home"], "my_pick": st.session_state[f"pk_{iso}_{g['id']}"],
-                                        "book_pick": bp, "book_ml": "" if bml == "" else str(bml), "model_pick": mp, "model_p": "" if mpp == "" else f"{mpp:.4f}",
-                                        "saved_at": local_now().strftime("%Y-%m-%d %H:%M")})
-                    ok = save_pickem(pd.concat([load_pickem(), pd.DataFrame(new)], ignore_index=True))
-                    st.session_state["pk_msg"] = f"Locked in {len(new)} pick{'s' if len(new) != 1 else ''}." + ("" if ok else " (Could not write the file, so they're kept for this session only.)")
-                    st.rerun()
-            if st.session_state.get("pk_msg"):
-                st.success(st.session_state.pop("pk_msg"))
-    with t_fb:
-        st.caption("Guess who scores the first basket of each game (free throws don't count). The model's top first scorer is saved when you lock yours in, "
-                   "and the real first basket is filled in from ESPN once the game is under way.")
-        date_picker("pickem_fb")
-        fsaved = load_pickfb()
-        fmine = fsaved[fsaved["date"] == iso].set_index("event_id")
-        if not games:
-            st.info("No games on this date.")
-        else:
-            def _fcard(g):
-                eid = str(g["id"])
-                title = (f'<div class="nb-top"><span class="nb-title nb-vs">{logo(g.get("away_logo"))}<span>{H(short(g["away"]))}</span>'
-                         f'<span class="nb-at">@</span>{logo(g.get("home_logo"))}<span>{H(short(g["home"]))}</span></span>')
-                with st.container(border=True, key=f"pkfbcard_{iso}_{eid}"):
-                    if eid in fmine.index:
-                        r = fmine.loc[eid]
-                        real = actual_first_basket(eid) if g["state"] != "pre" else None
-                        hit = (lambda p: "" if not real or not p else (" ✅" if _nm(p) == _nm(real) else " ❌"))
-                        bd = (badge("✅ Got it", "ok") if real and _nm(r["my_pick"]) == _nm(real) else badge("❌ Missed", "bad")) if real else badge("🔒 Locked", "acc")
-                        html(title + bd + '</div><div class="nb-muted" style="margin-top:-.35rem;padding-left:.3rem">Your first basket</div>'
-                             f'<div class="nb-winner">{H(r["my_pick"])}</div>'
-                             + (f'<div class="nb-fscore">First basket: {H(real)}</div>' if real else "")
-                             + '<div class="nb-chips">'
-                             f'<span class="nb-chip">Model: <b>{H(r["model_pick"] or "n/a")}</b>' + (f' ({float(r["model_p"]) * 100:.0f}%)' if r["model_p"] else "") + f'{hit(r["model_pick"])}</span></div>')
-                        if g["state"] == "pre" and st.button("Change my pick", key=f"pkfbc_{iso}_{eid}", type="tertiary"):
-                            _a = load_pickfb()
-                            save_pickfb(_a[~((_a["date"] == iso) & (_a["event_id"] == eid))])
-                            st.rerun()
-                    elif g["state"] == "pre":
-                        html(title + badge("Open", "none") + '</div><div class="nb-muted" style="margin-top:-.35rem;padding-left:.3rem">Who scores first?</div>')
-                        opts = sorted(set(get_roster_names(g.get("home_id")).values()) | set(get_roster_names(g.get("away_id")).values()))
-                        try:
-                            st.selectbox("First basket", opts, index=None, placeholder="Start typing a player...", key=f"pkfb_{iso}_{eid}", label_visibility="collapsed")
-                        except TypeError:
-                            st.selectbox("First basket", [""] + opts, key=f"pkfb_{iso}_{eid}", label_visibility="collapsed")
-                    else:
-                        html(title + badge("Closed", "none") + '</div><div class="nb-muted">Already started, so it can\'t be picked now.</div>')
-
-            for k0 in range(0, len(games), 3):
-                row = st.columns(3)
-                for c_, g_ in zip(row, games[k0:k0 + 3]):
-                    with c_:
-                        _fcard(g_)
-            fchosen = [g for g in games if g["state"] == "pre" and str(g["id"]) not in fmine.index and st.session_state.get(f"pkfb_{iso}_{g['id']}")]
-            if any(g["state"] == "pre" and str(g["id"]) not in fmine.index for g in games):
-                if st.button(f"🔒 Lock in {len(fchosen)} first basket pick{'s' if len(fchosen) != 1 else ''}" if fchosen else "🔒 Lock in first basket picks",
-                             type="primary", key=f"pkfb_lock_{iso}", disabled=not fchosen):
-                    new = []
-                    with st.spinner("Saving your picks and the model's (the first time can take a bit)..."):
-                        for g in fchosen:
-                            mn, mp = model_first_basket(M, g, injuries, date)
-                            new.append({"date": iso, "event_id": str(g["id"]), "away": g["away"], "home": g["home"], "my_pick": st.session_state[f"pkfb_{iso}_{g['id']}"],
-                                        "model_pick": mn, "model_p": "" if mp == "" else f"{mp:.4f}", "saved_at": local_now().strftime("%Y-%m-%d %H:%M")})
-                    ok = save_pickfb(pd.concat([load_pickfb(), pd.DataFrame(new)], ignore_index=True))
-                    st.session_state["pkfb_msg"] = f"Locked in {len(new)} first basket pick{'s' if len(new) != 1 else ''}." + ("" if ok else " (Could not write the file, so they're kept for this session only.)")
-                    st.rerun()
-            if st.session_state.get("pkfb_msg"):
-                st.success(st.session_state.pop("pkfb_msg"))
-        if not fsaved.empty:
-            st.markdown('<div class="nb-sec">First basket record</div>', unsafe_allow_html=True)
-            rows_ = []
-            for _, r in fsaved.iterrows():
-                real = actual_first_basket(str(r["event_id"]))
-                if real:
-                    rows_.append({"Date": r["date"], "Game": f"{short(r['away'])} @ {short(r['home'])}", "First basket": real, "You": r["my_pick"],
-                                  "Model": r["model_pick"] or "-", "me": _nm(r["my_pick"]) == _nm(real),
-                                  "model": (None if not r["model_pick"] else _nm(r["model_pick"]) == _nm(real))})
-            if rows_:
-                F = pd.DataFrame(rows_)
-                c1, c2 = st.columns(2)
-                mw, ml = _wl(list(F["me"]))
-                dw, dl = _wl(list(F["model"].where(F["model"].notna(), None)))
-                c1.metric("You", f"{mw}-{ml}")
-                c1.caption(f"{mw / (mw + ml) * 100:.0f}% right" if mw + ml else "")
-                c2.metric("Model", f"{dw}-{dl}")
-                c2.caption(f"{dw / (dw + dl) * 100:.0f}% right" if dw + dl else "no model picks yet")
-                with st.expander("Every finished first basket pick"):
-                    T_ = F.assign(You=F["You"] + F["me"].map({True: " ✅", False: " ❌"}),
-                                  Model=F["Model"] + F["model"].map({True: " ✅", False: " ❌"}).fillna(""))
-                    st.dataframe(T_[["Date", "Game", "First basket", "You", "Model"]].sort_values("Date", ascending=False), hide_index=True, use_container_width=True)
-            else:
-                st.caption("No finished games with a known first basket yet.")
-    with t_board:
-        if saved.empty:
-            st.info("No picks yet. Make some in **Make picks** and your scoreboard will build up as games finish.")
-            return
-        scope = st.radio("Show", ["All time", "Selected date"], horizontal=True, key="pk_scope")
-        use = saved if scope == "All time" else saved[saved["date"] == iso]
-        if use.empty:
-            st.info("You made no picks on this date.")
-            return
-        G = graded_pickem(use)
-        cols = st.columns(3)
-        for col, (lab, k) in zip(cols, (("You", "me_ok"), ("Book", "book_ok"), ("Model", "model_ok"))):
-            w, l = _wl(list(G[k].where(G[k].notna(), None)))
-            col.metric(lab, f"{w}-{l}")
-            col.caption(f"{w / (w + l) * 100:.0f}% right" if w + l else "no finished games yet")
-        pend = int((G["winner"] == "").sum())
-        if pend:
-            st.caption(f"{pend} pick{'s' if pend != 1 else ''} still waiting on a final score.")
-        done = G[G["winner"] != ""]
-        if not done.empty:
-            st.markdown('<div class="nb-sec">Head to head</div>', unsafe_allow_html=True)
-            lines = []
-            for lab, pk in (("the book", "book_pick"), ("the model", "model_pick")):
-                dis = done[(done[pk] != "") & (done["my_pick"] != done[pk])]
-                w, l = _wl(list(dis["me_ok"].where(dis["me_ok"].notna(), None)))
-                lines.append(f"- **When you disagreed with {lab}** ({len(dis)} game{'s' if len(dis) != 1 else ''}): you went **{w}-{l}** and {lab} went **{l}-{w}**."
-                             if len(dis) else f"- You haven't disagreed with {lab} on a finished game yet.")
-            st.markdown("\n".join(lines))
-            by = []
-            for d, grp in done.groupby("date"):
-                row = {"Date": d, "Games": len(grp)}
-                for lab, k in (("You", "me_ok"), ("Book", "book_ok"), ("Model", "model_ok")):
-                    w, l = _wl(list(grp[k].where(grp[k].notna(), None)))
-                    row[lab] = f"{w}-{l}"
-                by.append(row)
-            st.markdown('<div class="nb-sec">By day</div>', unsafe_allow_html=True)
-            st.dataframe(pd.DataFrame(by).sort_values("Date", ascending=False), hide_index=True, use_container_width=True)
-            with st.expander("Every finished pick"):
-                tbl = done.assign(**{"Game": done["away"].map(short) + " @ " + done["home"].map(short), "Final (away-home)": done["score"],
-                                     "Winner": done["winner"].map(short), "You": done["my_pick"].map(lambda x: short(x) if x else "") + done["me_ok"].map({True: " ✅", False: " ❌"}).fillna(""),
-                                     "Book": done["book_pick"].map(lambda x: short(x) if x else "-") + done["book_ok"].map({True: " ✅", False: " ❌"}).fillna(""),
-                                     "Model": done["model_pick"].map(lambda x: short(x) if x else "-") + done["model_ok"].map({True: " ✅", False: " ❌"}).fillna("")})
-                st.dataframe(tbl[["date", "Game", "Final (away-home)", "Winner", "You", "Book", "Model"]].rename(columns={"date": "Date"}).sort_values("Date", ascending=False),
-                             hide_index=True, use_container_width=True)
-
-
-NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "🏆 Pick'em", "💬 AI chat"]
+NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "💬 AI chat", "🧪 Model lab", "📡 Edge monitor", "⚙️ Simulation settings"]
 LOCKED_NAV = "🔒 Private"
 
 
@@ -4403,7 +3907,7 @@ def get_passcode():
 
 PASSCODE = get_passcode()
 private_ok = (not PASSCODE) or bool(st.session_state.get("unlocked"))
-menu = NAV if private_ok else NAV[:4] + [NAV[7], LOCKED_NAV]
+menu = NAV if private_ok else NAV[:4] + [NAV[6], LOCKED_NAV]
 if "_goto" in st.session_state:                           # jump to a section after unlocking
     st.session_state["main_nav"] = st.session_state.pop("_goto")
 if st.session_state.get("main_nav") not in menu:
@@ -4464,38 +3968,13 @@ st.markdown("""<style>
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{min-width:0 !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(3){flex:1 1 0 !important;width:auto !important;min-width:0 !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(3) :is([data-testid="stVerticalBlock"],[data-testid="stTextInput"],[data-testid="stTextInput"]>div,input){width:100% !important;max-width:none !important}
-[class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]:has(>[data-testid="stColumn"]:nth-child(4))>[data-testid="stColumn"]:nth-child(3) [data-testid="stElementContainer"]{width:calc(100% + 3.25rem) !important;max-width:none !important}
+[class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(3) [data-testid="stElementContainer"]{width:calc(100% + 3.25rem) !important;max-width:none !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(4){flex:0 0 calc(20% - 1.132rem) !important;width:calc(20% - 1.132rem) !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(2){flex:0 0 calc(33.333% - .227rem) !important;width:calc(33.333% - .227rem) !important}
 [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:first-child{flex:0 0 calc(33.333% - .887rem) !important;width:calc(33.333% - .887rem) !important}
 [class*="_sidewrap"] [data-testid="stButtonGroup"] button *{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:none !important}
 [class*="_sidewrap"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;min-width:0;padding-left:.2rem !important;padding-right:.2rem !important;white-space:nowrap;overflow:visible;height:2.5rem !important;min-height:2.5rem !important;display:flex;align-items:center;justify-content:center}
 [class*="st-key-bet_"][class*="_book"]:not(.st-key-bet_book):not(.st-key-bet_book_c){margin-left:.66rem;width:calc(100% - .66rem) !important}
-[class*="st-key-pkcard_"]{border-radius:14px !important}
-.nb-vs{display:inline-flex !important;align-items:center;flex-wrap:wrap;gap:.3rem .5rem}
-.nb-vs .nb-logo{margin:0 -.22rem 0 0 !important;flex:none}
-.nb-vs .nb-at{opacity:.55;font-weight:600;padding:0 .1rem}
-[class*="st-key-pk_20"],[class*="st-key-pk_20"]>div{width:100% !important}
-[class*="st-key-pk_20"] [data-testid="stButtonGroup"],[class*="st-key-pk_20"] [data-testid="stButtonGroup"]>div{display:flex !important;flex-direction:row !important;gap:.5rem;width:100% !important}
-[class*="st-key-pk_20"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;min-width:0;height:2.7rem !important;min-height:2.7rem !important;border-radius:12px !important;
-  font-weight:650 !important;font-size:.95rem !important;background:rgba(148,163,184,.08) !important;border:1px solid rgba(148,163,184,.22) !important;
-  display:flex;align-items:center;justify-content:center;transition:all .18s ease !important}
-[class*="st-key-pk_20"] [data-testid="stButtonGroup"] button:hover{border-color:rgba(96,165,250,.6) !important;background:rgba(59,130,246,.10) !important;transform:translateY(-1px)}
-[class*="st-key-pk_20"] [data-testid="stButtonGroup"] button[aria-checked="true"],[class*="st-key-pk_20"] [data-testid="stButtonGroup"] button[aria-pressed="true"],[class*="st-key-pk_20"] [data-testid="stButtonGroup"] button[kind$="Active"]{
-  background:linear-gradient(135deg,#3b82f6,#6366f1) !important;border-color:transparent !important;color:#fff !important;box-shadow:0 6px 16px rgba(59,130,246,.35)}
-[class*="st-key-pk_20"] [data-testid="stButtonGroup"] button *{color:inherit !important;white-space:nowrap}
-[class*="st-key-pkcard_"],[class*="st-key-pkcard_"]>div{width:100% !important}
-[class*="st-key-pkcard_"] [data-testid="stButtonGroup"],[class*="st-key-pkcard_"] [data-testid="stButtonGroup"]>div{display:flex !important;flex-direction:row !important;gap:.5rem;width:100% !important}
-[class*="st-key-pkcard_"] [data-testid="stButtonGroup"] button{flex:1 1 0 !important;min-width:0;height:2.7rem !important;min-height:2.7rem !important;border-radius:12px !important;
-  font-weight:650 !important;font-size:.95rem !important;background:rgba(148,163,184,.08) !important;border:1px solid rgba(148,163,184,.22) !important;
-  display:flex;align-items:center;justify-content:center;transition:all .18s ease !important}
-[class*="st-key-pkcard_"] [data-testid="stButtonGroup"] button:hover{border-color:rgba(96,165,250,.6) !important;background:rgba(59,130,246,.10) !important;transform:translateY(-1px)}
-[class*="st-key-pkcard_"] [data-testid="stButtonGroup"] button[aria-checked="true"],[class*="st-key-pkcard_"] [data-testid="stButtonGroup"] button[aria-pressed="true"],[class*="st-key-pkcard_"] [data-testid="stButtonGroup"] button[kind$="Active"]{
-  background:linear-gradient(135deg,#3b82f6,#6366f1) !important;border-color:transparent !important;color:#fff !important;box-shadow:0 6px 16px rgba(59,130,246,.35)}
-[class*="st-key-pkcard_"] [data-testid="stButtonGroup"] button *{color:inherit !important;white-space:nowrap}
-[class*="st-key-pkcard_"] [data-testid="stButtonGroup"] button,[class*="st-key-pkcard_"] [data-testid="stButtonGroup"] button *{overflow:visible !important;text-overflow:clip !important;max-width:none !important;white-space:nowrap !important}
-[class*="st-key-pkcard_"] [data-testid="stButtonGroup"] button{padding-left:.4rem !important;padding-right:.4rem !important}
-[class*="st-key-pkcard_"] [data-testid="stElementContainer"]:has([data-testid="stButtonGroup"]){width:100% !important}
 .st-key-open_head{margin-top:-1.3rem !important;margin-bottom:-.2rem}
 .st-key-refresh_right,.st-key-refresh_right>div{width:100% !important}
 .st-key-refresh_right [data-testid="stElementContainer"]{width:100% !important;display:flex !important;justify-content:flex-end !important}
@@ -4653,196 +4132,6 @@ def dropdown_toggle_fix():
 
 dropdown_toggle_fix()
 
-
-# =====================================================================
-# UI POLISH LAYER
-# Kept separate from the legacy component styles so the original NBA
-# branding and layout hooks remain intact while visual tokens stay easy
-# to maintain. This is presentation-only; it does not alter model logic.
-# =====================================================================
-POLISH_CSS = """
-<style>
-:root {
-    --nb-accent: #3b82f6;
-    --nb-accent-strong: #2563eb;
-    --nb-radius: 16px;
-    --nb-border: rgba(128, 128, 128, .24);
-    --nb-surface: var(--card);
-}
-.block-container {
-    width: 100%;
-    max-width: 1320px;
-    padding: 2.2rem clamp(1rem, 3vw, 2.25rem) 3rem !important;
-}
-[data-testid="stAppViewContainer"] .main {
-    line-height: 1.55;
-}
-[data-testid="stMarkdownContainer"] h1,
-[data-testid="stMarkdownContainer"] h2,
-[data-testid="stMarkdownContainer"] h3 {
-    letter-spacing: -.025em;
-    line-height: 1.2;
-}
-[data-testid="stMarkdownContainer"] h2 { margin-top: 1.35rem; }
-[data-testid="stCaptionContainer"] {
-    line-height: 1.5;
-    color: var(--text-color);
-    opacity: .72;
-}
-.nb-hero {
-    position: relative;
-    overflow: hidden;
-    border: 1px solid rgba(255,255,255,.12);
-    border-radius: 22px;
-    padding: clamp(1.35rem, 3vw, 2.2rem);
-    margin: .25rem 0 1.1rem;
-    background: linear-gradient(120deg, #0b1220 0%, #172554 52%, #2563eb 100%);
-    box-shadow: 0 14px 34px rgba(15, 23, 42, .16);
-}
-.nb-hero:after {
-    content: "";
-    position: absolute;
-    width: 220px;
-    height: 220px;
-    right: -65px;
-    top: -100px;
-    border-radius: 50%;
-    background: rgba(255,255,255,.07);
-    pointer-events: none;
-}
-.nb-hero h1 {
-    font-size: clamp(1.7rem, 3.5vw, 2.35rem);
-    font-weight: 800;
-    letter-spacing: -.04em;
-}
-.nb-hero .sub { max-width: 760px; line-height: 1.55; }
-.nb-hero .pill {
-    padding: .38rem .75rem;
-    margin: .8rem .4rem 0 0;
-    border: 1px solid rgba(255,255,255,.15);
-    background: rgba(255,255,255,.1);
-    backdrop-filter: blur(8px);
-}
-.nb-card, .nb-tile, .nb-pod {
-    border: 1px solid var(--nb-border);
-    border-radius: var(--nb-radius);
-    background: var(--nb-surface);
-    box-shadow: 0 2px 8px rgba(15,23,42,.025);
-}
-.nb-card { padding: 1.05rem 1.15rem; }
-.nb-grid, .nb-grid3, .nb-tiles, .nb-podium { gap: 1rem; }
-.nb-grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.nb-title { font-size: 1.02rem; letter-spacing: -.01em; }
-.nb-pickrow { padding: .65rem 0; gap: .75rem; }
-.nb-pickrow .l { white-space: normal; }
-.nb-badge {
-    padding: .28rem .65rem;
-    font-size: .76rem;
-    letter-spacing: .01em;
-}
-.nb-big, .nb-tile .v, .nb-score .p { font-variant-numeric: tabular-nums; }
-.nb-tile { padding: 1.05rem 1.15rem; }
-.nb-tile .l { letter-spacing: .075em; }
-.nb-tile .v { font-size: clamp(1.65rem, 3vw, 2.1rem); }
-.nb-score { gap: clamp(.75rem, 3vw, 2rem); }
-.nb-score .t { min-width: 0; flex: 1 1 0; }
-.nb-score .n { overflow-wrap: anywhere; }
-.nb-sec { margin-top: 1.6rem; letter-spacing: -.02em; }
-.nb-prow { border-radius: 12px; padding: .8rem .9rem; }
-.nb-brow { gap: .8rem; }
-[data-testid="stMetric"] {
-    padding: .8rem 1rem;
-    border: 1px solid var(--nb-border);
-    border-radius: 14px;
-    background: var(--nb-surface);
-}
-[data-testid="stMetricValue"] { font-weight: 750; letter-spacing: -.03em; }
-[data-testid="stButton"] button,
-[data-testid="stDownloadButton"] button {
-    border-radius: 10px;
-    font-weight: 650;
-    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-}
-[data-testid="stButton"] button[kind="primary"] {
-    box-shadow: 0 5px 14px rgba(59,130,246,.18);
-}
-[data-testid="stButton"] button:hover,
-[data-testid="stDownloadButton"] button:hover {
-    transform: translateY(-1px);
-}
-[data-testid="stTextInput"] input,
-[data-testid="stNumberInput"] input,
-[data-testid="stDateInput"] input,
-[data-testid="stSelectbox"] [role="combobox"],
-[data-testid="stMultiSelect"] [role="combobox"] {
-    border-radius: 10px;
-}
-[data-testid="stExpander"] {
-    border: 1px solid var(--nb-border);
-    border-radius: 12px;
-    overflow: clip;
-}
-[data-testid="stDataFrame"], [data-testid="stDataEditor"] {
-    border-radius: 12px;
-    overflow: hidden;
-}
-.st-key-navbar {
-    padding: .35rem 0 .55rem;
-    margin-bottom: .5rem;
-    border-bottom: 1px solid var(--nb-border);
-}
-.st-key-navbar [role="radiogroup"] { gap: .3rem; }
-.st-key-navbar label {
-    border: 1px solid transparent;
-    border-radius: 10px;
-    padding: .42rem .85rem;
-    transition: background .15s ease, border-color .15s ease;
-}
-.st-key-navbar label:has(input:checked) {
-    border-color: rgba(59,130,246,.25);
-    background: rgba(59,130,246,.12);
-    color: var(--text-color);
-}
-.nb-strip span { width: 18px; height: 18px; border-radius: 5px; }
-.nb-fill { animation: none; }
-:focus-visible { outline: 2px solid var(--nb-accent); outline-offset: 3px; }
-@media (max-width: 900px) {
-    .nb-grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 640px) {
-    .block-container { padding: 1.25rem .85rem 2rem !important; }
-    .nb-hero { border-radius: 17px; padding: 1.2rem; }
-    .nb-hero h1 { font-size: 1.65rem; }
-    .nb-hero .pill { font-size: .78rem; margin-top: .55rem; }
-    .nb-grid, .nb-grid3, .nb-grid3, .nb-tiles, .nb-podium { grid-template-columns: 1fr; }
-    .nb-card { padding: .9rem; }
-    .nb-score { gap: .5rem; }
-    .nb-score .p { font-size: 1.8rem; }
-    .nb-score .n { font-size: .84rem; }
-    .nb-score .at { font-size: 1rem; }
-    .nb-score .nb-logo.lg { width: 36px; height: 36px; }
-    .nb-lb { grid-template-columns: 22px 32px minmax(0, 1fr) 52px; gap: 7px; }
-    .nb-brow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-    [data-testid="stHorizontalBlock"] { gap: .7rem; }
-    .st-key-navbar { position: relative; top: auto; }
-    .st-key-navbar [role="radiogroup"] { flex-wrap: wrap; }
-    .st-key-navbar label { padding: .4rem .6rem; }
-}
-@media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-        animation-duration: .01ms !important;
-        animation-iteration-count: 1 !important;
-        scroll-behavior: auto !important;
-        transition-duration: .01ms !important;
-    }
-}
-</style>
-"""
-
-# Inject after legacy layout helpers so these tokens and component styles win
-# in the cascade without changing any Streamlit widgets or their state.
-st.markdown(POLISH_CSS, unsafe_allow_html=True)
-
 if nav == NAV[0]:
     game_picker("game")
     if None in (odds["home_ml"], odds["away_ml"], odds["home_spread"], odds["total"]):
@@ -4915,121 +4204,205 @@ if nav == NAV[5] and private_ok:
     open_warning()
     bets_tab()
 
-if nav == NAV[6] and private_ok:
-    open_warning()
-    pickem_tab(M, date, games, injuries, b2b_teams)
-
-if nav == NAV[7]:
+if nav == NAV[6]:
     chat_tab(date, games, injuries)
 
 
 # =====================================================================
-# MODERN LOOK
-# Visual refresh only: type, color, depth and motion. It does not change
-# any widths, gaps or paddings, so the tuned layouts stay where they are.
+# ADVANCED WORKSPACE — backtesting, edge monitor, and configurable sims
 # =====================================================================
-MODERN_CSS = """
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-:root{
-  --m-accent:#3b82f6; --m-accent2:#6366f1; --m-glow:rgba(59,130,246,.35);
-  --m-edge:rgba(148,163,184,.18); --m-edge-hi:rgba(96,165,250,.55);
-  --m-card:linear-gradient(160deg,rgba(148,163,184,.10) 0%,rgba(148,163,184,.04) 100%);
-  --m-shadow:0 1px 2px rgba(0,0,0,.25),0 8px 24px rgba(0,0,0,.18);
-  --card:rgba(148,163,184,.07); --line:rgba(148,163,184,.22);
-}
-html, body, .stApp, p, h1, h2, h3, h4, label, li, td, th, input, textarea, button,
-[class^="nb-"], [class*=" nb-"], [data-baseweb="select"], [data-baseweb="tab"]{
-  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif !important;
-  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-}
-.stApp{ background-image:radial-gradient(1100px 420px at 50% -120px, rgba(59,130,246,.13), transparent 70%); background-attachment:fixed; }
-[data-testid="stMain"] .block-container{ animation:mfade .35s ease-out both; }
-@keyframes mfade{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
-h1,h2,h3{ font-weight:750 !important; letter-spacing:-.03em !important; }
+def _american_to_decimal(odds):
+    odds = float(odds)
+    if odds == 0:
+        raise ValueError("American odds cannot be zero.")
+    return 1 + (odds / 100 if odds > 0 else 100 / abs(odds))
 
-/* Hero */
-.nb-hero{ background:radial-gradient(600px 220px at 85% -20%, rgba(99,102,241,.55), transparent 70%),
-  linear-gradient(125deg,#070b14 0%,#0f1d44 50%,#1d4ed8 120%) !important;
-  border:1px solid rgba(148,163,184,.22) !important; box-shadow:0 20px 50px rgba(2,6,23,.45) !important; }
-.nb-hero h1{ font-weight:800 !important; letter-spacing:-.045em !important; }
-.nb-hero .pill{ border:1px solid rgba(255,255,255,.18) !important; backdrop-filter:blur(10px); font-weight:500; }
 
-/* Cards, tiles, podium, rows */
-.nb-card,.nb-tile,.nb-pod,.nb-prow,[data-testid="stMetric"]{
-  background:var(--m-card) !important; border:1px solid var(--m-edge) !important;
-  box-shadow:var(--m-shadow); transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
-}
-.nb-card:hover,.nb-tile:hover,.nb-pod:hover{ border-color:var(--m-edge-hi) !important; box-shadow:0 0 0 1px rgba(96,165,250,.18),0 14px 34px rgba(2,6,23,.35); transform:translateY(-2px); }
-.nb-prow{ border-left-width:4px !important; }
-.nb-pickrow{ border-bottom-color:rgba(148,163,184,.14) !important; }
-.nb-sec{ font-weight:750; letter-spacing:-.02em; position:relative; padding-left:.8rem; }
-.nb-sec::before{ content:""; position:absolute; left:0; top:.18em; bottom:.18em; width:4px; border-radius:4px; background:linear-gradient(180deg,var(--m-accent),var(--m-accent2)); }
-.nb-badge{ font-weight:650; letter-spacing:.01em; border:1px solid rgba(148,163,184,.14); }
-.nb-chip{ border:1px solid rgba(148,163,184,.16); }
-.nb-big,.nb-tile .v,.nb-score .p{ letter-spacing:-.04em; }
-.nb-tile .l,.nb-bl,.nb-muted{ letter-spacing:.02em; }
-.nb-bar,.nb-split{ background:rgba(148,163,184,.16); }
-.nb-fill{ background-image:linear-gradient(90deg,rgba(255,255,255,.0),rgba(255,255,255,.22)); background-blend-mode:overlay; box-shadow:0 0 12px rgba(59,130,246,.25); }
+def _american_implied(odds):
+    odds = float(odds)
+    if odds == 0:
+        raise ValueError("American odds cannot be zero.")
+    return 100 / (odds + 100) if odds > 0 else abs(odds) / (abs(odds) + 100)
 
-/* Top navigation */
-.st-key-navbar label{ border:1px solid transparent !important; border-radius:12px !important; font-weight:600; transition:background .18s ease,border-color .18s ease,transform .18s ease; }
-.st-key-navbar label:hover{ background:rgba(148,163,184,.10); }
-.st-key-navbar label:has(input:checked){
-  background:linear-gradient(135deg,rgba(59,130,246,.28),rgba(99,102,241,.22)) !important;
-  border-color:rgba(96,165,250,.45) !important; box-shadow:0 0 18px rgba(59,130,246,.22); }
 
-/* Buttons */
-[data-testid="stButton"] button, [data-testid="stDownloadButton"] button{ border:1px solid var(--m-edge) !important; transition:all .18s ease !important; }
-[data-testid="stButton"] button:hover, [data-testid="stDownloadButton"] button:hover{ border-color:var(--m-edge-hi) !important; box-shadow:0 0 0 3px rgba(59,130,246,.12); }
-[data-testid="stButton"] button[kind="primary"]{
-  background:linear-gradient(135deg,#3b82f6,#6366f1) !important; border:none !important; color:#fff !important;
-  box-shadow:0 6px 18px rgba(59,130,246,.35) !important; }
-[data-testid="stButton"] button[kind="primary"]:hover{ filter:brightness(1.08); box-shadow:0 8px 24px rgba(99,102,241,.45) !important; }
-[data-testid="stButton"] button[kind="tertiary"]{ border-color:transparent !important; box-shadow:none !important; }
+def _prob_to_american(prob):
+    p = min(max(float(prob), 0.0001), 0.9999)
+    return round(-100 * p / (1 - p)) if p >= .5 else round(100 * (1 - p) / p)
 
-/* Segmented controls and pills */
-[data-testid="stButtonGroup"] button{ border:1px solid var(--m-edge) !important; transition:all .18s ease !important; }
-[data-testid="stButtonGroup"] button[aria-checked="true"],[data-testid="stButtonGroup"] button[aria-pressed="true"],[data-testid="stButtonGroup"] button[kind$="Active"]{
-  background:linear-gradient(135deg,rgba(59,130,246,.30),rgba(99,102,241,.24)) !important; border-color:rgba(96,165,250,.55) !important; }
 
-/* Inputs */
-[data-testid="stTextInput"] input,[data-testid="stNumberInput"] input,[data-testid="stDateInput"] input,
-[data-testid="stSelectbox"] [data-baseweb="select"]>div,[data-testid="stMultiSelect"] [data-baseweb="select"]>div,[data-testid="stTextArea"] textarea{
-  background-color:rgba(148,163,184,.08) !important; border:1px solid var(--m-edge) !important;
-  transition:border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
-[data-testid="stTextInput"] input:focus,[data-testid="stNumberInput"] input:focus,[data-testid="stDateInput"] input:focus,[data-testid="stTextArea"] textarea:focus,
-[data-testid="stSelectbox"] [data-baseweb="select"]:focus-within>div{
-  border-color:var(--m-accent) !important; box-shadow:0 0 0 3px rgba(59,130,246,.22) !important; background-color:rgba(59,130,246,.06) !important; }
-[data-testid="stWidgetLabel"] p{ font-weight:550; font-size:.85rem; letter-spacing:.01em; opacity:.9; }
+def _model_lab_page():
+    st.markdown('<div class="nb-hero"><h1>Model Lab</h1><div class="sub">Validate predictions with historical results instead of trusting a hot streak.</div><span class="pill">Backtesting</span><span class="pill">Calibration</span><span class="pill">ROI analysis</span></div>', unsafe_allow_html=True)
+    st.warning("A backtest is only as reliable as its data. Avoid look-ahead bias: each prediction must have been recorded using information available before tip-off.")
+    uploaded = st.file_uploader("Upload historical predictions CSV", type=["csv"], key="lab_csv")
+    st.caption("Recommended columns: predicted_prob (0–1 or 0–100) and outcome (1/0, W/L, win/loss). Optional: date, market, pick, odds, actual, predicted.")
+    if uploaded is None:
+        st.markdown("#### What this lab measures")
+        a,b,c = st.columns(3)
+        a.metric("Brier score", "Lower is better", help="Mean squared error of predicted probabilities. Perfect = 0.")
+        b.metric("Log loss", "Lower is better", help="Penalizes confident wrong predictions more heavily.")
+        c.metric("ROI", "Requires odds", help="Realistic return requires the odds that were available when each pick was made.")
+        st.info("Upload a CSV to calculate calibration, win rate, Brier score, log loss, and—if odds are included—flat-stake ROI.")
+        return
+    try:
+        df = pd.read_csv(uploaded)
+    except Exception as exc:
+        st.error(f"Couldn't read that CSV: {exc}")
+        return
+    df.columns = [str(c).strip().lower().replace(" ", "_") for c in df.columns]
+    st.write(f"Loaded **{len(df):,} rows** and {len(df.columns)} columns.")
+    st.dataframe(df.head(10), use_container_width=True, hide_index=True)
+    prob_col = next((x for x in ["predicted_prob", "model_prob", "probability", "win_probability", "pred_prob", "predicted_probability"] if x in df.columns), None)
+    outcome_col = next((x for x in ["outcome", "result", "won", "actual_outcome", "target"] if x in df.columns), None)
+    if not prob_col or not outcome_col:
+        st.error("Couldn't identify probability and outcome columns. Rename them to `predicted_prob` and `outcome`, then upload again.")
+        return
+    d = df.copy()
+    d[prob_col] = pd.to_numeric(d[prob_col], errors="coerce")
+    # Permit percentages stored as 0–100.
+    if d[prob_col].dropna().size and d[prob_col].dropna().quantile(.95) > 1:
+        d[prob_col] = d[prob_col] / 100
+    def _outcome(v):
+        if pd.isna(v): return np.nan
+        if isinstance(v, (int, float, np.number)):
+            return float(v) if float(v) in (0.0, 1.0) else np.nan
+        x = str(v).strip().lower()
+        if x in {"w", "win", "won", "true", "yes", "1"}: return 1.0
+        if x in {"l", "loss", "lost", "false", "no", "0"}: return 0.0
+        return np.nan
+    d["_outcome"] = d[outcome_col].map(_outcome)
+    d = d[d[prob_col].between(0,1) & d["_outcome"].isin([0,1])].copy()
+    if d.empty:
+        st.error("No usable rows found. Probabilities must be between 0 and 1 (or 0–100), and outcomes must be W/L or 1/0.")
+        return
+    p = d[prob_col].astype(float).clip(1e-6, 1-1e-6)
+    y = d["_outcome"].astype(float)
+    brier = float(((p-y)**2).mean())
+    logloss = float((-(y*np.log(p)+(1-y)*np.log(1-p))).mean())
+    decided = int(len(d)); wins = int(y.sum())
+    m1,m2,m3,m4 = st.columns(4)
+    m1.metric("Valid predictions", f"{decided:,}")
+    m2.metric("Win rate", f"{wins/decided:.1%}")
+    m3.metric("Brier score", f"{brier:.4f}", help="Lower is better; 0 is perfect.")
+    m4.metric("Log loss", f"{logloss:.4f}", help="Lower is better; rewards calibrated confidence.")
+    d["_bucket"] = pd.cut(p, bins=[0,.1,.2,.3,.4,.5,.6,.7,.8,.9,1.000001], include_lowest=True)
+    cal = d.groupby("_bucket", observed=False).agg(predicted=(prob_col,"mean"), actual=("_outcome","mean"), picks=("_outcome","size")).dropna(subset=["predicted","actual"]).reset_index()
+    st.markdown("#### Calibration")
+    st.caption("When the model says 60%, outcomes should win about 60% of the time over a sufficiently large sample.")
+    if not cal.empty:
+        chart = cal.set_index(cal["_bucket"].astype(str))[["predicted","actual"]].rename(columns={"predicted":"Model probability","actual":"Observed win rate"})
+        st.line_chart(chart, use_container_width=True)
+        st.dataframe(cal.rename(columns={"_bucket":"Probability band","predicted":"Avg predicted","actual":"Actual win rate","picks":"Picks"}), use_container_width=True, hide_index=True)
+    odds_col = next((x for x in ["odds", "american_odds", "price", "american_price"] if x in d.columns), None)
+    if odds_col:
+        stake = st.number_input("Flat stake per pick ($)", min_value=1.0, max_value=10000.0, value=100.0, step=10.0, key="lab_stake")
+        d["_odds"] = pd.to_numeric(d[odds_col], errors="coerce")
+        def _profit(row):
+            try:
+                o=float(row["_odds"])
+                if o == 0: return np.nan
+                return stake*(o/100 if o>0 else 100/abs(o)) if row["_outcome"]==1 else -stake
+            except Exception: return np.nan
+        d["_profit"] = d.apply(_profit, axis=1)
+        valid = d["_profit"].dropna()
+        if len(valid):
+            c1,c2,c3 = st.columns(3)
+            c1.metric("Flat-stake profit", f"${valid.sum():,.2f}")
+            c2.metric("ROI", f"{valid.sum()/(stake*len(valid)):.2%}")
+            c3.metric("Average per pick", f"${valid.mean():,.2f}")
+            st.bar_chart(d.groupby("_bucket", observed=False)["_profit"].sum().dropna().rename("Profit by predicted-probability band"))
+    market_col = next((x for x in ["market", "bet_type", "pick_type", "category"] if x in d.columns), None)
+    if market_col:
+        st.markdown("#### Market leaderboard")
+        leaderboard = d.groupby(market_col, dropna=False).agg(Picks=("_outcome", "size"), Wins=("_outcome", "sum"), Avg_model_probability=(prob_col, "mean"), Actual_win_rate=("_outcome", "mean")).reset_index()
+        leaderboard["Win_rate_gap"] = leaderboard["Actual_win_rate"] - leaderboard["Avg_model_probability"]
+        odds_col_for_lb = next((x for x in ["odds", "american_odds", "price", "american_price"] if x in d.columns), None)
+        if odds_col_for_lb and "_profit" in d.columns:
+            roi = d.groupby(market_col)["_profit"].sum() / (stake * d.groupby(market_col)["_profit"].count().replace(0, np.nan))
+            leaderboard["ROI"] = leaderboard[market_col].map(roi)
+        leaderboard = leaderboard.sort_values("Actual_win_rate", ascending=False)
+        st.dataframe(leaderboard, use_container_width=True, hide_index=True)
+        st.caption("Leaderboard is descriptive, not proof of a profitable future edge. Compare market groups with similar odds and adequate sample sizes.")
+    st.download_button("Download cleaned backtest rows", d.to_csv(index=False).encode("utf-8"), "nba_backtest_cleaned.csv", "text/csv")
 
-/* Tabs */
-[data-baseweb="tab-list"]{ gap:.4rem; border-bottom:1px solid var(--m-edge); }
-[data-baseweb="tab"]{ font-weight:600 !important; border-radius:10px 10px 0 0; transition:background .18s ease; }
-[data-baseweb="tab"]:hover{ background:rgba(148,163,184,.08); }
-[data-baseweb="tab-highlight"]{ height:3px !important; border-radius:3px; background:linear-gradient(90deg,var(--m-accent),var(--m-accent2)) !important; }
 
-/* Containers, expanders, tables */
-[data-testid="stVerticalBlockBorderWrapper"]{ border-color:var(--m-edge) !important; }
-[data-testid="stExpander"]{ border:1px solid var(--m-edge) !important; background:rgba(148,163,184,.04); transition:border-color .2s ease; }
-[data-testid="stExpander"]:hover{ border-color:rgba(96,165,250,.35) !important; }
-[data-testid="stDataFrame"],[data-testid="stDataEditor"]{ border:1px solid var(--m-edge); border-radius:12px; box-shadow:var(--m-shadow); }
-[data-testid="stAlert"]{ border-radius:12px; border:1px solid var(--m-edge); }
-hr{ border-color:var(--m-edge) !important; }
+def _edge_monitor_page():
+    st.markdown('<div class="nb-hero"><h1>Edge Monitor</h1><div class="sub">Convert model probabilities into fair prices, expected value, and alert thresholds.</div><span class="pill">Price comparison</span><span class="pill">EV calculator</span><span class="pill">In-session alerts</span></div>', unsafe_allow_html=True)
+    st.caption("Use a probability produced by your model and the actual price offered by your sportsbook. This calculator does not fetch every sportsbook's live odds.")
+    with st.form("edge_calc_form"):
+        c1,c2,c3 = st.columns(3)
+        model_pct = c1.number_input("Model win probability (%)", min_value=0.1, max_value=99.9, value=55.0, step=0.5)
+        american = c2.number_input("Sportsbook American odds", min_value=-10000, max_value=10000, value=-110, step=5)
+        stake = c3.number_input("Stake ($)", min_value=1.0, max_value=100000.0, value=100.0, step=10.0)
+        submitted = st.form_submit_button("Calculate edge", type="primary")
+    if submitted:
+        try:
+            p=model_pct/100; implied=_american_implied(american); dec=_american_to_decimal(american)
+            edge=p-implied; ev=stake*(p*(dec-1)-(1-p)); fair=_prob_to_american(p)
+            c1,c2,c3,c4 = st.columns(4)
+            c1.metric("Probability edge", f"{edge*100:+.2f} pp")
+            c2.metric("Fair odds", f"{fair:+d}")
+            c3.metric("Expected value", f"${ev:+.2f}")
+            c4.metric("Break-even win rate", f"{implied:.2%}")
+            if edge >= .04 and ev > 0: st.success("Model indicates a strong positive edge by the 4-point threshold. This is an estimate, not a guarantee.")
+            elif edge >= .02 and ev > 0: st.info("Model indicates a modest positive edge. Verify the line and model inputs.")
+            elif ev > 0: st.info("Positive expected value by these inputs, but the probability edge is below 2 percentage points.")
+            else: st.warning("No positive expected value at this price using the entered probability.")
+        except Exception as exc:
+            st.error(str(exc))
+    st.markdown("#### Alert preferences")
+    st.caption("These are in-app checks while this Streamlit session is open; they do not send push notifications or run in the background.")
+    a,b = st.columns(2)
+    edge_alert = a.slider("Alert when probability edge reaches (%)", 1.0, 10.0, float(st.session_state.get("edge_alert_threshold", 4.0)), .5, key="edge_alert_threshold")
+    injury_alert = b.checkbox("Highlight injury-related uncertainty", value=st.session_state.get("injury_alert_enabled", True), key="injury_alert_enabled")
+    st.session_state["edge_alert_preferences"] = {"minimum_edge_pct": edge_alert, "injury_alert_enabled": injury_alert}
+    st.markdown("#### Line movement log")
+    st.caption("Record opening and current lines manually to quantify movement. Save or export the table to preserve it between sessions.")
+    if "line_log" not in st.session_state:
+        st.session_state["line_log"] = pd.DataFrame(columns=["date","game / player","market","opening line","current line","notes"])
+    with st.form("line_log_form"):
+        c1,c2,c3 = st.columns(3)
+        lg_name = c1.text_input("Game / player", placeholder="Lakers vs. Suns")
+        lg_market = c2.selectbox("Market", ["Moneyline", "Spread", "Total", "Player prop", "First basket"])
+        lg_date = c3.date_input("Date", value=local_today())
+        c4,c5 = st.columns(2)
+        lg_open = c4.text_input("Opening line", placeholder="-3.5 / -110")
+        lg_current = c5.text_input("Current line", placeholder="-4 / -115")
+        lg_notes = st.text_input("Notes", placeholder="Book, injury news, timestamp…")
+        add_line = st.form_submit_button("Add line snapshot")
+    if add_line:
+        row={"date":str(lg_date),"game / player":lg_name,"market":lg_market,"opening line":lg_open,"current line":lg_current,"notes":lg_notes}
+        st.session_state["line_log"] = pd.concat([st.session_state["line_log"],pd.DataFrame([row])],ignore_index=True)
+        st.success("Snapshot added for this session.")
+    lines=st.session_state["line_log"]
+    if not lines.empty:
+        edited=st.data_editor(lines, use_container_width=True, num_rows="dynamic", key="line_log_editor")
+        st.session_state["line_log"]=edited
+        st.download_button("Export line movement CSV", edited.to_csv(index=False).encode("utf-8"), "nba_line_movement.csv", "text/csv")
+        if st.button("Clear line movement log", key="clear_line_log"):
+            st.session_state["line_log"]=pd.DataFrame(columns=lines.columns); st.rerun()
 
-/* Popovers, dropdown menus, tooltips */
-[data-baseweb="popover"]>div{ border:1px solid var(--m-edge); border-radius:12px; box-shadow:0 18px 44px rgba(0,0,0,.45); backdrop-filter:blur(8px); }
-[data-baseweb="tooltip"] > div{ border-radius:8px; }
 
-/* Scrollbars and selection */
-::selection{ background:rgba(59,130,246,.35); }
-*{ scrollbar-width:thin; scrollbar-color:rgba(148,163,184,.35) transparent; }
-::-webkit-scrollbar{ width:10px; height:10px; }
-::-webkit-scrollbar-thumb{ background:rgba(148,163,184,.30); border-radius:8px; border:2px solid transparent; background-clip:content-box; }
-::-webkit-scrollbar-thumb:hover{ background:rgba(148,163,184,.5); background-clip:content-box; }
+def _simulation_settings_page():
+    st.markdown('<div class="nb-hero"><h1>Simulation Settings</h1><div class="sub">Tune the number of Monte Carlo runs and the market-versus-model blend.</div><span class="pill">Configurable compute</span><span class="pill">Model controls</span></div>', unsafe_allow_html=True)
+    st.caption("Changes to simulation count take effect after the next rerun. More simulations reduce random sampling noise but do not fix inaccurate assumptions or data.")
+    counts={"Fast · 2,500":2500,"Balanced · 10,000":10000,"Detailed · 25,000":25000,"Deep · 50,000":50000}
+    current=int(st.session_state.get("nb_sim_count",10000))
+    current_label=next((k for k,v in counts.items() if v==current),"Custom")
+    choice=st.selectbox("Simulation preset", list(counts)+["Custom"], index=(list(counts)+["Custom"]).index(current_label) if current_label in list(counts)+["Custom"] else 1)
+    if choice=="Custom":
+        new_count=st.number_input("Number of simulations", min_value=1000, max_value=100000, value=min(max(current,1000),100000), step=1000)
+    else: new_count=counts[choice]
+    st.session_state["nb_sim_count"]=int(new_count)
+    st.markdown("#### What these settings mean")
+    st.markdown("- **Simulation count:** the number of simulated score outcomes used by the game and first-basket models. Higher values take longer.\n- **Model blend:** the existing rating model is intentionally anchored to sportsbook lines; edit its constants in the code if you have an independently validated backtest.\n- **Uncertainty:** a probability is not a guarantee, and a small edge may disappear with stale odds, lineup changes, or model error.")
+    st.metric("Active simulation count", f"{int(new_count):,}")
+    if st.button("Apply setting now", type="primary", key="apply_sim_settings"):
+        st.rerun()
 
-@media (max-width:640px){ .nb-card:hover,.nb-tile:hover,.nb-pod:hover{ transform:none; } }
-@media (prefers-reduced-motion:reduce){ [data-testid="stMain"] .block-container{ animation:none; } .nb-card,.nb-tile,.nb-pod{ transition:none; } }
-</style>
-"""
-st.markdown(MODERN_CSS, unsafe_allow_html=True)
+
+if nav == NAV[7]:
+    _model_lab_page()
+if nav == NAV[8]:
+    _edge_monitor_page()
+if nav == NAV[9]:
+    _simulation_settings_page()

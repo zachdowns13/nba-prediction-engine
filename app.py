@@ -4526,7 +4526,7 @@ def pickem_tab(M, date, games, injuries, b2b):
                                 save_pickem(_all[~((_all["date"] == iso) & (_all["event_id"] == eid))])
                                 st.rerun()
                     elif g["state"] == "pre":
-                        html(title + badge("Open", "none") + '</div><div class="nb-muted" style="margin-top:-.35rem;padding-left:.3rem">Pick the winner</div>')
+                        html(title + badge("Open", "none") + '</div><div class="nb-muted" style="margin-top:-.8rem;padding-left:.3rem">Pick the winner</div>')
                         # Each game's pick is its own native widget, so one game's choice can never touch another's.
                         try:
                             try:

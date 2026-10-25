@@ -4526,7 +4526,7 @@ def pickem_tab(M, date, games, injuries, b2b):
                                 save_pickem(_all[~((_all["date"] == iso) & (_all["event_id"] == eid))])
                                 st.rerun()
                     elif g["state"] == "pre":
-                        html(title + badge("Open", "none") + '</div><div class="nb-muted" style="margin-top:-.8rem;padding-left:.3rem">Pick the winner</div>')
+                        html(title + badge("Open", "none") + '</div><div class="nb-muted" style="margin-top:-.45rem;padding-left:.3rem">Pick the winner</div>')
                         # Each game's pick is its own native widget, so one game's choice can never touch another's.
                         try:
                             try:
@@ -4541,7 +4541,7 @@ def pickem_tab(M, date, games, injuries, b2b):
                                 if f else '<div class="nb-muted">Already started, so it can\'t be picked now.</div>'))
 
             for k0 in range(0, len(games), 3):                       # cards, three across (they stack on a phone)
-                row = st.columns(3)
+                row = st.columns(3, gap="medium")
                 for c_, g_ in zip(row, games[k0:k0 + 3]):
                     with c_:
                         _card(g_)
@@ -6639,6 +6639,8 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 [data-testid="stAlert"]{ border-radius:14px !important; }
 
 .st-key-csslot{ display:none; }
+[class*="st-key-pkcard_"]{ padding:1.1rem 1.2rem 1.2rem !important; margin-bottom:.5rem; }
+[class*="st-key-pkcard_"] > [data-testid="stVerticalBlock"]{ gap:1rem !important; }
 [data-testid="stElementContainer"]:has(iframe[height="0"]){ position:absolute !important; width:0 !important; height:0 !important; margin:0 !important; padding:0 !important; overflow:hidden !important; }
 .hm-hero{ margin-top:0 !important; }
 .st-key-main_nav,.st-key-main_nav > *,.st-key-main_nav [data-testid="stButtonGroup"],.st-key-main_nav [data-baseweb="button-group"]{width:100% !important;max-width:100% !important}

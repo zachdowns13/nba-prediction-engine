@@ -1574,7 +1574,14 @@ import base64 as _b64
 import threading as _th
 
 _DATA_FILES = ["bets_log.csv", "bets_trash.csv", "picks_log.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv", "pickem_fb_log.csv", "closing_log.csv"]
-_GH = {"sha": {}, "lock": _th.Lock(), "restored": False, "err": ""}
+@st.cache_resource
+def _gh_state():
+    # Kept for the life of the app. Defined directly in the script it would be rebuilt on every click, which made the backup
+    # check run (eight GitHub calls) each time you tapped anything.
+    return {"sha": {}, "lock": _th.Lock(), "restored": False, "err": ""}
+
+
+_GH = _gh_state()
 
 
 def _gh_cfg():

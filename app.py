@@ -1992,7 +1992,7 @@ def saved_games_table(log):
                            if len(val0) else "No play")
                 continue
             pick = gm[gm["is_pick"]].iloc[0]
-            txt = f"{pick_label(pick)} ({int(pick['odds']):+d}) {sym(pick['result'])}"
+            txt = f"{pick_label(pick)} ({int(pick['odds']):+d}) {sym(pick['result'])} · {conf_tier(pick['model_p'])}"
             val = gm[gm["flagged"] & ~gm["is_pick"]]
             if len(val):
                 v = val.iloc[0]
@@ -2026,7 +2026,22 @@ def picks_table(df):
     return pd.DataFrame(out)
 
 
-COINFLIP_MIN = 0.505
+COINFLIP_MIN = 0.0          # every lean counts as a pick; confidence is shown as a tag instead of hiding anything
+
+
+def conf_tier(p):
+    # How sure the model is of its own side (not the same as value vs the book)
+    try:
+        p = float(p)
+    except Exception:
+        return ""
+    return "coin flip" if p < 0.51 else ("lean" if p < 0.56 else "confident")
+
+
+def conf_html(p):
+    t = conf_tier(p)
+    col = {"coin flip": "#f59e0b", "lean": "#94a3b8", "confident": "#22c55e"}.get(t)
+    return f'<span style="margin-left:auto;font-size:.68rem;font-weight:700;letter-spacing:.03em;color:{col};white-space:nowrap">{t}</span>' if col else ""
 
 
 def add_pick_flag(df):
@@ -2036,7 +2051,7 @@ def add_pick_flag(df):
         df["is_pick"] = pd.Series(dtype=bool)
         return df
     rk = df.groupby(["date", "event_id", "market"])["model_p"].rank(method="first", ascending=False)
-    df["is_pick"] = (rk == 1) & (df["model_p"] >= COINFLIP_MIN)     # a near 50/50 call is "No play", not a pick
+    df["is_pick"] = (rk == 1) & (df["model_p"] >= COINFLIP_MIN)     # every lean is a pick; conf_tier() labels how sure it is
     return df
 
 
@@ -5917,7 +5932,7 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
                 _byg = {str(r["event_id"]): r for _, r in a_.iterrows()}
                 _order = _gorder if (_gorder and not big) else list(_byg)
                 lines = "".join(
-                    (f'<div class="hm-pkr"><span>{sym.get(_byg[e]["result"], "⏳")}</span><span>{H(pick_label(_byg[e]))}</span></div>'
+                    (f'<div class="hm-pkr"><span>{sym.get(_byg[e]["result"], "⏳")}</span><span>{H(pick_label(_byg[e]))}</span>{conf_html(_byg[e]["model_p"])}</div>'
                      if e in _byg else '<div class="hm-pkr" style="visibility:hidden"><span>⏳</span><span>&nbsp;</span></div>')
                     for e in _order)
                 if big:                                   # the main card has no list of its own: it opens or closes the three below

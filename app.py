@@ -5118,7 +5118,7 @@ def _u(x):
     return f"{x:g}u"
 
 
-def discord_open_bets(only_cord, units, with_book):
+def discord_open_bets(only_cord, units, with_book, unit=100.0):
     df = load_bets()
     df = df[df["result"] == ""]
     if only_cord:
@@ -5128,7 +5128,7 @@ def discord_open_bets(only_cord, units, with_book):
     lines = [f"🏀 **{'Cord plays' if only_cord else 'Open plays'} · {local_today().strftime('%a, %b %-d')}**", ""]
     for i, r in enumerate(df.sort_values("date").itertuples(), 1):
         stake, payout = float(r.stake or 0), float(r.payout or 0)
-        sz = f"{_u(round(stake / 100, 2))} to win {_u(round((payout - stake) / 100, 2))}" if units else f"${stake:,.0f} to win ${payout - stake:,.0f}"
+        sz = f"{_u(round(stake / unit, 2))} to win {_u(round((payout - stake) / unit, 2))}" if units else f"${stake:,.0f} to win ${payout - stake:,.0f}"
         legs = split_legs(r.desc)
         head = f"**{i}) " + (f"{r.book} · " if with_book else "") + (f"{len(legs)}-leg parlay" if len(legs) > 1 else "Straight") + f"** — {sz}"
         lines.append(head)
@@ -5137,7 +5137,7 @@ def discord_open_bets(only_cord, units, with_book):
     return "\n".join(lines).strip()
 
 
-def discord_value_plays(date, units):
+def discord_value_plays(date, units, unit=100.0):
     res_list = st.session_state.get(f"slate_{date.isoformat()}")
     if not res_list:
         return None
@@ -5148,7 +5148,7 @@ def discord_value_plays(date, units):
     for res, r in rows:
         g = res["game"]
         stake = stake_for(r["model_p"], r["book_odds"])
-        sz = _u(round(stake / 100, 2)) if units else f"${stake:,.0f}"
+        sz = _u(round(stake / unit, 2)) if units else f"${stake:,.0f}"
         lines.append(f"{'🔥' if r['edge'] >= LEAN_STRONG else '✅'} **{pick_name(r)}** ({r['book_odds']:+d}) · {short(g['away'])} @ {short(g['home'])}\n"
                      f"　model {r['model_p'] * 100:.0f}% vs book {r['book_p'] * 100:.0f}% · {r['edge'] * 100:+.1f} pts · {sz}")
     lines += ["", "_Model estimates, not guarantees._"]
@@ -5158,16 +5158,18 @@ def discord_value_plays(date, units):
 def discord_view(date):
     st.caption("One block of text, formatted for Discord. Hit the copy icon in the top right of the box, then paste it into your channel.")
     src = st.radio("What to post", ["Cord plays (open)", "All open bets", "Today's value plays"], horizontal=True, key="dc_src")
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3, vertical_alignment="bottom") if _has_valign() else st.columns(3)
     units = c1.toggle("Show units instead of dollars", value=True, key="dc_units")
     book = c2.toggle("Show the book", value=True, key="dc_book", disabled=src == "Today's value plays")
+    unit = c3.number_input("Your unit size ($)", min_value=1.0, max_value=10000.0, value=20.0, step=5.0, key="dc_unit_size", disabled=not units,
+                           help="1 unit = this many dollars. A $20 bet shows as 1 unit when this is 20.")
     if src == "Today's value plays":
-        txt = discord_value_plays(date, units)
+        txt = discord_value_plays(date, units, unit)
         if txt is None:
             st.info("Run the **Full slate** for this date first, then come back here.")
             return
     else:
-        txt = discord_open_bets(src.startswith("Cord"), units, book)
+        txt = discord_open_bets(src.startswith("Cord"), units, book, unit)
     if not txt:
         st.info("Nothing to post right now.")
         return

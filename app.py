@@ -178,7 +178,7 @@ hero = st.container()          # filled in below once the date and games are kno
 # =====================================================================
 # Rating model settings. Run the Colab notebook (NBA_Model_v2) and copy the "Chosen settings"
 # it prints into PARAMS. These defaults are sensible starting points, not tuned values.
-PARAMS = {"half_life": 90.0, "ridge": 10.0, "prev_w": 0.8}      # tuned in the Colab notebook on last season
+PARAMS = {"half_life": 90.0, "ridge": 10.0, "prev_w": 0.8, "roster_aware": True, "cont_power": 1.5, "cont_floor": 0.15, "cont_games": 12, "cont_until": 40}      # tuned in the Colab notebook on last season
 BETA_M, BETA_T = 0.10, 0.10      # how far the model may move the sportsbook's margin / total (Colab section 7 measured about 0%, so this is kept small)
 SD_M, SD_T = 13.6, 18.3          # typical miss on the margin / the total (about 1.25 x the average miss measured in Colab)
 SIMS = 10_000
@@ -489,6 +489,72 @@ def build_hist(G):
     return h
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def team_ids():
+    # ESPN team name -> team id (one request), used to look up each team's current roster.
+    data = _get(f"{BASE}/teams", tries=2)
+    out = {}
+    for sp in data.get("sports", []):
+        for lg in sp.get("leagues", []):
+            for t in lg.get("teams", []):
+                tm = t.get("team", {})
+                if tm.get("displayName") and tm.get("id"):
+                    out[tm["displayName"]] = str(tm["id"])
+    return out
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def roster_continuity(ev_key):
+    """Share of each team's minutes late last season that came from players who are still on the roster (0 to 1).
+    ev_key is ((team, team_id, (last season's final game ids...)), ...)."""
+    all_ev = tuple(sorted({e for _, _, evs in ev_key for e in evs}))
+    boxes = load_boxes(all_ev)
+    out = {}
+    for team, tid, evs in ev_key:
+        roster = set(get_roster(tid))
+        if not roster:
+            continue
+        tot = keep = 0.0
+        for e in evs:
+            b = boxes.get(e)
+            if not b:
+                continue
+            for aid, pl in b["players"].items():
+                if pl.get("team") != team:
+                    continue
+                m = float(pl.get("min") or 0)
+                tot += m
+                if aid in roster:
+                    keep += m
+        if tot > 200:
+            out[team] = keep / tot
+    return out
+
+
+def continuity_for(G, season):
+    # Only worth the extra requests early in a season, while last season still carries a big share of every rating.
+    try:
+        cur = G[G["season"] == season]
+        n_team = pd.concat([cur["home"], cur["away"]]).value_counts()
+        if len(n_team) and n_team.median() >= PARAMS["cont_until"]:
+            return {}
+        prev = G[G["season"] == season - 1].sort_values(["ord", "event_id"])
+        ids = team_ids()
+        key = []
+        for team in sorted(set(prev["home"]) | set(prev["away"])):
+            evs = prev[(prev["home"] == team) | (prev["away"] == team)]["event_id"].astype(str).tolist()[-PARAMS["cont_games"]:]
+            if team in ids and evs:
+                key.append((team, ids[team], tuple(evs)))
+        return roster_continuity(tuple(key)) if key else {}
+    except Exception:
+        return {}
+
+
+def cont_factor(c):
+    # How much of last season's evidence to keep for a team with this roster continuity (1.0 = same team).
+    return float(min(1.0, max(PARAMS["cont_floor"], c ** PARAMS["cont_power"])))
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def fit_model(date_iso):
     d = dt.date.fromisoformat(date_iso)
@@ -502,6 +568,13 @@ def fit_model(date_iso):
     mask = F["row_ord"] < d_ord
     age = d_ord - F["row_ord"][mask]
     w = 0.5 ** (age / PARAMS["half_life"]) * PARAMS["prev_w"] ** (season - F["row_season"][mask])
+    cont = continuity_for(F["G"], season) if PARAMS.get("roster_aware") else {}
+    if cont:                                   # last season counts for less on teams whose rosters changed a lot
+        Gf = F["G"]
+        fh = Gf["home"].map(lambda t: cont_factor(cont[t]) if t in cont else 1.0).values
+        fa = Gf["away"].map(lambda t: cont_factor(cont[t]) if t in cont else 1.0).values
+        gf = np.where(Gf["season"].values < season, np.sqrt(fh * fa), 1.0)
+        w = w * np.repeat(gf, 2)[mask]
     X, y = F["X"][mask], F["y"][mask]
     pen = np.zeros(X.shape[1])
     pen[4:], pen[:4] = PARAMS["ridge"], 1e-3
@@ -514,7 +587,7 @@ def fit_model(date_iso):
         sched.setdefault(r.away, []).append((r.ord, 0))
     return {"beta": beta, "idx": F["idx"], "T": F["T"], "hist": build_hist(G), "sched": sched, "season": season,
             "cur_counts": pd.concat([cur["home"], cur["away"]]).value_counts().to_dict(),
-            "n_games": int(mask.sum() / 2)}
+            "n_games": int(mask.sum() / 2), "cont": cont}
 
 
 def team_score(M, own, opp, is_home, own_b2b, opp_b2b):
@@ -6003,6 +6076,8 @@ def how_it_works():
       st.markdown(
           "- **Ratings:** every team gets an offense and a defense rating fitted across all games (so beating good teams counts for more), "
           "with recent games weighted more and last season fading out.\n"
+          "- **Roster changes (early season):** while last season still carries much of each rating, a team's old games count for less if "
+          "much of last year's minutes belong to players who have left. A team that kept its core keeps its rating.\n"
           "- **Sportsbook blend:** the model is only allowed to move the sportsbook's line part of the way, so its projections stay anchored to the market.\n"
           "- **Injuries:** every player is rated automatically from his recent box scores (minutes and production per minute, compared with a "
           "replacement-level player), so a star's absence is weighted more than a bench player's. Each absence is scaled by how likely he is "
@@ -6332,6 +6407,10 @@ if nav == HOME_NAV:
 
 if nav == NAV[0]:
     game_picker("game")
+    _ct = M.get("cont") or {}
+    if _ct.get(g["home"]) is not None and _ct.get(g["away"]) is not None:
+        st.caption(f"Roster continuity from last season (share of minutes still on the team): {short(g['away'])} {_ct[g['away']] * 100:.0f}% · "
+                   f"{short(g['home'])} {_ct[g['home']] * 100:.0f}%. The lower it is, the less last season's games count for that team.")
     if None in (odds["home_ml"], odds["away_ml"], odds["home_spread"], odds["total"]):
         with st.expander("Some sportsbook lines are missing. Enter them manually", expanded=True):
             a, b, c = st.columns(3)

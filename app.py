@@ -6693,7 +6693,7 @@ POLISH_CSS = """
 with _css_slot:
     st.markdown(POLISH_CSS, unsafe_allow_html=True)
     st.markdown("""<style>
-.ub-bar{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:.1rem 0 1.1rem;padding:.5rem .9rem;border-radius:12px;
+.ub-bar{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:.3rem 0 1.1rem;padding:.5rem .9rem;border-radius:12px;
   border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.07);font-size:.84rem}
 .ub-bar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
 .ub-bar a{flex:none;padding:.18rem .7rem;border-radius:9px;border:1px solid rgba(148,163,184,.35);text-decoration:none !important;color:inherit !important;font-weight:600;font-size:.78rem}
@@ -7028,7 +7028,7 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 .pro-sl{ font-size:.7rem; text-transform:uppercase; letter-spacing:.07em; opacity:.65; margin-top:.1rem; }
 
 /* Page title under the menu */
-.pro-page{ margin:-.25rem 0 .2rem; display:flex; align-items:baseline; gap:.7rem; flex-wrap:wrap; }
+.pro-page{ margin:.9rem 0 .6rem; display:flex; align-items:baseline; gap:.7rem; flex-wrap:wrap; }
 .pro-page-t{ font-size:1.3rem; font-weight:800; letter-spacing:-.035em; color:var(--p-ink); }
 .pro-page-s{ color:var(--p-mute); font-size:.86rem; }
 

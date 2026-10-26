@@ -720,7 +720,10 @@ def analyze_game(M, g, o, h_inj, a_inj, b2b):
     bm, bt = (trust / 100, trust / 100) if trust else (BETA_M, BETA_T)
     m_mu = (-o["home_spread"]) + bm * (raw_m - (-o["home_spread"])) if has_s else raw_m
     t_mu = o["total"] + bt * (raw_t - o["total"]) if has_t else raw_t
-    rng = np.random.default_rng()
+    # Seeded by game + inputs: the same inputs always give the same picks; a real change (line move, injury) gives a new run
+    import zlib
+    _seed = zlib.crc32(f"{g.get('id')}|{round(m_mu, 2)}|{round(t_mu, 2)}|{o['home_spread']}|{o['total']}".encode())
+    rng = np.random.default_rng(_seed)
     margin = np.rint(rng.normal(m_mu, SD_M, SIMS))
     total = np.rint(rng.normal(t_mu, SD_T, SIMS))
     ties = margin == 0
@@ -1646,7 +1649,7 @@ def props_tab(M, g, odds, injuries, date, b2b):
 import base64 as _b64
 import threading as _th
 
-_DATA_FILES = ["bets_log.csv", "bets_trash.csv", "picks_log.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv", "pickem_fb_log.csv", "closing_log.csv"]
+_DATA_FILES = ["bets_log.csv", "bets_trash.csv", "picks_log.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv", "pickem_fb_log.csv", "closing_log.csv", "locked_picks.txt"]
 @st.cache_resource
 def _gh_state():
     # Kept for the life of the app. Defined directly in the script it would be rebuilt on every click, which made the backup
@@ -1860,10 +1863,31 @@ def _graded_mask(w):
     return w[[f"{m}_win" for m in MKTS]].isin(["A", "B", "P"]).any(axis=1)
 
 
+LOCK_PATH = "locked_picks.txt"
+
+
+def get_locked():
+    try:
+        return {l.strip() for l in open(LOCK_PATH).read().splitlines() if l.strip()}
+    except Exception:
+        return set(st.session_state.get("locked_keys", set()))
+
+
+def set_locked(keys):
+    keys = set(keys)
+    st.session_state["locked_keys"] = keys
+    try:
+        with open(LOCK_PATH, "w") as f:
+            f.write("\n".join(sorted(keys)))
+        cloud_save(LOCK_PATH)
+    except Exception:
+        pass
+
+
 def upsert_wide(wide, new_rows):
-    # Re-running the slate updates games that are not graded yet; graded games are never changed.
+    # Re-running the slate updates games that are not graded or locked yet; graded and locked games are never changed.
     new = clean_wide(pd.DataFrame(new_rows))
-    graded_keys = set(wide.loc[_graded_mask(wide), "key"])
+    graded_keys = set(wide.loc[_graded_mask(wide), "key"]) | get_locked()
     new = new[~new["key"].isin(graded_keys)]
     keep = wide[~wide["key"].isin(set(new["key"]))]
     if keep.empty:
@@ -1962,6 +1986,11 @@ def saved_games_table(log):
             if gm.empty:
                 row[mk] = ""
                 continue
+            if not gm["is_pick"].any():
+                val0 = gm[gm["flagged"]]
+                row[mk] = (f"💰 {pick_label(val0.iloc[0])} ({int(val0.iloc[0]['odds']):+d}) {sym(val0.iloc[0]['result'])}"
+                           if len(val0) else "No play")
+                continue
             pick = gm[gm["is_pick"]].iloc[0]
             txt = f"{pick_label(pick)} ({int(pick['odds']):+d}) {sym(pick['result'])}"
             val = gm[gm["flagged"] & ~gm["is_pick"]]
@@ -1997,6 +2026,9 @@ def picks_table(df):
     return pd.DataFrame(out)
 
 
+COINFLIP_MIN = 0.52
+
+
 def add_pick_flag(df):
     # "Model's pick" = the side of each market (per game) the model gives the higher chance.
     df = df.copy()
@@ -2004,7 +2036,7 @@ def add_pick_flag(df):
         df["is_pick"] = pd.Series(dtype=bool)
         return df
     rk = df.groupby(["date", "event_id", "market"])["model_p"].rank(method="first", ascending=False)
-    df["is_pick"] = rk == 1
+    df["is_pick"] = (rk == 1) & (df["model_p"] >= COINFLIP_MIN)     # a near 50/50 call is "No play", not a pick
     return df
 
 
@@ -3960,19 +3992,60 @@ def slate_tab(M, date, games, injuries, b2b):
         if True:
             st.session_state[key] = res_list
             pre_now = [r for r in res_list if r["game"]["state"] == "pre" and r["rows"]]
-            new_rows = [game_to_wide(r, date.isoformat()) for r in pre_now]
+            _lk = get_locked()
+            _all = [game_to_wide(r, date.isoformat()) for r in pre_now]
+            new_rows = [r for r in _all if r["key"] not in _lk]
+            n_locked = len(_all) - len(new_rows)
             ok = save_wide(upsert_wide(load_wide(), new_rows)) if new_rows else True
-            st.session_state[key + "_saved"] = (len(new_rows), len(pre_now), ok)
+            st.session_state[key + "_saved"] = (len(new_rows), len(pre_now), ok, local_now().strftime("%-I:%M %p"), n_locked)
     results = st.session_state.get(key)
     if not results:
         return
     saved = st.session_state.get(key + "_saved")
     if saved:
         if saved[0]:
-            st.success(f"Saved {saved[0]} games to your Results log (each game's moneyline, spread and total)."
+            st.success(f"Saved {saved[0]} games to your Results log at {saved[3]} (each game's moneyline, spread and total)."
+                       + (f" {saved[4]} locked games were kept as they were." if saved[4] else "")
                        + ("" if saved[2] else " The file could not be written, so they are kept for this session only. Download a backup in the Results tab."))
+        elif saved[4]:
+            st.info(f"All {saved[4]} games on this slate are locked, so your saved picks were kept.")
         else:
             st.info("Nothing was saved: every game has already started or has no lines posted.")
+    # Lock the saved picks so later sims can't overwrite them, and flag anything the model now sees differently
+    _pre = [r for r in results if r["game"]["state"] == "pre" and r["rows"]]
+    _keys = [f"{date.isoformat()}|{r['game']['id']}" for r in _pre]
+    _lk = get_locked()
+    _mine = [k for k in _keys if k in _lk]
+    if _pre:
+        lc1, lc2 = st.columns(2)
+        if lc1.button(f"🔒 Lock today's picks ({len(_keys) - len(_mine)} open)", key="lock_all", use_container_width=True,
+                      disabled=len(_mine) == len(_keys)):
+            set_locked(_lk | set(_keys))
+            st.rerun()
+        if lc2.button(f"🔓 Unlock all ({len(_mine)} locked)", key="unlock_all", use_container_width=True, disabled=not _mine):
+            set_locked(_lk - set(_keys))
+            st.rerun()
+        if _mine:
+            _w = load_wide().set_index("key")
+            notes = []
+            for r in _pre:
+                k = f"{date.isoformat()}|{r['game']['id']}"
+                if k not in _lk or k not in _w.index:
+                    continue
+                row = _w.loc[k]
+                g = r["game"]
+                for m, name in MKTS.items():
+                    pair = [x for x in r["rows"] if x["market"] == name]
+                    ma, mb = row[f"{m}_model_a"], row[f"{m}_model_b"]
+                    if len(pair) != 2 or pd.isna(ma) or pd.isna(mb):
+                        continue
+                    old_a, new_a = ma >= mb, pair[0]["model_p"] >= pair[1]["model_p"]
+                    if old_a != new_a:
+                        nm = (lambda a: ("Over" if a else "Under")) if m == "to" else (lambda a: g["home"] if a else g["away"])
+                        notes.append(f"{g['away']} @ {g['home']} {name}: locked {nm(old_a)}, the model now leans {nm(new_a)}")
+            st.caption(f"🔒 {len(_mine)} of {len(_keys)} games locked at their saved picks.")
+            if notes:
+                st.warning("Picks changed since you locked them (your locked picks stay as saved):\n\n" + "\n".join("- " + n for n in notes))
     st.markdown("### 🏆 Predictions for every game")
     st.caption("The model's projected score and winner for each game, before looking at any betting value.")
     cards = []

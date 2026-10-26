@@ -6911,7 +6911,7 @@ with _css_slot:
 @media (min-width:900px){
   /* all ten tabs on one row on a computer screen */
   .st-key-main_nav [data-testid="stButtonGroup"],.st-key-main_nav [data-baseweb="button-group"]{flex-wrap:nowrap !important;gap:.05rem !important;overflow-x:auto}
-  .st-key-main_nav [data-testid="stButtonGroup"] button{padding-left:.5rem !important;padding-right:.5rem !important;gap:.3rem !important}
+  .st-key-main_nav [data-testid="stButtonGroup"] button{padding-left:.5rem !important;padding-right:.5rem !important;gap:.3rem !important;flex:1 1 auto !important;justify-content:center !important}
   .st-key-main_nav [data-testid="stButtonGroup"] button p,.st-key-main_nav [data-testid="stButtonGroup"] button span{font-size:.9rem}
 }
 @media (max-width:640px){

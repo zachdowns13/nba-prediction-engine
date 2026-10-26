@@ -7029,7 +7029,7 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 .pro-sl{ font-size:.7rem; text-transform:uppercase; letter-spacing:.07em; opacity:.65; margin-top:.1rem; }
 
 /* Page title under the menu */
-.pro-page{ margin:.15rem 0 .6rem; display:flex; align-items:baseline; gap:.7rem; flex-wrap:wrap; }
+.pro-page{ margin:.95rem 0 .6rem; display:flex; align-items:baseline; gap:.7rem; flex-wrap:wrap; }
 .pro-page-t{ font-size:1.3rem; font-weight:800; letter-spacing:-.035em; color:var(--p-ink); }
 .pro-page-s{ color:var(--p-mute); font-size:.86rem; }
 

@@ -4492,6 +4492,15 @@ def model_first_basket(M, g, injuries, date):
 
 
 
+PK_NICK = {"Timberwolves": "T-Wolves", "Cavaliers": "Cavs"}
+
+
+def short_pk(t):
+    # Team name for the Pick'em cards: the usual last word, but with two long names shortened so the card titles stay on one line.
+    n = short(t)
+    return PK_NICK.get(n, n)
+
+
 def pickem_tab(M, date, games, injuries, b2b):
     st.caption("Pick the winner of every game, then see how you match up against the sportsbook (its moneyline favorite) and the model. "
                "The book's and the model's picks are saved at the moment you lock yours in, so you can't peek first.")
@@ -4515,17 +4524,17 @@ def pickem_tab(M, date, games, injuries, b2b):
                 key = f"pk_{iso}_{eid}"
                 f = fin.get(eid)
                 win = (f["home"] if f["hs"] > f["as"] else f["away"]) if f else ""
-                title = (f'<div class="nb-top"><span class="nb-title nb-vs">{logo(g.get("away_logo"))}<span>{H(short(g["away"]))}</span>'
-                         f'<span class="nb-at">@</span>{logo(g.get("home_logo"))}<span>{H(short(g["home"]))}</span></span>')
+                title = (f'<div class="nb-top"><span class="nb-title nb-vs">{logo(g.get("away_logo"))}<span>{H(short_pk(g["away"]))}</span>'
+                         f'<span class="nb-at">@</span>{logo(g.get("home_logo"))}<span>{H(short_pk(g["home"]))}</span></span>')
                 with st.container(border=True, key=f"pkcard_{iso}_{eid}"):
                     if eid in mine.index:                                               # locked in
                         r = mine.loc[eid]
                         mark = lambda p: ("" if not win or not p else (" ✅" if p == win else " ❌"))
-                        who = lambda p: short(p) if p else "no line"
+                        who = lambda p: short_pk(p) if p else "no line"
                         badge_ = (badge("✅ You got it", "ok") if win and r["my_pick"] == win else badge("❌ Missed", "bad")) if win else badge("🔒 Locked", "acc")
                         html(title + badge_ + '</div>'
-                             f'<div class="nb-muted" style="margin-top:-.35rem;padding-left:.3rem">Your pick</div><div class="nb-winner">{logo(g.get("home_logo") if r["my_pick"] == g["home"] else g.get("away_logo"))}{H(short(r["my_pick"]))}</div>'
-                             + (f'<div class="nb-fscore">Final: {H(short(g["away"]))} {int(f["as"])}, {H(short(g["home"]))} {int(f["hs"])}</div>' if f else "")
+                             f'<div class="nb-muted" style="margin-top:-.35rem;padding-left:.3rem">Your pick</div><div class="nb-winner">{logo(g.get("home_logo") if r["my_pick"] == g["home"] else g.get("away_logo"))}{H(short_pk(r["my_pick"]))}</div>'
+                             + (f'<div class="nb-fscore">Final: {H(short_pk(g["away"]))} {int(f["as"])}, {H(short_pk(g["home"]))} {int(f["hs"])}</div>' if f else "")
                              + '<div class="nb-chips">'
                              f'<span class="nb-chip">Book: <b>{H(who(r["book_pick"]))}</b>' + (f' ({int(float(r["book_ml"])):+d})' if r["book_ml"] else "") + f'{mark(r["book_pick"])}</span>'
                              f'<span class="nb-chip">Model: <b>{H(who(r["model_pick"]))}</b>' + (f' ({float(r["model_p"]) * 100:.0f}%)' if r["model_p"] else "") + f'{mark(r["model_pick"])}</span></div>')
@@ -4539,14 +4548,14 @@ def pickem_tab(M, date, games, injuries, b2b):
                         # Each game's pick is its own native widget, so one game's choice can never touch another's.
                         try:
                             try:
-                                st.segmented_control("Winner", [g["away"], g["home"]], key=key, format_func=short, label_visibility="collapsed", width="stretch")
+                                st.segmented_control("Winner", [g["away"], g["home"]], key=key, format_func=short_pk, label_visibility="collapsed", width="stretch")
                             except TypeError:                                  # older Streamlit has no width option
-                                st.segmented_control("Winner", [g["away"], g["home"]], key=key, format_func=short, label_visibility="collapsed")
+                                st.segmented_control("Winner", [g["away"], g["home"]], key=key, format_func=short_pk, label_visibility="collapsed")
                         except AttributeError:
-                            st.radio("Winner", [g["away"], g["home"]], index=None, key=key, format_func=short, horizontal=True, label_visibility="collapsed")
+                            st.radio("Winner", [g["away"], g["home"]], index=None, key=key, format_func=short_pk, horizontal=True, label_visibility="collapsed")
                     else:
                         html(title + badge("Closed" if not f else "Final", "none") + '</div>'
-                             + (f'<div class="nb-fscore">Final: {H(short(g["away"]))} {int(f["as"])}, {H(short(g["home"]))} {int(f["hs"])}</div><div class="nb-muted">You didn\'t pick this one.</div>'
+                             + (f'<div class="nb-fscore">Final: {H(short_pk(g["away"]))} {int(f["as"])}, {H(short_pk(g["home"]))} {int(f["hs"])}</div><div class="nb-muted">You didn\'t pick this one.</div>'
                                 if f else '<div class="nb-muted">Already started, so it can\'t be picked now.</div>'))
 
             for k0 in range(0, len(games), 3):                       # cards, three across (they stack on a phone)
@@ -4587,8 +4596,8 @@ def pickem_tab(M, date, games, injuries, b2b):
         else:
             def _fcard(g):
                 eid = str(g["id"])
-                title = (f'<div class="nb-top"><span class="nb-title nb-vs">{logo(g.get("away_logo"))}<span>{H(short(g["away"]))}</span>'
-                         f'<span class="nb-at">@</span>{logo(g.get("home_logo"))}<span>{H(short(g["home"]))}</span></span>')
+                title = (f'<div class="nb-top"><span class="nb-title nb-vs">{logo(g.get("away_logo"))}<span>{H(short_pk(g["away"]))}</span>'
+                         f'<span class="nb-at">@</span>{logo(g.get("home_logo"))}<span>{H(short_pk(g["home"]))}</span></span>')
                 with st.container(border=True, key=f"pkfbcard_{iso}_{eid}"):
                     if eid in fmine.index:
                         r = fmine.loc[eid]
@@ -4640,7 +4649,7 @@ def pickem_tab(M, date, games, injuries, b2b):
             for _, r in fsaved.iterrows():
                 real = actual_first_basket(str(r["event_id"]))
                 if real:
-                    rows_.append({"Date": r["date"], "Game": f"{short(r['away'])} @ {short(r['home'])}", "First basket": real, "You": r["my_pick"],
+                    rows_.append({"Date": r["date"], "Game": f"{short_pk(r['away'])} @ {short_pk(r['home'])}", "First basket": real, "You": r["my_pick"],
                                   "Model": r["model_pick"] or "-", "me": _nm(r["my_pick"]) == _nm(real),
                                   "model": (None if not r["model_pick"] else _nm(r["model_pick"]) == _nm(real))})
             if rows_:
@@ -4697,9 +4706,9 @@ def pickem_tab(M, date, games, injuries, b2b):
             st.dataframe(pd.DataFrame(by).sort_values("Date", ascending=False), hide_index=True, use_container_width=True)
             with st.expander("Every finished pick"):
                 tbl = done.assign(**{"Game": done["away"].map(short) + " @ " + done["home"].map(short), "Final (away-home)": done["score"],
-                                     "Winner": done["winner"].map(short), "You": done["my_pick"].map(lambda x: short(x) if x else "") + done["me_ok"].map({True: " ✅", False: " ❌"}).fillna(""),
-                                     "Book": done["book_pick"].map(lambda x: short(x) if x else "-") + done["book_ok"].map({True: " ✅", False: " ❌"}).fillna(""),
-                                     "Model": done["model_pick"].map(lambda x: short(x) if x else "-") + done["model_ok"].map({True: " ✅", False: " ❌"}).fillna("")})
+                                     "Winner": done["winner"].map(short), "You": done["my_pick"].map(lambda x: short_pk(x) if x else "") + done["me_ok"].map({True: " ✅", False: " ❌"}).fillna(""),
+                                     "Book": done["book_pick"].map(lambda x: short_pk(x) if x else "-") + done["book_ok"].map({True: " ✅", False: " ❌"}).fillna(""),
+                                     "Model": done["model_pick"].map(lambda x: short_pk(x) if x else "-") + done["model_ok"].map({True: " ✅", False: " ❌"}).fillna("")})
                 st.dataframe(tbl[["date", "Game", "Final (away-home)", "Winner", "You", "Book", "Model"]].rename(columns={"date": "Date"}).sort_values("Date", ascending=False),
                              hide_index=True, use_container_width=True)
 

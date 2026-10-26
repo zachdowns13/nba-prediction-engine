@@ -6177,7 +6177,8 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
             except Exception:
                 tipstr = ""
             st.session_state[key] = {"res": res, "fb": fb, "tip": tipstr, "inj": ", ".join(n for _, n in outs[:4])}
-    c2.link_button("Open my X profile", f"https://x.com/{handle}", use_container_width=True) if hasattr(st, "link_button") else None
+    with c2:
+        _link("Open my X profile", f"https://x.com/{handle}")
     d = st.session_state.get(key)
     if not d:
         st.info("Press Generate to build the post for the selected game.")

@@ -6641,6 +6641,23 @@ except TypeError:
     _css_slot = st.container()
 with _css_slot:
     st.markdown(POLISH_CSS, unsafe_allow_html=True)
+    st.markdown("""<style>
+@media (max-width:640px){
+  /* Add a bet on a phone: the Book box lines up with Legs below it */
+  [class*="st-key-bet_"][class*="_book"]:not(.st-key-bet_book):not(.st-key-bet_book_c){margin-left:0 !important;width:100% !important}
+  /* Leg type buttons wrap into two rows instead of spilling out of their boxes */
+  [class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"],[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"]>div{flex-wrap:wrap !important;gap:.4rem !important}
+  [class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button{flex:1 1 calc(33.333% - .4rem) !important;min-width:calc(33.333% - .4rem) !important;height:2.5rem}
+  /* Player on its own row, Stat + Line side by side, Over/Under full width underneath */
+  [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]:has(>[data-testid="stColumn"]:nth-child(4)){flex-wrap:wrap !important;gap:.6rem !important}
+  [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]:has(>[data-testid="stColumn"]:nth-child(4))>[data-testid="stColumn"]:first-child,
+  [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]:has(>[data-testid="stColumn"]:nth-child(4))>[data-testid="stColumn"]:nth-child(4){flex:0 0 100% !important;width:100% !important;min-width:100% !important}
+  [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]:has(>[data-testid="stColumn"]:nth-child(4))>[data-testid="stColumn"]:nth-child(2),
+  [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]:has(>[data-testid="stColumn"]:nth-child(4))>[data-testid="stColumn"]:nth-child(3){flex:0 0 calc(50% - .3rem) !important;width:calc(50% - .3rem) !important;min-width:0 !important}
+  [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]:has(>[data-testid="stColumn"]:nth-child(4))>[data-testid="stColumn"]:nth-child(3) [data-testid="stElementContainer"]{width:100% !important;max-width:100% !important}
+  [class*="_sidewrap"]{top:0 !important}
+}
+</style>""", unsafe_allow_html=True)
 PAGE_INFO = {NAV[0]: ("Game odds", "Simulate one matchup 10,000 times and compare every price with the model."),
              NAV[1]: ("Full slate", "Every game on the date, ranked by where the model sees the most value."),
              NAV[2]: ("Player props", "Projected stat lines for each player, checked against the book's number."),

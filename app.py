@@ -5899,6 +5899,10 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
             dy = day_all[day_all["result"].isin(["W", "L", "P"])]
 
             sym = {"W": "✅", "L": "❌", "P": "➖"}
+            try:
+                _gorder = [str(x) for x in tip_sorted(log[log["date"].astype(str).str[:10] == ry].drop_duplicates("event_id"))["event_id"]]
+            except Exception:
+                _gorder = []
 
             def _rc(label, d_, a_, big=False):
                 pr = pd.to_numeric(d_["profit"], errors="coerce").fillna(0).sum()
@@ -5909,8 +5913,13 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
                 cls = "hm-rc" + (" big" if big else "")
                 if not len(a_):
                     return f'<div class="{cls}">{head}</div>'
-                lines = "".join(f'<div class="hm-pkr"><span>{sym.get(r["result"], "⏳")}</span><span>{H(pick_label(r))}</span></div>'
-                                for _, r in tip_sorted(a_).iterrows())
+                # one row per game, in tip-off order, so the same game lines up across the three columns (blank = no play)
+                _byg = {str(r["event_id"]): r for _, r in a_.iterrows()}
+                _order = _gorder if (_gorder and not big) else list(_byg)
+                lines = "".join(
+                    (f'<div class="hm-pkr"><span>{sym.get(_byg[e]["result"], "⏳")}</span><span>{H(pick_label(_byg[e]))}</span></div>'
+                     if e in _byg else '<div class="hm-pkr" style="visibility:hidden"><span>⏳</span><span>&nbsp;</span></div>')
+                    for e in _order)
                 if big:                                   # the main card has no list of its own: it opens or closes the three below
                     return f'<details class="{cls} hm-dd hm-ov"><summary>{head}<span class="hm-chev">Show all picks</span></summary></details>'
                 return (f'<details class="{cls} hm-dd"><summary>{head}<span class="hm-chev">Show picks</span></summary>'

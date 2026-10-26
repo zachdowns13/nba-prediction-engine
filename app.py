@@ -2026,7 +2026,7 @@ def picks_table(df):
     return pd.DataFrame(out)
 
 
-COINFLIP_MIN = 0.52
+COINFLIP_MIN = 0.505
 
 
 def add_pick_flag(df):

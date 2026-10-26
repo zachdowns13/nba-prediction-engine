@@ -2491,6 +2491,31 @@ def game_results_view():
             save_wide(empty_wide())
             st.success("Log erased.")
 
+    with st.expander("🧹 Start fresh (new record from today)"):
+        st.caption("Wipes YOUR model-pick record, locks and Pick'em record so everything starts from today. Your bets are not touched. "
+                   "A backup copy of each file is saved first, and you can restore from a download above if you change your mind.")
+        _ok = st.checkbox("Yes, wipe my model picks and Pick'em record and start from today", key="fresh_ok")
+        if st.button("🧹 Start fresh now", key="fresh_go", disabled=not _ok):
+            import shutil
+            _ts = local_now().strftime("%Y%m%d_%H%M%S")
+            for _n in ("picks_log.csv", "pickem_log.csv", "pickem_fb_log.csv", "locked_picks.txt"):
+                _p = upath(_n)
+                if os.path.exists(_p):
+                    try:
+                        _b = upath(f"backup_{_ts}_{_n}")
+                        shutil.copyfile(_p, _b)
+                        cloud_save(_b)
+                    except Exception:
+                        pass
+            save_wide(empty_wide())
+            save_pickem(pd.DataFrame(columns=PICKEM_COLS))
+            save_pickfb(pd.DataFrame(columns=PICKFB_COLS))
+            set_locked(set())
+            set_value_cutoff(local_now().date().isoformat())
+            for _k in ("log_df", "pickem_df", "pickfb_df"):
+                st.session_state.pop(_k, None)
+            st.success("Done. Your model-pick and Pick'em records are reset to 0-0 as of today. Reload the page to see it everywhere.")
+
 
 # =====================================================================
 # PLAYER PROP RESULTS

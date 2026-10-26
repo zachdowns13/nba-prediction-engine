@@ -1649,8 +1649,8 @@ def props_tab(M, g, odds, injuries, date, b2b):
 import base64 as _b64
 import threading as _th
 
-_DATA_FILES = ["picks_log.csv", "closing_log.csv", "locked_picks.txt", "users/_users.json"]    # shared by everyone
-PERSONAL_FILES = ["bets_log.csv", "bets_trash.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv", "pickem_fb_log.csv"]  # one copy per profile
+_DATA_FILES = ["closing_log.csv", "users/_users.json"]    # shared by everyone
+PERSONAL_FILES = ["picks_log.csv", "locked_picks.txt", "bets_log.csv", "bets_trash.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv", "pickem_fb_log.csv"]  # one copy per profile
 @st.cache_resource
 def _gh_state():
     # Kept for the life of the app. Defined directly in the script it would be rebuilt on every click, which made the backup
@@ -1835,7 +1835,7 @@ def wide_from_long(df):
 
 def load_wide():
     try:
-        df = pd.read_csv(LOG_PATH, dtype={"event_id": str, "key": str})
+        df = pd.read_csv(upath(LOG_PATH), dtype={"event_id": str, "key": str})
     except Exception:
         return st.session_state.get("log_df", empty_wide())
     if "side_role" in df.columns:               # saved by the older version: convert it, keeping a backup copy
@@ -1852,8 +1852,8 @@ def load_wide():
 def save_wide(df):
     st.session_state["log_df"] = df
     try:
-        df.to_csv(LOG_PATH, index=False)
-        cloud_save(LOG_PATH)
+        df.to_csv(upath(LOG_PATH), index=False)
+        cloud_save(upath(LOG_PATH))
         return True
     except Exception:
         return False
@@ -1883,7 +1883,7 @@ LOCK_PATH = "locked_picks.txt"
 
 def get_locked():
     try:
-        return {l.strip() for l in open(LOCK_PATH).read().splitlines() if l.strip()}
+        return {l.strip() for l in open(upath(LOCK_PATH)).read().splitlines() if l.strip()}
     except Exception:
         return set(st.session_state.get("locked_keys", set()))
 
@@ -1892,9 +1892,9 @@ def set_locked(keys):
     keys = set(keys)
     st.session_state["locked_keys"] = keys
     try:
-        with open(LOCK_PATH, "w") as f:
+        with open(upath(LOCK_PATH), "w") as f:
             f.write("\n".join(sorted(keys)))
-        cloud_save(LOCK_PATH)
+        cloud_save(upath(LOCK_PATH))
     except Exception:
         pass
 
@@ -6074,6 +6074,11 @@ def _claim_existing_data(u):
 def _sign_in(u, users):
     st.session_state["user"] = u
     st.session_state["user_name"] = users[u].get("name", u)
+    if u == next(iter(users)):                  # the first profile (the owner) inherits anything saved before profiles existed
+        try:
+            _claim_existing_data(u)
+        except Exception:
+            pass
     _restore_user_files(u)
     try:
         st.query_params["u"] = u

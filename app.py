@@ -6313,9 +6313,9 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
     png = st.session_state.get(gk)
     if png:
         st.markdown("**1. Your graphic**")
-        st.image(png, use_container_width=True)
+        st.image(png, width=560)
         st.download_button("⬇️ Download graphic (PNG)", png, file_name=f"{short(g['away'])}_at_{short(g['home'])}.png".lower(), mime="image/png",
-                           use_container_width=True, key=f"xdl_{key}")
+                           key=f"xdl_{key}")
         st.markdown("**2. Your post** (open it in X, then attach the downloaded graphic)")
     texts = x_post_texts(d["res"], d["fb"], g, d["tip"], d["inj"], mode, opts, handle)
     import urllib.parse as _up

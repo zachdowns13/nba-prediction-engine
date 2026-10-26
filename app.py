@@ -6729,7 +6729,8 @@ _pi = PAGE_INFO.get(nav)
 if _pi:
     html(f'<div class="pro-page"><div class="pro-page-t">{H(_pi[0])}</div><div class="pro-page-s">{H(_pi[1])}</div></div>')
 if private_ok:
-    html(f'<div class="ub-bar"><span>👤 Signed in as <b>{H(st.session_state.get("user_name", ""))}</b></span>'
+    _ub_style = " style='margin-top:1.9rem'" if nav == HOME_NAV else ""
+    html(f'<div class="ub-bar"{_ub_style}><span>👤 Signed in as <b>{H(st.session_state.get("user_name", ""))}</b></span>'
          '<a href="?so=1" target="_self">Sign out</a></div>')
 record_closing(date, games)
 record_closing(date - dt.timedelta(days=1), prev_games if "prev_games" in globals() else [])

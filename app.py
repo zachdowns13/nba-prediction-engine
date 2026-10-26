@@ -6970,7 +6970,7 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 .nb-big,.nb-tile .v,.nb-score .p,.nb-brow .pr,.nb-lb .v,[data-testid="stMetricValue"],[data-testid="stDataFrame"]{ font-variant-numeric:tabular-nums; }
 
 /* Header */
-.pro-hero{ position:relative; overflow:hidden; border-radius:18px; padding:.8rem 1.15rem; margin:0 0 .95rem;
+.pro-hero{ position:relative; overflow:hidden; border-radius:18px; padding:.8rem 1.15rem; margin:0 0 -.3rem;
   background:radial-gradient(520px 240px at 92% -30%, rgba(129,140,248,.55), transparent 70%),
              linear-gradient(130deg,#060a14 0%,#0d1a3d 55%,#1b44b8 130%);
   border:1px solid rgba(148,163,184,.2); box-shadow:0 24px 60px rgba(2,6,23,.5); color:#fff; }

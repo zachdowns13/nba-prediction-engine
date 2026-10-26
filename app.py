@@ -6693,7 +6693,7 @@ POLISH_CSS = """
 with _css_slot:
     st.markdown(POLISH_CSS, unsafe_allow_html=True)
     st.markdown("""<style>
-.ub-bar{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:.3rem 0 1.1rem;padding:.5rem .9rem;border-radius:12px;
+.ub-bar{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:.3rem 0 .1rem;padding:.5rem .9rem;border-radius:12px;
   border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.07);font-size:.84rem}
 .ub-bar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
 .ub-bar a{flex:none;padding:.18rem .7rem;border-radius:9px;border:1px solid rgba(148,163,184,.35);text-decoration:none !important;color:inherit !important;font-weight:600;font-size:.78rem}
@@ -6729,7 +6729,7 @@ _pi = PAGE_INFO.get(nav)
 if _pi:
     html(f'<div class="pro-page"><div class="pro-page-t">{H(_pi[0])}</div><div class="pro-page-s">{H(_pi[1])}</div></div>')
 if private_ok:
-    _ub_style = " style='margin-top:1.9rem'" if nav == HOME_NAV else ""
+    _ub_style = " style='margin-top:.5rem'" if nav == HOME_NAV else ""
     html(f'<div class="ub-bar"{_ub_style}><span>👤 Signed in as <b>{H(st.session_state.get("user_name", ""))}</b></span>'
          '<a href="?so=1" target="_self">Sign out</a></div>')
 record_closing(date, games)

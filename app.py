@@ -6099,6 +6099,116 @@ def _link(label, url):
         st.markdown(f"[{label}]({url})")
 
 
+def _gfont(size, bold=True):
+    from PIL import ImageFont
+    names = (["DejaVuSans-Bold.ttf", "LiberationSans-Bold.ttf", "Arial Bold.ttf", "Arial.ttf"] if bold
+             else ["DejaVuSans.ttf", "LiberationSans-Regular.ttf", "Arial.ttf"])
+    for n in names:
+        try:
+            return ImageFont.truetype(n, size)
+        except Exception:
+            continue
+    try:
+        return ImageFont.load_default(size)
+    except TypeError:
+        return ImageFont.load_default()
+
+
+def _fit(draw, text, maxw, size, bold=True, lo=16):
+    while size > lo:
+        f = _gfont(size, bold)
+        if draw.textlength(text, font=f) <= maxw:
+            return f
+        size -= 2
+    return _gfont(lo, bold)
+
+
+def _logo_img(url, px):
+    from PIL import Image
+    import io
+    try:
+        r = requests.get(url, timeout=5)
+        im = Image.open(io.BytesIO(r.content)).convert("RGBA")
+        im.thumbnail((px, px))
+        return im
+    except Exception:
+        return None
+
+
+def x_graphic(res, fb, g, tipstr, handle):
+    # A 1200x675 picture of the model's numbers for one game, ready to attach to the post.
+    from PIL import Image, ImageDraw
+    import io
+    W, Hh = 1200, 675
+    yy, xx = np.mgrid[0:Hh, 0:W]
+    t = np.clip(xx / W * 0.5 + yy / Hh * 0.5, 0, 1)[..., None]
+    c0, c1, c2 = np.array([6, 10, 20.]), np.array([13, 26, 61.]), np.array([22, 52, 143.])
+    base = np.where(t < 0.55, c0 + (c1 - c0) * (t / 0.55), c1 + (c2 - c1) * ((t - 0.55) / 0.45))
+    og = np.clip(1 - np.sqrt((xx / 750.) ** 2 + ((yy - Hh) / 520.) ** 2), 0, 1) ** 2 * 0.5
+    bg = np.clip(1 - np.sqrt(((xx - W) / 700.) ** 2 + (yy / 420.) ** 2), 0, 1) ** 2 * 0.5
+    base = base * (1 - og[..., None]) + np.array([249, 115, 22.]) * og[..., None]
+    base = base * (1 - bg[..., None]) + np.array([96, 165, 250.]) * bg[..., None]
+    im = Image.fromarray(base.astype("uint8")).convert("RGBA")
+    ov = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    od = ImageDraw.Draw(ov)
+    home, away = g["home"], g["away"]
+    H_, A_ = short_pk(home), short_pk(away)
+    # cards first (translucent), then everything else on top
+    cw, gap, x0, cy0, cy1 = 261, 20, 48, 345, 585
+    for i in range(4):
+        x = x0 + i * (cw + gap)
+        od.rounded_rectangle([x, cy0, x + cw, cy1], 22, fill=(255, 255, 255, 26), outline=(255, 255, 255, 60), width=2)
+    im = Image.alpha_composite(im, ov)
+    d = ImageDraw.Draw(im)
+    d.text((48, 36), "NBA PREDICTION ENGINE", font=_gfont(24), fill=(203, 213, 225))
+    hd = "@" + handle if handle else ""
+    d.text((W - 48, 36), hd, font=_gfont(24), fill=(147, 197, 253), anchor="ra")
+    # matchup
+    for cx, team, url in ((230, away, g.get("away_logo")), (970, home, g.get("home_logo"))):
+        lg = _logo_img(url, 140) if url else None
+        if lg is not None:
+            im.alpha_composite(lg, (cx - lg.width // 2, 92 + (140 - lg.height) // 2))
+        else:
+            d.ellipse([cx - 62, 100, cx + 62, 224], outline=(255, 255, 255), width=4)
+            d.text((cx, 162), short(team)[:3].upper(), font=_gfont(40), fill=(255, 255, 255), anchor="mm")
+        d.text((cx, 262), short_pk(team), font=_fit(d, short_pk(team), 330, 40), fill=(255, 255, 255), anchor="mm")
+    hp, ap = res["hp"], res["ap"]
+    d.text((600, 92), "PROJECTED SCORE", font=_gfont(20), fill=(148, 163, 184), anchor="mm")
+    d.text((600, 160), f"{ap:.0f} - {hp:.0f}", font=_gfont(92), fill=(255, 255, 255), anchor="mm")
+    d.text((600, 232), f"{A_} @ {H_}" + (f"  |  {tipstr}" if tipstr else ""), font=_gfont(24), fill=(203, 213, 225), anchor="mm")
+    # four prediction cards
+    rows = res["rows"]
+
+    def best(mk):
+        pair = [r for r in rows if r["market"] == mk]
+        return max(pair, key=lambda r: r["model_p"]) if len(pair) == 2 else None
+    ml, sp, to = best("Moneyline"), best("Spread"), best("Total")
+    cards = []
+    cards.append(("MONEYLINE", short_pk(ml["side"]) if ml else "n/a", f"{ml['model_p'] * 100:.0f}% win  {_am(ml['book_odds'])}" if ml else "no line yet", ml["model_p"] if ml else None))
+    cards.append(("SPREAD", f"{short_pk(sp['side'])} {sp['line']}" if sp else "n/a", f"model {sp['model_p'] * 100:.0f}%" if sp else "no line yet", sp["model_p"] if sp else None))
+    cards.append(("TOTAL", f"{to['side']} {to['line']}" if to else "n/a", f"projected {res['med_t']:.0f}" if to else "no line yet", to["model_p"] if to else None))
+    if fb:
+        r0 = fb["T"].iloc[0]
+        nm = str(r0["Player"]).split()
+        nm = (nm[0][0] + ". " + " ".join(nm[1:])) if len(nm) > 1 else str(r0["Player"])
+        cards.append(("FIRST BASKET", nm, f"{r0['prob'] * 100:.0f}%  {r0['Team']}", None))
+    else:
+        cards.append(("FIRST BASKET", "n/a", "lineups not set", None))
+    tcol = {"coin flip": (245, 158, 11), "lean": (148, 163, 184), "confident": (34, 197, 94)}
+    for i, (lab, big, sub, p) in enumerate(cards):
+        x = x0 + i * (cw + gap)
+        d.text((x + 24, cy0 + 26), lab, font=_gfont(20), fill=(148, 163, 184))
+        d.text((x + 24, cy0 + 100), big, font=_fit(d, big, cw - 48, 42), fill=(255, 255, 255), anchor="lm")
+        d.text((x + 24, cy0 + 150), sub, font=_fit(d, sub, cw - 48, 24, False), fill=(203, 213, 225), anchor="lm")
+        if p is not None:
+            tr = conf_tier(p)
+            d.text((x + 24, cy0 + 200), tr.upper(), font=_gfont(20), fill=tcol.get(tr, (148, 163, 184)), anchor="lm")
+    d.text((600, 628), "10,000 simulations  |  every pick tracked in units  |  entertainment only", font=_gfont(20, False), fill=(148, 163, 184), anchor="mm")
+    buf = io.BytesIO()
+    im.convert("RGB").save(buf, "PNG")
+    return buf.getvalue()
+
+
 def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle):
     # Build the post (or the two parts of a thread) from the saved simulation. Returns a list of strings.
     short = short_pk                       # T-Wolves and Cavs, like the Pick'em screen
@@ -6137,10 +6247,11 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle):
     inj_line = f"🚑 Key outs: {inj_txt}" if (opts["inj"] and inj_txt) else ""
     tag = f"\nFull record tracked in units 📊 @{handle}" if opts["tag"] else ""
     if mode == "short":
-        head = f"🏀 {A_} @ {H_} · {tipstr}" if tipstr else f"🏀 {A_} @ {H_}"
+        head = f"🏀 Betting on the {A_} @ {H_} game {when}?\nI simulated it 10,000 times 👇"
         body = "\n".join(lines_core + ([fb_line] if fb_line else []))
-        return [f"{head}\n{body}{tag}".strip()]
-    head = f"🏀 Betting {A_} vs {H_} {when}? Here's the model's cheat sheet 👇" + (f"\n⏰ {tipstr}" if tipstr else "")
+        return [f"{head}\n\n{body}{tag}".strip()]
+    head = (f"🏀 Betting on the {A_} @ {H_} game {when}?\n\nI built a model that simulated this game 10,000 times. Here's what it says 👇"
+            + (f"\n⏰ Tip: {tipstr}" if tipstr else ""))
     if mode == "thread":
         p1 = head + "\n\n" + "\n".join(lines_core)
         p2 = "\n".join(x for x in (fb_line, tip_line, inj_line) if x) + ("\n\nModel picks, tracked in units. Entertainment only." if opts["tag"] else "")
@@ -6176,6 +6287,8 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
                         tipstr = pd.Timestamp(x["start"]).tz_convert(LOCAL_TZ if "LOCAL_TZ" in globals() else "America/Los_Angeles").strftime("%-I:%M %p")
             except Exception:
                 tipstr = ""
+            for _k in [k_ for k_ in st.session_state if str(k_).startswith(f"xg_{key}")]:
+                del st.session_state[_k]
             st.session_state[key] = {"res": res, "fb": fb, "tip": tipstr, "inj": ", ".join(n for _, n in outs[:4])}
     with c2:
         _link("Open my X profile", f"https://x.com/{handle}")
@@ -6190,6 +6303,20 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
     o1, o2, o3, o4 = st.columns(4)
     opts = {"score": o1.checkbox("Projected score", True, key="x_o_score"), "fb": o2.checkbox("First basket", True, key="x_o_fb"),
             "inj": o3.checkbox("Key injuries", True, key="x_o_inj"), "tag": o4.checkbox("Sign-off", True, key="x_o_tag")}
+    gk = f"xg_{key}_{handle}"
+    if gk not in st.session_state:
+        try:
+            st.session_state[gk] = x_graphic(d["res"], d["fb"], g, d["tip"], handle)
+        except Exception as e:
+            st.session_state[gk] = None
+            st.warning(f"Couldn't draw the graphic ({e}). The text still works.")
+    png = st.session_state.get(gk)
+    if png:
+        st.markdown("**1. Your graphic**")
+        st.image(png, use_container_width=True)
+        st.download_button("⬇️ Download graphic (PNG)", png, file_name=f"{short(g['away'])}_at_{short(g['home'])}.png".lower(), mime="image/png",
+                           use_container_width=True, key=f"xdl_{key}")
+        st.markdown("**2. Your post** (open it in X, then attach the downloaded graphic)")
     texts = x_post_texts(d["res"], d["fb"], g, d["tip"], d["inj"], mode, opts, handle)
     import urllib.parse as _up
     for i, tx in enumerate(texts):

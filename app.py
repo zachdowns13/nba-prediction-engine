@@ -1650,7 +1650,7 @@ import base64 as _b64
 import threading as _th
 
 _DATA_FILES = ["closing_log.csv", "users/_users.json"]    # shared by everyone
-PERSONAL_FILES = ["picks_log.csv", "locked_picks.txt", "bets_log.csv", "bets_trash.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv", "pickem_fb_log.csv"]  # one copy per profile
+PERSONAL_FILES = ["picks_log.csv", "locked_picks.txt", "bets_log.csv", "bets_trash.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv", "pickem_fb_log.csv", "x_handle.txt"]  # one copy per profile
 @st.cache_resource
 def _gh_state():
     # Kept for the life of the app. Defined directly in the script it would be rebuilt on every click, which made the backup
@@ -3981,7 +3981,7 @@ def record_list_html(rows):
 
 # ---- icons: Material icons in place of emoji in menus and headings ----
 ICON_BY_TEXT = {"Home": "home", "Game odds": "monitoring", "Full slate": "format_list_bulleted", "Player props": "person", "First basket": "sports_basketball",
-                "Results": "bar_chart", "My bets": "receipt_long", "Pick'em": "emoji_events", "Edge tools": "calculate",
+                "Results": "bar_chart", "My bets": "receipt_long", "Pick'em": "emoji_events", "Edge tools": "calculate", "X post": "campaign",
                 "Kelly stakes": "payments", "CLV tracker": "show_chart", "Model accuracy": "target", "Discord post": "campaign",
                 "Today": "today", "Yesterday": "history", "Week": "date_range", "All time": "calendar_month", "Selected date": "event", "Add a bet": "add_circle",
                 "Open bets": "hourglass_empty", "Make picks": "touch_app", "Scoreboard": "leaderboard", "Sign in": "lock",
@@ -6018,7 +6018,191 @@ def home_tab(date, M=None, games=None, injuries=None, b2b=None, private=False):
 
 
 
-NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "🏆 Pick'em", "🧮 Edge tools"]
+# =====================================================================
+# X POST: a ready-to-post cheat sheet for one game
+# =====================================================================
+X_HANDLE_PATH = "x_handle.txt"
+
+
+def x_handle_get():
+    try:
+        h = open(upath(X_HANDLE_PATH)).read().strip()
+    except Exception:
+        h = ""
+    return h or "SimTheSlate"
+
+
+def x_handle_set(h):
+    try:
+        open(upath(X_HANDLE_PATH), "w").write(h)
+        cloud_save(upath(X_HANDLE_PATH))
+    except Exception:
+        pass
+
+
+def fb_auto(M, g, injuries, now):
+    # The first-basket simulation with automatic lineups (most likely starters, healthy players only), for the X post.
+    home, away = g["home"], g["away"]
+    try:
+        evs = {t: recent_events(M["hist"], t, now.toordinal(), FB_HISTORY_GAMES) for t in (home, away)}
+        boxes = load_boxes(tuple(sorted(set(evs[home]) | set(evs[away]))))
+        if not any(boxes.values()):
+            return None
+        tip_evs = {t: recent_events(M["hist"], t, now.toordinal(), TIP_SCAN_GAMES) for t in (home, away)}
+        tip_all = tuple(sorted(set(tip_evs[home]) | set(tip_evs[away])))
+        tboxes = load_boxes(tip_all)
+        fives, chosen = [], {}
+        _cs0 = dt.date(M["season"] - 1, 9, 1).toordinal()
+        for team, tid in ((home, g.get("home_id")), (away, g.get("away_id"))):
+            _cur = {e for (o, e) in M["hist"].get(team, []) if o >= _cs0}
+            _evt = [e for e in evs[team] if e in _cur] or evs[team]
+            agg = team_profile(_evt, boxes, team)
+            roster = set(get_roster(tid))
+            if roster:
+                agg = {k: a for k, a in agg.items() if k in roster}
+            out_names = {r["player"].lower() for r in injuries.get(team, []) if r["status"].lower() in ("out", "doubtful")}
+            ranked = sorted(agg.items(), key=lambda kv: (-kv[1]["wstarts"], -kv[1]["min"]))
+            names = [kv[1]["name"] for kv in ranked if kv[1]["name"].lower() not in out_names][:5]
+            if len(names) < 5:
+                return None
+            by_name = {a["name"]: (aid, a) for aid, a in agg.items()}
+            fives.append([player_params(by_name[nm][0], nm, by_name[nm][1]) for nm in names])
+            chosen[team] = set(names)
+        jump = {}
+        for team in (home, away):
+            _cur = {e for (o, e) in M["hist"].get(team, []) if o >= _cs0}
+            _tcur = [e for e in tip_evs[team] if e in _cur]
+            jump[team] = usual_jumper(tboxes, _tcur, team, chosen[team]) or usual_jumper(tboxes, tip_evs[team][-TIP_GAMES:], team, chosen[team])
+        tipm = tip_model(tboxes, tip_all, jump[home], jump[away])
+        first_off, winner, scorer, done = simulate_first_basket(fives[0], fives[1], SIMS, tipm["p_home"])
+        rows = []
+        for t, (team, five) in enumerate(((home, fives[0]), (away, fives[1]))):
+            for i, p in enumerate(five):
+                rows.append({"Player": p["name"], "Team": short(team), "prob": float(np.mean((winner == t) & (scorer == i)))})
+        T = pd.DataFrame(rows).sort_values("prob", ascending=False).reset_index(drop=True)
+        return {"T": T, "home_first": float(np.mean(winner[done] == 0)), "tip": tipm}
+    except Exception:
+        return None
+
+
+def _am(x):
+    try:
+        return f"{int(round(float(x))):+d}"
+    except Exception:
+        return ""
+
+
+def _link(label, url):
+    try:
+        st.link_button(label, url, use_container_width=True)
+    except Exception:
+        st.markdown(f"[{label}]({url})")
+
+
+def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle):
+    # Build the post (or the two parts of a thread) from the saved simulation. Returns a list of strings.
+    short = short_pk                       # T-Wolves and Cavs, like the Pick'em screen
+    home, away, o = g["home"], g["away"], res["odds"]
+    H_, A_ = short(home), short(away)
+    hp, ap = res["hp"], res["ap"]
+    rows = res["rows"]
+
+    def best(mk):
+        pair = [r for r in rows if r["market"] == mk]
+        return max(pair, key=lambda r: r["model_p"]) if len(pair) == 2 else None
+    ml, sp, to = best("Moneyline"), best("Spread"), best("Total")
+    when = "tonight" if (tipstr and ("PM" in tipstr) and int(tipstr.split(":")[0]) in (5, 6, 7, 8, 9, 10, 11)) else "today"
+    lines_core = []
+    if opts["score"]:
+        lines_core.append(f"🔮 Score: {A_} {ap:.0f}, {H_} {hp:.0f}")
+    if ml:
+        lines_core.append(f"💰 ML: {short(ml['side'])} {ml['model_p'] * 100:.0f}%" + (f" ({_am(ml['book_odds'])})" if mode != "short" else ""))
+    if sp:
+        lines_core.append(f"📏 Spread: {short(sp['side'])} {sp['line']}" + (f" ({sp['model_p'] * 100:.0f}%)" if mode != "short" else ""))
+    if to:
+        lines_core.append(f"📊 Total: {to['side']} {to['line']}" + (f" (proj {res['med_t']:.0f})" if mode != "short" else ""))
+    fb_line = ""
+    if opts["fb"] and fb:
+        T = fb["T"]
+        if mode == "short":
+            fb_line = f"🎯 First basket: {T.iloc[0]['Player']} ({T.iloc[0]['prob'] * 100:.0f}%)"
+        else:
+            top = ", ".join(f"{r.Player} {r.prob * 100:.0f}%" for r in T.head(3).itertuples())
+            fb_line = f"🎯 First basket: {top}"
+    tip_line = ""
+    if opts["fb"] and fb and mode != "short":
+        tp = fb.get("tip") or {}
+        if tp.get("p_home") is not None:
+            tip_line = f"🏀 Tip: {H_} win it {tp['p_home'] * 100:.0f}%"
+    inj_line = f"🚑 Key outs: {inj_txt}" if (opts["inj"] and inj_txt) else ""
+    tag = f"\nFull record tracked in units 📊 @{handle}" if opts["tag"] else ""
+    if mode == "short":
+        head = f"🏀 {A_} @ {H_} · {tipstr}" if tipstr else f"🏀 {A_} @ {H_}"
+        body = "\n".join(lines_core + ([fb_line] if fb_line else []))
+        return [f"{head}\n{body}{tag}".strip()]
+    head = f"🏀 Betting {A_} vs {H_} {when}? Here's the model's cheat sheet 👇" + (f"\n⏰ {tipstr}" if tipstr else "")
+    if mode == "thread":
+        p1 = head + "\n\n" + "\n".join(lines_core)
+        p2 = "\n".join(x for x in (fb_line, tip_line, inj_line) if x) + ("\n\nModel picks, tracked in units. Entertainment only." if opts["tag"] else "")
+        return [p1.strip(), p2.strip()]
+    long_ = head + "\n\n" + "\n".join(lines_core + [x for x in (fb_line, tip_line, inj_line) if x])
+    return [(long_ + ("\n\nEvery pick posted pre-tip and tracked in units. Entertainment only." if opts["tag"] else "")).strip()]
+
+
+def x_post_tab(M, g, odds, injuries, date, b2b):
+    st.caption("Pick a game, generate the model's cheat sheet, tweak it if you like, then open it in X with the post already filled in.")
+    key = f"xres_{date.isoformat()}_{g['id']}"
+    handle = st.text_input("Your X handle", value=x_handle_get(), key="x_handle_in", help="Used in the post's sign-off and for the profile link.").strip().lstrip("@")
+    if handle and handle != x_handle_get():
+        x_handle_set(handle)
+    c1, c2 = st.columns(2)
+    if c1.button("✍️ Generate post for this game", type="primary", key=f"xgen_{g['id']}", use_container_width=True):
+        with st.spinner("Simulating the game and the first basket..."):
+            res = analyze_game(M, g, odds, team_injury_pts(M, g["home"], injuries, date), team_injury_pts(M, g["away"], injuries, date), b2b)
+            fb = fb_auto(M, g, injuries, date) if g.get("id") != "manual" else None
+            outs = []
+            for tm in (g["home"], g["away"]):
+                try:
+                    for r in injury_rows(tm, injuries, ratings_for(M, tm, date)):
+                        if str(r["Status"]).lower() in ("out", "doubtful") and (r["Min/game"] or 0) >= 20:
+                            outs.append((r["Min/game"], f"{r['Player']} ({short(tm)})"))
+                except Exception:
+                    pass
+            outs.sort(key=lambda t: -t[0])
+            tipstr = ""
+            try:
+                for x in home_scoreboard(date.isoformat()):
+                    if str(x["id"]) == str(g["id"]):
+                        tipstr = pd.Timestamp(x["start"]).tz_convert(LOCAL_TZ if "LOCAL_TZ" in globals() else "America/Los_Angeles").strftime("%-I:%M %p")
+            except Exception:
+                tipstr = ""
+            st.session_state[key] = {"res": res, "fb": fb, "tip": tipstr, "inj": ", ".join(n for _, n in outs[:4])}
+    c2.link_button("Open my X profile", f"https://x.com/{handle}", use_container_width=True) if hasattr(st, "link_button") else None
+    d = st.session_state.get(key)
+    if not d:
+        st.info("Press Generate to build the post for the selected game.")
+        return
+    if d["fb"] is None:
+        st.warning("First basket couldn't be built for this game (lineups or box scores aren't available yet), so it's left out.")
+    mode_lab = st.radio("Format", ["One short post", "Thread (2 posts)", "One long post (X Premium)"], horizontal=True, key="x_mode")
+    mode = {"One short post": "short", "Thread (2 posts)": "thread"}.get(mode_lab, "long")
+    o1, o2, o3, o4 = st.columns(4)
+    opts = {"score": o1.checkbox("Projected score", True, key="x_o_score"), "fb": o2.checkbox("First basket", True, key="x_o_fb"),
+            "inj": o3.checkbox("Key injuries", True, key="x_o_inj"), "tag": o4.checkbox("Sign-off", True, key="x_o_tag")}
+    texts = x_post_texts(d["res"], d["fb"], g, d["tip"], d["inj"], mode, opts, handle)
+    import urllib.parse as _up
+    for i, tx in enumerate(texts):
+        label = "Post" if len(texts) == 1 else (f"Post {i + 1} of {len(texts)}" + (" (post it first)" if i == 0 else " (reply to post 1)"))
+        edited = st.text_area(label, tx, height=230, key=f"x_ta_{mode}_{i}_{g['id']}")
+        n = len(edited)
+        lim = 280 if mode != "long" else 25000
+        st.caption(f"{n}/{lim if mode != 'long' else '280 free · 25,000 with Premium'} characters" + ("  ⚠️ too long for a free account, trim it or use a thread" if (n > 280 and mode != "long") else ""))
+        _link(f"🚀 Open in X: {label}", "https://x.com/intent/post?text=" + _up.quote(edited, safe=""))
+    st.caption("X opens with the text filled in. Add a screenshot (like the picks cards from Home) before you post. Not financial advice.")
+
+
+
+NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First basket", "📈 Results", "💵 My bets", "🏆 Pick'em", "🧮 Edge tools", "📣 X post"]
 LOCKED_NAV = "🔒 Private"
 
 
@@ -6320,7 +6504,7 @@ def tab_colors():
           const d = window.parent.document;
           if (d.__tabColors) return; d.__tabColors = true;
           const C = {'Home':'#38bdf8','Game odds':'#3b82f6','Full slate':'#a855f7','Player props':'#f59e0b','First basket':'#f97316',
-                     'Results':'#22c55e','My bets':'#14b8a6','Pick':'#ec4899','Edge tools':'#ef4444','Sign in':'#94a3b8'};
+                     'Results':'#22c55e','My bets':'#14b8a6','Pick':'#ec4899','Edge tools':'#ef4444','X post':'#e2e8f0','Sign in':'#94a3b8'};
           function rgba(h,a){const n=parseInt(h.slice(1),16);return 'rgba('+(n>>16)+','+((n>>8)&255)+','+(n&255)+','+a+')';}
           function paint(){
             d.querySelectorAll('.st-key-main_nav button').forEach(function(b){
@@ -6749,7 +6933,8 @@ PAGE_INFO = {NAV[0]: ("Game odds", "Simulate one matchup 10,000 times and compar
              NAV[4]: ("Results", "How the model's saved picks and value plays have actually done."),
              NAV[5]: ("My bets", "Log, track and settle your own bets, with live leg progress."),
              NAV[6]: ("Pick'em", "Pick the winners yourself and see how you stack up against the book and the model."),
-             NAV[7]: ("Edge tools", "Bet sizing, closing line value, model accuracy and ready-to-post picks.")}
+             NAV[7]: ("Edge tools", "Bet sizing, closing line value, model accuracy and ready-to-post picks."),
+             NAV[8]: ("X post", "Turn the model's numbers for one game into a ready-to-post cheat sheet.")}
 if private_ok:
     _ub_style = " style='margin-top:.5rem'" if nav == HOME_NAV else ""
     html(f'<div class="ub-bar"><span>👤 Signed in as <b>{H(st.session_state.get("user_name", ""))}</b></span>'
@@ -6847,6 +7032,10 @@ if nav == NAV[5] and private_ok:
 if nav == NAV[6] and private_ok:
     open_warning()
     pickem_tab(M, date, games, injuries, b2b_teams)
+
+if nav == NAV[8] and private_ok:
+    game_picker("xpost")
+    x_post_tab(M, g, odds, injuries, date, b2b_teams)
 
 if nav == NAV[7] and private_ok:
     open_warning()

@@ -6270,6 +6270,10 @@ st.markdown("""<style>
 [class*="st-key-subnav_"]{margin-top:.2rem}
 </style>""", unsafe_allow_html=True)
 try:
+    _css_slot = st.container(key="csslot")     # holds the style sheets and invisible helper scripts so they never add blank space
+except TypeError:
+    _css_slot = st.container()
+try:
     _nav_box = st.container(key="navbar")
 except TypeError:                                        # older Streamlit without container keys
     _nav_box = st.container()
@@ -6316,7 +6320,8 @@ def tab_colors():
         pass
 
 
-tab_colors()
+with _css_slot:
+    tab_colors()
 
 
 def mobile_fix():
@@ -6358,7 +6363,8 @@ def mobile_fix():
         pass
 
 
-mobile_fix()
+with _css_slot:
+    mobile_fix()
 
 
 def terms_help():
@@ -6490,7 +6496,8 @@ def dropdown_toggle_fix():
         pass
 
 
-dropdown_toggle_fix()
+with _css_slot:
+    dropdown_toggle_fix()
 
 
 # =====================================================================
@@ -6683,14 +6690,10 @@ POLISH_CSS = """
 
 # The late style sheets are written into a slot that sits in a fixed place near the top. If they were added at the very end of the page, they
 # shifted position from page to page and the styling dropped out for a moment while the page reloaded.
-try:
-    _css_slot = st.container(key="csslot")
-except TypeError:
-    _css_slot = st.container()
 with _css_slot:
     st.markdown(POLISH_CSS, unsafe_allow_html=True)
     st.markdown("""<style>
-.ub-bar{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:0;padding:.5rem .9rem;border-radius:12px;
+.ub-bar{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:.1rem 0 1.1rem;padding:.5rem .9rem;border-radius:12px;
   border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.07);font-size:.84rem}
 .ub-bar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
 .ub-bar a{flex:none;padding:.18rem .7rem;border-radius:9px;border:1px solid rgba(148,163,184,.35);text-decoration:none !important;color:inherit !important;font-weight:600;font-size:.78rem}
@@ -7068,7 +7071,7 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 [data-testid="stExpander"] summary{ font-weight:600; }
 [data-testid="stAlert"]{ border-radius:14px !important; }
 
-.st-key-csslot{ display:none; }
+.st-key-csslot{ position:absolute !important; width:0 !important; height:0 !important; overflow:hidden !important; margin:0 !important; padding:0 !important; opacity:0; pointer-events:none; }
 [class*="st-key-pkcard_"]{ padding:1.1rem 1.2rem 1.2rem !important; margin-bottom:.5rem; }
 [class*="st-key-pkcard_"] > [data-testid="stVerticalBlock"]{ gap:1rem !important; }
 [data-testid="stElementContainer"]:has(iframe[height="0"]){ position:absolute !important; width:0 !important; height:0 !important; margin:0 !important; padding:0 !important; overflow:hidden !important; }

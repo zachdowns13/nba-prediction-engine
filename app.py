@@ -2248,14 +2248,16 @@ def game_results_view():
     graded = log[log["result"].isin(["W", "L", "P"])].copy()
     for c in ("odds", "model_p", "book_p", "edge", "profit"):
         graded[c] = pd.to_numeric(graded[c])
-    _sub = sub_nav(["📅 Today", "🗓️ Week", "📊 All time", "🗓️ Selected date"], "results")
+    _sub = sub_nav(["📅 Today", "⏪ Yesterday", "🗓️ Week", "📊 All time", "🗓️ Selected date"], "results")
     if _sub == 0:
         model_period_view(log, graded, local_today().isoformat(), "today")
     if _sub == 1:
-        model_period_view(log, graded, None, "week", since=(local_today() - dt.timedelta(days=6)).isoformat())
+        model_period_view(log, graded, (local_today() - dt.timedelta(days=1)).isoformat(), "yday")
     if _sub == 2:
-        model_period_view(log, graded, None, "all")
+        model_period_view(log, graded, None, "week", since=(local_today() - dt.timedelta(days=6)).isoformat())
     if _sub == 3:
+        model_period_view(log, graded, None, "all")
+    if _sub == 4:
         model_period_view(log, graded, st.session_state["sel_date"].isoformat(), "sel")
 
 
@@ -3821,7 +3823,7 @@ def record_list_html(rows):
 ICON_BY_TEXT = {"Home": "home", "Game odds": "monitoring", "Full slate": "format_list_bulleted", "Player props": "person", "First basket": "sports_basketball",
                 "Results": "bar_chart", "My bets": "receipt_long", "Pick'em": "emoji_events", "Edge tools": "calculate",
                 "Kelly stakes": "payments", "CLV tracker": "show_chart", "Model accuracy": "target", "Discord post": "campaign",
-                "Today": "today", "All time": "calendar_month", "Selected date": "event", "Add a bet": "add_circle",
+                "Today": "today", "Yesterday": "history", "Week": "date_range", "All time": "calendar_month", "Selected date": "event", "Add a bet": "add_circle",
                 "Open bets": "hourglass_empty", "Make picks": "touch_app", "Scoreboard": "leaderboard", "Private": "lock",
                 "Manual matchup": "edit"}
 EMOJI_ICON = {"🏀": "sports_basketball", "💾": "save", "🔄": "refresh", "🔎": "search", "🔒": "lock", "🔥": "local_fire_department",

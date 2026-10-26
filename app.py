@@ -1649,7 +1649,8 @@ def props_tab(M, g, odds, injuries, date, b2b):
 import base64 as _b64
 import threading as _th
 
-_DATA_FILES = ["bets_log.csv", "bets_trash.csv", "picks_log.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv", "pickem_fb_log.csv", "closing_log.csv", "locked_picks.txt"]
+_DATA_FILES = ["picks_log.csv", "closing_log.csv", "locked_picks.txt", "users/_users.json"]    # shared by everyone
+PERSONAL_FILES = ["bets_log.csv", "bets_trash.csv", "props_log.csv", "value_reset.txt", "pickem_log.csv", "pickem_fb_log.csv"]  # one copy per profile
 @st.cache_resource
 def _gh_state():
     # Kept for the life of the app. Defined directly in the script it would be rebuilt on every click, which made the backup
@@ -1714,11 +1715,24 @@ def _gh_put(path):
 
 def cloud_save(path):
     # Copy a just-saved file to the data repo without making the app wait for it.
+    if "/_anon/" in path:
+        return
     if _gh_cfg():
         try:
             ThreadPoolExecutor(max_workers=1).submit(_gh_put, path)
         except Exception:
             pass
+
+
+def upath(name):
+    # Personal files live in users/<profile>/ so each person only sees their own bets, picks and Pick'em.
+    u = st.session_state.get("user") or "_anon"
+    p = f"users/{u}/{name}"
+    try:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+    except Exception:
+        pass
+    return p
 
 
 def _cloud_restore_once():
@@ -1730,6 +1744,7 @@ def _cloud_restore_once():
             if not os.path.exists(p):                              # wiped by a restart: bring it back
                 txt, _ = _gh_get(p)
                 if txt is not None:
+                    os.makedirs(os.path.dirname(p) or ".", exist_ok=True)
                     open(p, "w", encoding="utf-8", newline="").write(txt)
             else:                                                  # first time with backup on: copy what is here up
                 _txt, sha = _gh_get(p)
@@ -2185,7 +2200,7 @@ def value_cutoff():
     if v:
         return v
     try:
-        v = open(VALUE_RESET_PATH).read().strip()
+        v = open(upath(VALUE_RESET_PATH)).read().strip()
     except Exception:
         v = ""
     return v or VALUE_RESET_DEFAULT
@@ -2194,8 +2209,8 @@ def value_cutoff():
 def set_value_cutoff(day):
     st.session_state["value_reset"] = day
     try:
-        open(VALUE_RESET_PATH, "w").write(day)
-        cloud_save(VALUE_RESET_PATH)
+        open(upath(VALUE_RESET_PATH), "w").write(day)
+        cloud_save(upath(VALUE_RESET_PATH))
     except Exception:
         pass
 
@@ -2498,7 +2513,7 @@ def clean_props(df):
 
 def load_props():
     try:
-        return clean_props(pd.read_csv(PROP_LOG_PATH, dtype=str))
+        return clean_props(pd.read_csv(upath(PROP_LOG_PATH), dtype=str))
     except Exception:
         return st.session_state.get("props_df", clean_props(pd.DataFrame(columns=PROP_LOG_COLS)))
 
@@ -2506,8 +2521,8 @@ def load_props():
 def save_props(df):
     st.session_state["props_df"] = df
     try:
-        df.to_csv(PROP_LOG_PATH, index=False)
-        cloud_save(PROP_LOG_PATH)
+        df.to_csv(upath(PROP_LOG_PATH), index=False)
+        cloud_save(upath(PROP_LOG_PATH))
         return True
     except Exception:
         return False
@@ -2721,7 +2736,7 @@ def clean_bets(df):
 
 def load_bets():
     try:
-        return clean_bets(pd.read_csv(BET_LOG_PATH, dtype=str))
+        return clean_bets(pd.read_csv(upath(BET_LOG_PATH), dtype=str))
     except Exception:
         return st.session_state.get("bets_df", clean_bets(pd.DataFrame(columns=BET_COLS)))
 
@@ -2729,8 +2744,8 @@ def load_bets():
 def save_bets(df):
     st.session_state["bets_df"] = df
     try:
-        df.to_csv(BET_LOG_PATH, index=False)
-        cloud_save(BET_LOG_PATH)
+        df.to_csv(upath(BET_LOG_PATH), index=False)
+        cloud_save(upath(BET_LOG_PATH))
         return True
     except Exception:
         return False
@@ -2795,7 +2810,7 @@ def clean_trash(df):
 
 def load_trash():
     try:
-        tr = clean_trash(pd.read_csv(TRASH_PATH, dtype=str))
+        tr = clean_trash(pd.read_csv(upath(TRASH_PATH), dtype=str))
     except Exception:
         tr = st.session_state.get("trash_df", clean_trash(pd.DataFrame(columns=BET_COLS + ["deleted_at"])))
     cutoff = (local_now() - dt.timedelta(days=TRASH_DAYS)).strftime("%Y-%m-%d %H:%M")
@@ -2805,8 +2820,8 @@ def load_trash():
 def save_trash(tr):
     st.session_state["trash_df"] = tr
     try:
-        tr.to_csv(TRASH_PATH, index=False)
-        cloud_save(TRASH_PATH)
+        tr.to_csv(upath(TRASH_PATH), index=False)
+        cloud_save(upath(TRASH_PATH))
     except Exception:
         pass
 
@@ -3944,7 +3959,7 @@ ICON_BY_TEXT = {"Home": "home", "Game odds": "monitoring", "Full slate": "format
                 "Results": "bar_chart", "My bets": "receipt_long", "Pick'em": "emoji_events", "Edge tools": "calculate",
                 "Kelly stakes": "payments", "CLV tracker": "show_chart", "Model accuracy": "target", "Discord post": "campaign",
                 "Today": "today", "Yesterday": "history", "Week": "date_range", "All time": "calendar_month", "Selected date": "event", "Add a bet": "add_circle",
-                "Open bets": "hourglass_empty", "Make picks": "touch_app", "Scoreboard": "leaderboard", "Private": "lock",
+                "Open bets": "hourglass_empty", "Make picks": "touch_app", "Scoreboard": "leaderboard", "Sign in": "lock",
                 "Manual matchup": "edit"}
 EMOJI_ICON = {"🏀": "sports_basketball", "💾": "save", "🔄": "refresh", "🔎": "search", "🔒": "lock", "🔥": "local_fire_department",
               "🗑": "delete", "✏": "edit", "➕": "add", "🎯": "target", "📅": "calendar_month", "📋": "list_alt", "🩹": "healing",
@@ -4500,7 +4515,7 @@ PICKEM_COLS = ["date", "event_id", "away", "home", "my_pick", "book_pick", "book
 
 def load_pickem():
     try:
-        df = pd.read_csv(PICKEM_PATH, dtype=str)
+        df = pd.read_csv(upath(PICKEM_PATH), dtype=str)
     except Exception:
         df = st.session_state.get("pickem_df", pd.DataFrame(columns=PICKEM_COLS))
     return df.reindex(columns=PICKEM_COLS).fillna("").reset_index(drop=True)
@@ -4510,8 +4525,8 @@ def save_pickem(df):
     df = df.reindex(columns=PICKEM_COLS).fillna("").reset_index(drop=True)
     st.session_state["pickem_df"] = df
     try:
-        df.to_csv(PICKEM_PATH, index=False)
-        cloud_save(PICKEM_PATH)
+        df.to_csv(upath(PICKEM_PATH), index=False)
+        cloud_save(upath(PICKEM_PATH))
         return True
     except Exception:
         return False
@@ -4562,7 +4577,7 @@ PICKFB_COLS = ["date", "event_id", "away", "home", "my_pick", "model_pick", "mod
 
 def load_pickfb():
     try:
-        df = pd.read_csv(PICKFB_PATH, dtype=str)
+        df = pd.read_csv(upath(PICKFB_PATH), dtype=str)
     except Exception:
         df = st.session_state.get("pickfb_df", pd.DataFrame(columns=PICKFB_COLS))
     return df.reindex(columns=PICKFB_COLS).fillna("").reset_index(drop=True)
@@ -4572,8 +4587,8 @@ def save_pickfb(df):
     df = df.reindex(columns=PICKFB_COLS).fillna("").reset_index(drop=True)
     st.session_state["pickfb_df"] = df
     try:
-        df.to_csv(PICKFB_PATH, index=False)
-        cloud_save(PICKFB_PATH)
+        df.to_csv(upath(PICKFB_PATH), index=False)
+        cloud_save(upath(PICKFB_PATH))
         return True
     except Exception:
         return False
@@ -5982,38 +5997,174 @@ NAV = ["📊 Game odds", "📋 Full slate", "🎯 Player props", "🏀 First bas
 LOCKED_NAV = "🔒 Private"
 
 
-def get_passcode():
+import hashlib
+import hmac
+
+USERS_PATH = "users/_users.json"
+
+
+def _slug(n):
+    return re.sub(r"[^a-z0-9_-]", "", str(n).lower().strip().replace(" ", "_"))[:24]
+
+
+def load_users():
     try:
-        pc = st.secrets.get("APP_PASSCODE")
+        import json
+        return json.load(open(USERS_PATH))
     except Exception:
-        pc = None
-    return str(pc or os.environ.get("APP_PASSCODE") or "")
+        return {}
 
 
-PASSCODE = get_passcode()
-private_ok = (not PASSCODE) or bool(st.session_state.get("unlocked"))
+def save_users(d):
+    import json
+    os.makedirs("users", exist_ok=True)
+    json.dump(d, open(USERS_PATH, "w"))
+    cloud_save(USERS_PATH)
+
+
+def _pin_hash(pin, salt):
+    return hashlib.pbkdf2_hmac("sha256", str(pin).encode(), bytes.fromhex(salt), 120000).hex()
+
+
+def _token(u, h):
+    return hashlib.sha256((u + h).encode()).hexdigest()[:32]
+
+
+def _restore_user_files(u):
+    # After a restart the server's copy is gone; bring this profile's files back from the backup repo.
+    if st.session_state.get("_restored_user") == u or not _gh_cfg():
+        st.session_state["_restored_user"] = u
+        return
+    for n in PERSONAL_FILES:
+        p = f"users/{u}/{n}"
+        if not os.path.exists(p):
+            try:
+                txt, _ = _gh_get(p)
+                if txt is not None:
+                    os.makedirs(os.path.dirname(p), exist_ok=True)
+                    open(p, "w", encoding="utf-8", newline="").write(txt)
+            except Exception:
+                pass
+    st.session_state["_restored_user"] = u
+
+
+def _claim_existing_data(u):
+    # The first profile created inherits everything that was saved before profiles existed.
+    moved = 0
+    for n in PERSONAL_FILES:
+        dst = f"users/{u}/{n}"
+        if os.path.exists(dst):
+            continue
+        txt = None
+        if os.path.exists(n):
+            txt = open(n, encoding="utf-8", newline="").read()
+        else:
+            try:
+                txt, _ = _gh_get(n)
+            except Exception:
+                txt = None
+        if txt is not None:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            open(dst, "w", encoding="utf-8", newline="").write(txt)
+            cloud_save(dst)
+            moved += 1
+    return moved
+
+
+def _sign_in(u, users):
+    st.session_state["user"] = u
+    st.session_state["user_name"] = users[u].get("name", u)
+    _restore_user_files(u)
+    try:
+        st.query_params["u"] = u
+        st.query_params["t"] = _token(u, users[u]["h"])
+    except Exception:
+        pass
+
+
+def _sign_out():
+    for k in ("user", "user_name", "_restored_user", "log_df", "unlocked"):
+        st.session_state.pop(k, None)
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+
+
+def _auto_sign_in():
+    if st.session_state.get("user"):
+        return
+    try:
+        u, t = st.query_params.get("u"), st.query_params.get("t")
+    except Exception:
+        return
+    if not u or not t:
+        return
+    users = load_users()
+    if u in users and hmac.compare_digest(_token(u, users[u]["h"]), str(t)):
+        _sign_in(u, users)
+
+
+_auto_sign_in()
+private_ok = bool(st.session_state.get("user"))
+LOCKED_NAV = "🔒 Sign in"
 menu = [HOME_NAV] + (NAV if private_ok else NAV[:4] + [LOCKED_NAV])
-if "_goto" in st.session_state:                           # jump to a section after unlocking
+if "_goto" in st.session_state:                           # jump to a section after signing in
     st.session_state["main_nav"] = st.session_state.pop("_goto")
 if st.session_state.get("main_nav") not in menu:
     st.session_state["main_nav"] = st.session_state.get("_main_last") if st.session_state.get("_main_last") in menu else menu[0]
 
 
 def private_gate():
-    # Shown instead of the private sections until the right passcode is entered.
-    st.markdown("### 🔒 Private sections")
-    st.caption("Results and My bets are only for the owner of this app. Enter the passcode to open them.")
-    with st.form("unlock_form"):
-        pw = st.text_input("Passcode", type="password")
-        go = st.form_submit_button("Unlock")
-    if go:
-        import hmac
-        if hmac.compare_digest(pw.encode(), PASSCODE.encode()):
-            st.session_state["unlocked"] = True
-            st.session_state["_goto"] = NAV[5]
-            st.rerun()
-        else:
-            st.error("That passcode isn't right.")
+    st.markdown("### 🔒 Your profile")
+    st.caption("Sign in to keep your own bets, Pick'em picks and stats. Everyone gets their own private profile. The model's picks stay shared.")
+    users = load_users()
+    t_in, t_new = st.tabs(["Sign in", "Create profile"])
+    with t_in:
+        with st.form("signin_form"):
+            nm = st.text_input("Profile name")
+            pin = st.text_input("PIN", type="password")
+            go = st.form_submit_button("Sign in")
+        if go:
+            u = _slug(nm)
+            if st.session_state.get("_fails", 0) >= 6:
+                st.error("Too many tries. Reload the page and try again.")
+            elif u in users and hmac.compare_digest(_pin_hash(pin, users[u]["s"]), users[u]["h"]):
+                _sign_in(u, users)
+                st.session_state["_goto"] = NAV[5]
+                st.rerun()
+            else:
+                st.session_state["_fails"] = st.session_state.get("_fails", 0) + 1
+                st.error("That name and PIN don't match.")
+    with t_new:
+        first = not users
+        if first:
+            st.info("You're the first profile, so any bets and picks already saved on this site will move into it.")
+        with st.form("newprofile_form"):
+            nm = st.text_input("Choose a profile name", key="np_name")
+            p1 = st.text_input("Choose a PIN (4 or more characters)", type="password", key="np_p1")
+            p2 = st.text_input("Confirm PIN", type="password", key="np_p2")
+            mk = st.form_submit_button("Create profile")
+        if mk:
+            u = _slug(nm)
+            if len(u) < 2:
+                st.error("Pick a name with at least 2 letters or numbers.")
+            elif u in users or u.startswith("_"):
+                st.error("That name is taken.")
+            elif len(p1) < 4:
+                st.error("The PIN needs at least 4 characters.")
+            elif p1 != p2:
+                st.error("The PINs don't match.")
+            else:
+                salt = os.urandom(16).hex()
+                users[u] = {"name": nm.strip()[:24], "s": salt, "h": _pin_hash(p1, salt)}
+                save_users(users)
+                if first:
+                    _claim_existing_data(u)
+                _sign_in(u, users)
+                st.session_state["_goto"] = NAV[5]
+                st.rerun()
+    st.caption("Tip: after you sign in, bookmark the page. The link keeps you signed in on that device. Don't share the link.")
 
 
 def open_warning():
@@ -6129,7 +6280,7 @@ def tab_colors():
           const d = window.parent.document;
           if (d.__tabColors) return; d.__tabColors = true;
           const C = {'Home':'#38bdf8','Game odds':'#3b82f6','Full slate':'#a855f7','Player props':'#f59e0b','First basket':'#f97316',
-                     'Results':'#22c55e','My bets':'#14b8a6','Pick':'#ec4899','Edge tools':'#ef4444','Private':'#94a3b8'};
+                     'Results':'#22c55e','My bets':'#14b8a6','Pick':'#ec4899','Edge tools':'#ef4444','Sign in':'#94a3b8'};
           function rgba(h,a){const n=parseInt(h.slice(1),16);return 'rgba('+(n>>16)+','+((n>>8)&255)+','+(n&255)+','+a+')';}
           function paint(){
             d.querySelectorAll('.st-key-main_nav button').forEach(function(b){
@@ -6496,6 +6647,13 @@ PAGE_INFO = {NAV[0]: ("Game odds", "Simulate one matchup 10,000 times and compar
 _pi = PAGE_INFO.get(nav)
 if _pi:
     html(f'<div class="pro-page"><div class="pro-page-t">{H(_pi[0])}</div><div class="pro-page-s">{H(_pi[1])}</div></div>')
+if private_ok:
+    _so1, _so2 = st.columns([6, 1.3], vertical_alignment="center")
+    _so1.markdown(f'<div style="text-align:right;opacity:.7;font-size:.82rem">👤 Signed in as <b>{H(st.session_state.get("user_name", ""))}</b></div>',
+                  unsafe_allow_html=True)
+    if _so2.button("Sign out", key="sign_out", use_container_width=True):
+        _sign_out()
+        st.rerun()
 record_closing(date, games)
 record_closing(date - dt.timedelta(days=1), prev_games if "prev_games" in globals() else [])
 
@@ -6572,6 +6730,8 @@ if nav == NAV[3]:
 
 if nav == LOCKED_NAV and not private_ok:
     private_gate()
+elif private_ok and nav != HOME_NAV:
+    pass
 
 if nav == NAV[4] and private_ok:
     open_warning()

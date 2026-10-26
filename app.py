@@ -6097,6 +6097,12 @@ def _sign_out():
 
 
 def _auto_sign_in():
+    try:
+        if st.query_params.get("so"):               # the Sign out link
+            _sign_out()
+            return
+    except Exception:
+        pass
     if st.session_state.get("user"):
         return
     try:
@@ -6684,13 +6690,11 @@ except TypeError:
 with _css_slot:
     st.markdown(POLISH_CSS, unsafe_allow_html=True)
     st.markdown("""<style>
-.st-key-userbar{margin:-.35rem 0 -.25rem !important}
-.st-key-userbar [data-testid="stHorizontalBlock"]{flex-wrap:nowrap !important;gap:.5rem !important;align-items:center}
-.st-key-userbar [data-testid="stColumn"]{min-width:0 !important}
-.st-key-userbar [data-testid="stColumn"]:first-child{flex:1 1 auto !important;width:auto !important}
-.st-key-userbar [data-testid="stColumn"]:last-child{flex:0 0 5.2rem !important;width:5.2rem !important}
-.st-key-userbar button{min-height:1.7rem !important;height:1.7rem !important;padding:0 .5rem !important;font-size:.75rem !important;border-radius:9px !important}
-.st-key-userbar button *{font-size:.75rem !important}
+.ub-bar{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:0;padding:.5rem .9rem;border-radius:12px;
+  border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.07);font-size:.84rem}
+.ub-bar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
+.ub-bar a{flex:none;padding:.18rem .7rem;border-radius:9px;border:1px solid rgba(148,163,184,.35);text-decoration:none !important;color:inherit !important;font-weight:600;font-size:.78rem}
+.ub-bar a:hover{background:rgba(148,163,184,.18)}
 [class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button,[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button,[class*="_sidewrap"] [data-testid="stButtonGroup"] button{border-radius:12px !important}
 @media (max-width:640px){
   /* Add a bet on a phone: the Book box lines up with Legs below it */
@@ -6722,13 +6726,8 @@ _pi = PAGE_INFO.get(nav)
 if _pi:
     html(f'<div class="pro-page"><div class="pro-page-t">{H(_pi[0])}</div><div class="pro-page-s">{H(_pi[1])}</div></div>')
 if private_ok:
-    with st.container(key="userbar"):
-        _so1, _so2 = st.columns([5, 2], vertical_alignment="center")
-        _so1.markdown(f'<div style="text-align:right;opacity:.7;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">👤 <b>{H(st.session_state.get("user_name", ""))}</b></div>',
-                      unsafe_allow_html=True)
-        if _so2.button("Sign out", key="sign_out", use_container_width=True):
-            _sign_out()
-            st.rerun()
+    html(f'<div class="ub-bar"><span>👤 Signed in as <b>{H(st.session_state.get("user_name", ""))}</b></span>'
+         '<a href="?so=1" target="_self">Sign out</a></div>')
 record_closing(date, games)
 record_closing(date - dt.timedelta(days=1), prev_games if "prev_games" in globals() else [])
 

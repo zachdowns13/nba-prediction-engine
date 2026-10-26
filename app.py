@@ -6136,74 +6136,115 @@ def _logo_img(url, px):
 
 
 def x_graphic(res, fb, g, tipstr, handle):
-    # A 1200x675 picture of the model's numbers for one game, ready to attach to the post.
+    # A 1200x675 stat card for one game: projected score, win probability, each market with its edge, and the first-basket odds.
     from PIL import Image, ImageDraw
     import io
     W, Hh = 1200, 675
     yy, xx = np.mgrid[0:Hh, 0:W]
     t = np.clip(xx / W * 0.5 + yy / Hh * 0.5, 0, 1)[..., None]
-    c0, c1, c2 = np.array([6, 10, 20.]), np.array([13, 26, 61.]), np.array([22, 52, 143.])
+    c0, c1, c2 = np.array([5, 8, 18.]), np.array([11, 22, 54.]), np.array([20, 46, 130.])
     base = np.where(t < 0.55, c0 + (c1 - c0) * (t / 0.55), c1 + (c2 - c1) * ((t - 0.55) / 0.45))
-    og = np.clip(1 - np.sqrt((xx / 750.) ** 2 + ((yy - Hh) / 520.) ** 2), 0, 1) ** 2 * 0.5
-    bg = np.clip(1 - np.sqrt(((xx - W) / 700.) ** 2 + (yy / 420.) ** 2), 0, 1) ** 2 * 0.5
+    og = np.clip(1 - np.sqrt((xx / 700.) ** 2 + ((yy - Hh) / 480.) ** 2), 0, 1) ** 2 * 0.45
+    bg = np.clip(1 - np.sqrt(((xx - W) / 650.) ** 2 + (yy / 400.) ** 2), 0, 1) ** 2 * 0.5
     base = base * (1 - og[..., None]) + np.array([249, 115, 22.]) * og[..., None]
     base = base * (1 - bg[..., None]) + np.array([96, 165, 250.]) * bg[..., None]
-    im = Image.fromarray(base.astype("uint8")).convert("RGBA")
-    ov = Image.new("RGBA", im.size, (0, 0, 0, 0))
-    od = ImageDraw.Draw(ov)
+    grid = ((xx % 48 == 0) | (yy % 48 == 0)).astype(float) * 0.045          # faint chart grid
+    base = base + (255 - base) * grid[..., None]
+    im = Image.fromarray(np.clip(base, 0, 255).astype("uint8")).convert("RGBA")
     home, away = g["home"], g["away"]
     H_, A_ = short_pk(home), short_pk(away)
-    # cards first (translucent), then everything else on top
-    cw, gap, x0, cy0, cy1 = 261, 20, 48, 345, 585
-    for i in range(4):
-        x = x0 + i * (cw + gap)
-        od.rounded_rectangle([x, cy0, x + cw, cy1], 22, fill=(255, 255, 255, 26), outline=(255, 255, 255, 60), width=2)
+    try:
+        hcol, acol = team_colors(home, away)
+    except Exception:
+        hcol, acol = "#3b82f6", "#f97316"
+    rgb = lambda c: tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))
+    hc, ac = rgb(hcol), rgb(acol)
+    ov = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    od = ImageDraw.Draw(ov)
+    cw, cgap, x0, cy0, cy1 = 236, 14, 48, 348, 604
+    for i in range(3):
+        x = x0 + i * (cw + cgap)
+        od.rounded_rectangle([x, cy0, x + cw, cy1], 20, fill=(8, 14, 32, 150), outline=(255, 255, 255, 55), width=2)
+    px0 = x0 + 3 * (cw + cgap)
+    od.rounded_rectangle([px0, cy0, 1152, cy1], 20, fill=(8, 14, 32, 150), outline=(255, 255, 255, 55), width=2)
+    od.rectangle([0, 0, W, 6], fill=(249, 115, 22, 255))                       # accent stripe
     im = Image.alpha_composite(im, ov)
     d = ImageDraw.Draw(im)
-    d.text((48, 36), "NBA PREDICTION ENGINE", font=_gfont(24), fill=(203, 213, 225))
-    hd = "@" + handle if handle else ""
-    d.text((W - 48, 36), hd, font=_gfont(24), fill=(147, 197, 253), anchor="ra")
-    # matchup
-    for cx, team, url in ((230, away, g.get("away_logo")), (970, home, g.get("home_logo"))):
-        lg = _logo_img(url, 140) if url else None
+    d.text((48, 34), "NBA PREDICTION ENGINE", font=_gfont(24), fill=(226, 232, 240))
+    d.text((W - 48, 34), ("@" + handle) if handle else "", font=_gfont(24), fill=(147, 197, 253), anchor="ra")
+    # matchup block
+    for cx, team, url in ((170, away, g.get("away_logo")), (1030, home, g.get("home_logo"))):
+        lg = _logo_img(url, 124) if url else None
         if lg is not None:
-            im.alpha_composite(lg, (cx - lg.width // 2, 92 + (140 - lg.height) // 2))
+            im.alpha_composite(lg, (cx - lg.width // 2, 78 + (124 - lg.height) // 2))
         else:
-            d.ellipse([cx - 62, 100, cx + 62, 224], outline=(255, 255, 255), width=4)
-            d.text((cx, 162), short(team)[:3].upper(), font=_gfont(40), fill=(255, 255, 255), anchor="mm")
-        d.text((cx, 262), short_pk(team), font=_fit(d, short_pk(team), 330, 40), fill=(255, 255, 255), anchor="mm")
+            d.ellipse([cx - 56, 84, cx + 56, 196], outline=(255, 255, 255), width=4)
+            d.text((cx, 140), short(team)[:3].upper(), font=_gfont(36), fill=(255, 255, 255), anchor="mm")
+        d.text((cx, 224), short_pk(team), font=_fit(d, short_pk(team), 300, 36), fill=(255, 255, 255), anchor="mm")
     hp, ap = res["hp"], res["ap"]
-    d.text((600, 92), "PROJECTED SCORE", font=_gfont(20), fill=(148, 163, 184), anchor="mm")
-    d.text((600, 160), f"{ap:.0f} - {hp:.0f}", font=_gfont(92), fill=(255, 255, 255), anchor="mm")
-    d.text((600, 232), f"{A_} @ {H_}" + (f"  |  {tipstr}" if tipstr else ""), font=_gfont(24), fill=(203, 213, 225), anchor="mm")
-    # four prediction cards
+    d.text((600, 84), "PROJECTED SCORE", font=_gfont(18), fill=(148, 163, 184), anchor="mm")
+    d.text((600, 144), f"{ap:.0f} - {hp:.0f}", font=_gfont(84), fill=(255, 255, 255), anchor="mm")
+    marg = hp - ap
+    lead = f"{short_pk(home) if marg >= 0 else short_pk(away)} by {abs(marg):.0f}"
+    d.text((600, 204), f"{lead}   |   total {hp + ap:.0f}", font=_gfont(24), fill=(203, 213, 225), anchor="mm")
+    d.text((600, 236), f"{A_} @ {H_}" + (f"   |   {tipstr}" if tipstr else ""), font=_gfont(20, False), fill=(148, 163, 184), anchor="mm")
+    # win probability bar
+    ph = float(res["p_home"])
+    bx0, bx1, by0, by1 = 48, 1152, 268, 312
+    d.rounded_rectangle([bx0, by0, bx1, by1], 14, fill=(30, 41, 59))
+    split = int(bx0 + (bx1 - bx0) * (1 - ph))
+    bar = Image.new("RGBA", (bx1 - bx0, by1 - by0), (0, 0, 0, 0))
+    bd = ImageDraw.Draw(bar)
+    bd.rectangle([0, 0, split - bx0, by1 - by0], fill=ac + (255,))
+    bd.rectangle([split - bx0, 0, bx1 - bx0, by1 - by0], fill=hc + (255,))
+    mask = Image.new("L", bar.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, bar.width, bar.height], 14, fill=255)
+    im.paste(bar, (bx0, by0), mask)
+    d = ImageDraw.Draw(im)
+    d.text((bx0 + 18, (by0 + by1) // 2), f"{A_.upper()}  {(1 - ph) * 100:.0f}%", font=_gfont(22), fill=(255, 255, 255), anchor="lm")
+    d.text((bx1 - 18, (by0 + by1) // 2), f"{ph * 100:.0f}%  {H_.upper()}", font=_gfont(22), fill=(255, 255, 255), anchor="rm")
+    d.text((600, (by0 + by1) // 2), "WIN PROBABILITY", font=_gfont(16), fill=(255, 255, 255), anchor="mm")
+    # market cards
     rows = res["rows"]
 
     def best(mk):
         pair = [r for r in rows if r["market"] == mk]
         return max(pair, key=lambda r: r["model_p"]) if len(pair) == 2 else None
     ml, sp, to = best("Moneyline"), best("Spread"), best("Total")
-    cards = []
-    cards.append(("MONEYLINE", short_pk(ml["side"]) if ml else "n/a", f"{ml['model_p'] * 100:.0f}% win  {_am(ml['book_odds'])}" if ml else "no line yet", ml["model_p"] if ml else None))
-    cards.append(("SPREAD", f"{short_pk(sp['side'])} {sp['line']}" if sp else "n/a", f"model {sp['model_p'] * 100:.0f}%" if sp else "no line yet", sp["model_p"] if sp else None))
-    cards.append(("TOTAL", f"{to['side']} {to['line']}" if to else "n/a", f"projected {res['med_t']:.0f}" if to else "no line yet", to["model_p"] if to else None))
-    if fb:
-        r0 = fb["T"].iloc[0]
-        nm = str(r0["Player"]).split()
-        nm = (nm[0][0] + ". " + " ".join(nm[1:])) if len(nm) > 1 else str(r0["Player"])
-        cards.append(("FIRST BASKET", nm, f"{r0['prob'] * 100:.0f}%  {r0['Team']}", None))
-    else:
-        cards.append(("FIRST BASKET", "n/a", "lineups not set", None))
+    cards = [("MONEYLINE", ml, short_pk(ml["side"]) if ml else "n/a", _am(ml["book_odds"]) if ml else ""),
+             ("SPREAD", sp, f"{short_pk(sp['side'])} {sp['line']}" if sp else "n/a", _am(sp["book_odds"]) if sp else ""),
+             ("TOTAL", to, f"{to['side']} {to['line']}" if to else "n/a", _am(to["book_odds"]) if to else "")]
     tcol = {"coin flip": (245, 158, 11), "lean": (148, 163, 184), "confident": (34, 197, 94)}
-    for i, (lab, big, sub, p) in enumerate(cards):
-        x = x0 + i * (cw + gap)
-        d.text((x + 24, cy0 + 26), lab, font=_gfont(20), fill=(148, 163, 184))
-        d.text((x + 24, cy0 + 100), big, font=_fit(d, big, cw - 48, 42), fill=(255, 255, 255), anchor="lm")
-        d.text((x + 24, cy0 + 150), sub, font=_fit(d, sub, cw - 48, 24, False), fill=(203, 213, 225), anchor="lm")
-        if p is not None:
-            tr = conf_tier(p)
-            d.text((x + 24, cy0 + 200), tr.upper(), font=_gfont(20), fill=tcol.get(tr, (148, 163, 184)), anchor="lm")
-    d.text((600, 628), "10,000 simulations  |  every pick tracked in units  |  entertainment only", font=_gfont(20, False), fill=(148, 163, 184), anchor="mm")
+    for i, (lab, r, big, odds_txt) in enumerate(cards):
+        x = x0 + i * (cw + cgap)
+        d.text((x + 20, cy0 + 24), lab, font=_gfont(18), fill=(148, 163, 184))
+        d.text((x + 20, cy0 + 76), big, font=_fit(d, big, cw - 40, 38), fill=(255, 255, 255), anchor="lm")
+        if r:
+            mp = r["model_p"]
+            d.text((x + 20, cy0 + 138), f"{mp * 100:.0f}%", font=_gfont(46), fill=(125, 180, 255), anchor="lm")
+            d.text((x + 20, cy0 + 172), "MODEL PROBABILITY", font=_gfont(15), fill=(148, 163, 184), anchor="lm")
+            d.rounded_rectangle([x + 20, cy0 + 190, x + cw - 20, cy0 + 200], 5, fill=(30, 41, 59))
+            d.rounded_rectangle([x + 20, cy0 + 190, x + 20 + int((cw - 40) * min(max(mp, 0), 1)), cy0 + 200], 5, fill=(96, 165, 250))
+            tr = conf_tier(mp)
+            d.text((x + 20, cy0 + 228), tr.upper(), font=_gfont(20), fill=tcol.get(tr, (148, 163, 184)), anchor="lm")
+        else:
+            d.text((x + 20, cy0 + 130), "no line posted yet", font=_gfont(20, False), fill=(148, 163, 184), anchor="lm")
+    # first basket panel: the single most likely scorer
+    d.text((px0 + 20, cy0 + 24), "FIRST BASKET", font=_gfont(18), fill=(148, 163, 184))
+    if fb is not None and len(fb["T"]):
+        r0 = fb["T"].iloc[0]
+        nm = str(r0["Player"])
+        d.text((px0 + 20, cy0 + 76), nm, font=_fit(d, nm, 1152 - px0 - 40, 34), fill=(255, 255, 255), anchor="lm")
+        d.text((px0 + 20, cy0 + 138), f"{r0['prob'] * 100:.0f}%", font=_gfont(46), fill=(251, 191, 36), anchor="lm")
+        d.text((px0 + 20, cy0 + 172), f"TO SCORE FIRST  |  {str(r0['Team']).upper()}", font=_gfont(15), fill=(148, 163, 184), anchor="lm")
+        d.rounded_rectangle([px0 + 20, cy0 + 190, 1152 - 20, cy0 + 200], 5, fill=(30, 41, 59))
+        d.rounded_rectangle([px0 + 20, cy0 + 190, px0 + 20 + int((1152 - px0 - 40) * min(float(r0["prob"]) * 5, 1)), cy0 + 200], 5, fill=(251, 191, 36))
+        tp = (fb.get("tip") or {}).get("p_home")
+        if tp is not None:
+            d.text((px0 + 20, cy0 + 228), f"TIP-OFF  {H_.upper()} {tp * 100:.0f}%", font=_gfont(17), fill=(203, 213, 225), anchor="lm")
+    else:
+        d.text((px0 + 20, cy0 + 130), "Lineups not set yet", font=_gfont(20, False), fill=(148, 163, 184), anchor="lm")
+    d.text((600, 640), "10,000 simulations   |   every pick tracked in units   |   entertainment only", font=_gfont(18, False), fill=(148, 163, 184), anchor="mm")
     buf = io.BytesIO()
     im.convert("RGB").save(buf, "PNG")
     return buf.getvalue()
@@ -6226,7 +6267,7 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle):
     if opts["score"]:
         lines_core.append(f"🔮 Score: {A_} {ap:.0f}, {H_} {hp:.0f}")
     if ml:
-        lines_core.append(f"💰 ML: {short(ml['side'])} {ml['model_p'] * 100:.0f}%" + (f" ({_am(ml['book_odds'])})" if mode != "short" else ""))
+        lines_core.append(f"💰 ML: {short(ml['side'])} {ml['model_p'] * 100:.0f}%" + "")
     if sp:
         lines_core.append(f"📏 Spread: {short(sp['side'])} {sp['line']}" + (f" ({sp['model_p'] * 100:.0f}%)" if mode != "short" else ""))
     if to:
@@ -6234,11 +6275,7 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle):
     fb_line = ""
     if opts["fb"] and fb:
         T = fb["T"]
-        if mode == "short":
-            fb_line = f"🎯 First basket: {T.iloc[0]['Player']} ({T.iloc[0]['prob'] * 100:.0f}%)"
-        else:
-            top = ", ".join(f"{r.Player} {r.prob * 100:.0f}%" for r in T.head(3).itertuples())
-            fb_line = f"🎯 First basket: {top}"
+        fb_line = f"🎯 First basket: {T.iloc[0]['Player']} ({T.iloc[0]['prob'] * 100:.0f}%)"
     tip_line = ""
     if opts["fb"] and fb and mode != "short":
         tp = fb.get("tip") or {}

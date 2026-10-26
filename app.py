@@ -6321,7 +6321,7 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
             try:
                 for x in home_scoreboard(date.isoformat()):
                     if str(x["id"]) == str(g["id"]):
-                        tipstr = pd.Timestamp(x["start"]).tz_convert(LOCAL_TZ if "LOCAL_TZ" in globals() else "America/Los_Angeles").strftime("%-I:%M %p")
+                        tipstr = pd.Timestamp(x["start"]).tz_convert(LOCAL_TZ if "LOCAL_TZ" in globals() else "America/Los_Angeles").strftime("%-I:%M %p") + " PST"
             except Exception:
                 tipstr = ""
             for _k in [k_ for k_ in st.session_state if str(k_).startswith(f"xg_{key}")]:

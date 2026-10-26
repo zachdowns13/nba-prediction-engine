@@ -6313,6 +6313,48 @@ def tab_colors():
 tab_colors()
 
 
+def mobile_fix():
+    # Phone-only: the Over/Under control sometimes keeps an offset from the desktop layout. Inline styles set here beat every stylesheet rule.
+    try:
+        import streamlit.components.v1 as components
+        components.html("""<script>
+        (function () {
+          const w = window.parent, d = w.document;
+          if (d.__mobFix) return; d.__mobFix = true;
+          function fix(){
+            if (w.innerWidth > 640) return;
+            d.querySelectorAll('[class*="_sidewrap"]').forEach(function(sw){
+              let el = sw;
+              while (el && el.getAttribute('data-testid') !== 'stColumn' && el.getAttribute('data-testid') !== 'stHorizontalBlock') {
+                ['margin-left','margin-right','padding-left','padding-right','left','right'].forEach(function(p){ el.style.setProperty(p,'0','important'); });
+                el.style.setProperty('width','100%','important'); el.style.setProperty('max-width','100%','important');
+                el.style.setProperty('transform','none','important'); el.style.setProperty('float','none','important');
+                el = el.parentElement;
+              }
+              if (el && el.getAttribute('data-testid') === 'stColumn') {
+                el.style.setProperty('margin','0','important'); el.style.setProperty('padding-left','0','important'); el.style.setProperty('padding-right','0','important');
+              }
+              sw.querySelectorAll('*').forEach(function(c){
+                if (c.tagName === 'BUTTON' || c.closest('button')) return;
+                ['margin-left','margin-right','left','right'].forEach(function(p){ c.style.setProperty(p,'0','important'); });
+                if (c.getAttribute('data-testid') === 'stButtonGroup' || (c.parentElement && c.parentElement.getAttribute('data-testid') === 'stButtonGroup')) {
+                  c.style.setProperty('width','100%','important'); c.style.setProperty('justify-content','center','important');
+                }
+              });
+            });
+          }
+          let t = null;
+          new MutationObserver(function(){ clearTimeout(t); t = setTimeout(fix, 60); }).observe(d.body, {childList:true, subtree:true});
+          w.addEventListener('resize', fix); fix();
+        })();
+        </script>""", height=0)
+    except Exception:
+        pass
+
+
+mobile_fix()
+
+
 def terms_help():
   with st.expander("What do these terms mean?"):
       st.markdown(
@@ -6642,6 +6684,7 @@ except TypeError:
 with _css_slot:
     st.markdown(POLISH_CSS, unsafe_allow_html=True)
     st.markdown("""<style>
+[class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button,[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button,[class*="_sidewrap"] [data-testid="stButtonGroup"] button{border-radius:12px !important}
 @media (max-width:640px){
   /* Add a bet on a phone: the Book box lines up with Legs below it */
   [class*="st-key-bet_"][class*="_book"]:not(.st-key-bet_book):not(.st-key-bet_book_c){margin-left:0 !important;width:100% !important}

@@ -2656,7 +2656,7 @@ def results_tab():
 # =====================================================================
 # MY BETS  (what you actually bet, and how it turned out)
 # =====================================================================
-BET_BOOKS = ["Kalshi", "Underdog", "PrizePicks", "DraftKings", "Sleeper", "Novig", "Chalkboard"]
+BET_BOOKS = ["Kalshi", "Underdog", "PrizePicks", "DraftKings", "FanDuel", "Sleeper", "Novig", "Chalkboard"]
 BET_LOG_PATH = "bets_log.csv"
 BET_COLS = ["id", "date", "book", "type", "desc", "legs", "stake", "payout", "result", "returned", "profit", "settled_at", "leg_status", "cord"]
 _BET_TXT = ("id", "date", "book", "type", "desc", "result", "settled_at", "leg_status", "cord")
@@ -2664,11 +2664,11 @@ _BET_NUM = ("legs", "stake", "payout", "returned", "profit")
 
 
 BOOK_STYLE = {"PrizePicks": ("#7B2FF7", "PP"), "Underdog": ("#F5C518", "UD"), "Kalshi": ("#00A878", "K"), "Chalkboard": ("#2D3748", "CB"),
-              "Sleeper": ("#1F6FEB", "SL"), "DraftKings": ("#53B02C", "DK"), "Novig": ("#E5484D", "NV"), "Other": ("#6B7280", "?")}
+              "Sleeper": ("#1F6FEB", "SL"), "DraftKings": ("#53B02C", "DK"), "FanDuel": ("#1493FF", "FD"), "Novig": ("#E5484D", "NV"), "Other": ("#6B7280", "?")}
 
 
 BOOK_SITE = {"PrizePicks": "prizepicks.com", "Underdog": "underdogfantasy.com", "Kalshi": "kalshi.com", "Chalkboard": "chalkboard.io",
-             "Sleeper": "sleeper.com", "DraftKings": "draftkings.com", "Novig": "novig.us"}
+             "Sleeper": "sleeper.com", "DraftKings": "draftkings.com", "FanDuel": "fanduel.com", "Novig": "novig.us"}
 
 
 def book_chip(book, size=22):

@@ -3013,7 +3013,7 @@ def leg_builder(key):
     def _keep_kind():                                                    # tapping the chosen one again would blank it, so put it back
         if st.session_state.get(f"{key}_kind") is None:
             st.session_state[f"{key}_kind"] = st.session_state.get(f"{key}_kind_last", LEG_KINDS[0])
-    _kn = {"Player prop": "Player prop", "Team bet": "Team bet", "First basket": "First basket", "NFL play": "NFL play", "Type it myself": "Custom"}
+    _kn = {"Player prop": "Player prop", "Team bet": "Team bet", "First basket": "First basket", "NFL play": "Other sport", "Type it myself": "Custom"}
     try:
         st.session_state.setdefault(f"{key}_kind", LEG_KINDS[0])
         kind = st.segmented_control("Leg type", LEG_KINDS, key=f"{key}_kind", format_func=_kn.get, on_change=_keep_kind, label_visibility="collapsed")
@@ -3022,7 +3022,7 @@ def leg_builder(key):
     kind = kind or st.session_state.get(f"{key}_kind_last", LEG_KINDS[0])
     st.session_state[f"{key}_kind_last"] = kind
     if kind == "NFL play":
-        txt = st.text_input("Name the NFL play however you like", placeholder="e.g. Mahomes over 275.5 passing yards", key=f"{key}_nfl").strip()
+        txt = st.text_input("Name the play however you like (any sport)", placeholder="e.g. Mahomes over 275.5 passing yards", key=f"{key}_nfl").strip()
         txt = re.sub(r"^nfl\s*:\s*", "", txt, flags=re.I).replace(" + ", " & ")
         st.caption("Shows as an NFL leg. The live tracker skips it, so check it off as hit, missed or pushed yourself.")
         return f"NFL: {txt}" if txt else ""
@@ -6655,7 +6655,9 @@ with _css_slot:
   [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]:has(>[data-testid="stColumn"]:nth-child(4))>[data-testid="stColumn"]:nth-child(2),
   [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]:has(>[data-testid="stColumn"]:nth-child(4))>[data-testid="stColumn"]:nth-child(3){flex:0 0 calc(50% - .3rem) !important;width:calc(50% - .3rem) !important;min-width:0 !important}
   [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]:has(>[data-testid="stColumn"]:nth-child(4))>[data-testid="stColumn"]:nth-child(3) [data-testid="stElementContainer"]{width:100% !important;max-width:100% !important}
-  [class*="_sidewrap"]{top:0 !important}
+  [class*="_sidewrap"]{top:0 !important;position:static !important;left:0 !important;margin:0 auto !important;padding:0 !important;width:100% !important;max-width:100% !important}
+  [class*="_sidewrap"] [data-testid="stElementContainer"],[class*="_sidewrap"] [data-testid="stVerticalBlock"],[class*="_sidewrap"] [data-testid="stButtonGroup"],[class*="_sidewrap"] [data-testid="stButtonGroup"]>div{margin-left:0 !important;margin-right:0 !important;padding-left:0 !important;padding-right:0 !important;width:100% !important;max-width:100% !important;justify-content:center !important;float:none !important}
+  [class*="st-key-bet_"][class*="_legbox"] [data-testid="stHorizontalBlock"]:has(>[data-testid="stColumn"]:nth-child(4))>[data-testid="stColumn"]:nth-child(4) :is([data-testid="stVerticalBlock"],[data-testid="stElementContainer"]){width:100% !important;max-width:100% !important;margin-left:0 !important}
 }
 </style>""", unsafe_allow_html=True)
 PAGE_INFO = {NAV[0]: ("Game odds", "Simulate one matchup 10,000 times and compare every price with the model."),

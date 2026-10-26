@@ -6908,6 +6908,12 @@ with _css_slot:
 .ub-bar a{flex:none;padding:.18rem .7rem;border-radius:9px;border:1px solid rgba(148,163,184,.35);text-decoration:none !important;color:inherit !important;font-weight:600;font-size:.78rem}
 .ub-bar a:hover{background:rgba(148,163,184,.18)}
 [class*="st-key-bet_"][class*="_kind"] [data-testid="stButtonGroup"] button,[class*="st-key-bet_"][class*="_type"] [data-testid="stButtonGroup"] button,[class*="_sidewrap"] [data-testid="stButtonGroup"] button{border-radius:12px !important}
+@media (min-width:900px){
+  /* all ten tabs on one row on a computer screen */
+  .st-key-main_nav [data-testid="stButtonGroup"],.st-key-main_nav [data-baseweb="button-group"]{flex-wrap:nowrap !important;gap:.05rem !important;overflow-x:auto}
+  .st-key-main_nav [data-testid="stButtonGroup"] button{padding-left:.5rem !important;padding-right:.5rem !important;gap:.3rem !important}
+  .st-key-main_nav [data-testid="stButtonGroup"] button p,.st-key-main_nav [data-testid="stButtonGroup"] button span{font-size:.9rem}
+}
 @media (max-width:640px){
   /* Add a bet on a phone: the Book box lines up with Legs below it */
   [class*="st-key-bet_"][class*="_book"]:not(.st-key-bet_book):not(.st-key-bet_book_c){margin-left:0 !important;width:100% !important}

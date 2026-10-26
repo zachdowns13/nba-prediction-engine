@@ -6693,7 +6693,7 @@ POLISH_CSS = """
 with _css_slot:
     st.markdown(POLISH_CSS, unsafe_allow_html=True)
     st.markdown("""<style>
-.ub-bar{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:.3rem 0 .1rem;padding:.5rem .9rem;border-radius:12px;
+.ub-bar{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:.5rem 0 .1rem;padding:.5rem .9rem;border-radius:12px;
   border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.07);font-size:.84rem}
 .ub-bar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
 .ub-bar a{flex:none;padding:.18rem .7rem;border-radius:9px;border:1px solid rgba(148,163,184,.35);text-decoration:none !important;color:inherit !important;font-weight:600;font-size:.78rem}
@@ -6725,13 +6725,13 @@ PAGE_INFO = {NAV[0]: ("Game odds", "Simulate one matchup 10,000 times and compar
              NAV[5]: ("My bets", "Log, track and settle your own bets, with live leg progress."),
              NAV[6]: ("Pick'em", "Pick the winners yourself and see how you stack up against the book and the model."),
              NAV[7]: ("Edge tools", "Bet sizing, closing line value, model accuracy and ready-to-post picks.")}
+if private_ok:
+    _ub_style = " style='margin-top:.5rem'" if nav == HOME_NAV else ""
+    html(f'<div class="ub-bar"><span>👤 Signed in as <b>{H(st.session_state.get("user_name", ""))}</b></span>'
+         '<a href="?so=1" target="_self">Sign out</a></div>')
 _pi = PAGE_INFO.get(nav)
 if _pi:
     html(f'<div class="pro-page"><div class="pro-page-t">{H(_pi[0])}</div><div class="pro-page-s">{H(_pi[1])}</div></div>')
-if private_ok:
-    _ub_style = " style='margin-top:.5rem'" if nav == HOME_NAV else ""
-    html(f'<div class="ub-bar"{_ub_style}><span>👤 Signed in as <b>{H(st.session_state.get("user_name", ""))}</b></span>'
-         '<a href="?so=1" target="_self">Sign out</a></div>')
 record_closing(date, games)
 record_closing(date - dt.timedelta(days=1), prev_games if "prev_games" in globals() else [])
 
@@ -7029,7 +7029,7 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 .pro-sl{ font-size:.7rem; text-transform:uppercase; letter-spacing:.07em; opacity:.65; margin-top:.1rem; }
 
 /* Page title under the menu */
-.pro-page{ margin:.9rem 0 .6rem; display:flex; align-items:baseline; gap:.7rem; flex-wrap:wrap; }
+.pro-page{ margin:.15rem 0 .6rem; display:flex; align-items:baseline; gap:.7rem; flex-wrap:wrap; }
 .pro-page-t{ font-size:1.3rem; font-weight:800; letter-spacing:-.035em; color:var(--p-ink); }
 .pro-page-s{ color:var(--p-mute); font-size:.86rem; }
 

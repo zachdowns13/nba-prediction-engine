@@ -195,7 +195,8 @@ FB_TURNOVER_RATE, FB_OREB_RATE = 0.13, 0.25
 BACKTEST_NOTE = ""               # optional: paste your Colab backtest result here, e.g. "Last season its spread picks won 51.2%."
 
 BASE = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
-HEADERS = {"User-Agent": "Mozilla/5.0"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+           "Accept": "application/json, text/plain, */*", "Accept-Language": "en-US,en;q=0.9", "Referer": "https://www.espn.com/", "Origin": "https://www.espn.com"}
 # Automatic player ratings (from recent box scores) used to size each injury
 RATING_GAMES = 15        # team games used to rate each player
 PRIOR_GSM = 0.30         # league-typical production per minute; players with few minutes are nudged toward it
@@ -211,20 +212,25 @@ BREAKEVEN = 110 / 210
 # SMALL HELPERS
 # =====================================================================
 def _get(url, params=None, tries=3):
-    # ESPN sometimes answers with an empty page when it is busy or throttling; wait a moment and try again instead of failing at once.
+    # ESPN sometimes answers with an empty page when it is busy or throttling (shared cloud IPs get hit most): wait and retry, then
+    # try ESPN's second host for the same data before giving up.
     import time as _t
+    hosts = [url]
+    if "://site.api.espn.com/" in url:
+        hosts.append(url.replace("://site.api.espn.com/", "://site.web.api.espn.com/"))
     last = None
-    for i in range(tries + 1):
-        try:
-            r = requests.get(url, params=params, headers=HEADERS, timeout=20)
-            r.raise_for_status()
-            if not (r.text or "").strip():
-                raise ValueError("ESPN sent an empty response")
-            return r.json()
-        except Exception as e:
-            last = e
-            if i < tries:
-                _t.sleep(0.8 * (i + 1))
+    for u in hosts:
+        for i in range(tries + 1):
+            try:
+                r = requests.get(u, params=params, headers=HEADERS, timeout=20)
+                r.raise_for_status()
+                if not (r.text or "").strip():
+                    raise ValueError("ESPN sent an empty response")
+                return r.json()
+            except Exception as e:
+                last = e
+                if i < tries:
+                    _t.sleep(0.8 * (i + 1))
     raise last
 
 
@@ -5730,6 +5736,18 @@ HOME_NAV = "🏠 Home"
 
 @st.cache_data(ttl=10, show_spinner=False)
 def home_scoreboard(date_iso):
+    try:
+        out = _home_scoreboard_raw(date_iso)
+        _last_good()["sb_" + date_iso] = out
+        return out
+    except Exception:
+        lg = _last_good().get("sb_" + date_iso)
+        if lg is not None:
+            return lg                                   # show the last scores we got rather than an error
+        raise
+
+
+def _home_scoreboard_raw(date_iso):
     d = dt.date.fromisoformat(date_iso)
     data = _get(f"{BASE}/scoreboard", {"dates": d.strftime("%Y%m%d")}, tries=2)
     out = []

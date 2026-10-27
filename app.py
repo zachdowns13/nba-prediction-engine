@@ -5117,35 +5117,36 @@ try:
 except Exception:
     b2b_teams = set()
 
-with hero:
-    _n = len(games)
-    _lg = []
-    for _g in (games or [])[:14]:
-        for _u in (_g.get("away_logo"), _g.get("home_logo")):
-            if _u and _u not in _lg:
-                _lg.append(_u)
-    _logos = "".join(f'<span class="hs-lg" style="background-image:url(\'{H(u)}\')"></span>' for u in _lg[:16])
-    _HP = {"Home": ("#3b82f6", "🏠", "NBA Prediction Engine", "Live scores · Projections · Props · Picks"),
-           "Game odds": ("#3b82f6", "📊", "Game odds", "Simulate one matchup 10,000 times"),
-           "Full slate": ("#a855f7", "📋", "Full slate", "Simulating every game 10,000 times"),
-           "Player props": ("#f59e0b", "🎯", "Player props", "Lookup, projections and perfect props"),
-           "First basket": ("#f97316", "🏀", "First basket", "Who scores first, tonight"),
-           "Results": ("#22c55e", "📈", "Results", "How the picks have actually done"),
-           "My bets": ("#14b8a6", "💵", "My bets", "Log, track and settle your bets"),
-           "Pick'em": ("#ec4899", "🏆", "Pick'em", "You vs the book vs the model"),
-           "Edge tools": ("#ef4444", "🧮", "Edge tools", "Sizing, CLV and model accuracy"),
-           "X post": ("#38bdf8", "📣", "X post", "Ready-to-post picks"),
-           "Sign in": ("#94a3b8", "🔒", "Sign in", "Unlock the private tabs"), "Private": ("#94a3b8", "🔒", "Private", "Sign in to unlock")}
-    _hk = re.sub(r"^[^A-Za-z0-9]+", "", str(st.session_state.get("main_nav") or "Home")).strip()
-    _hc, _hi, _ht, _hs = _HP.get(_hk, _HP["Home"]) if SIDEBAR_NAV else _HP["Home"]
-    _hr = tuple(int(_hc[i:i + 2], 16) for i in (1, 3, 5))
-    _hbg = (f' style="background:linear-gradient(115deg,rgba({_hr[0]},{_hr[1]},{_hr[2]},.95) 0%,rgba({_hr[0]},{_hr[1]},{_hr[2]},.4) 45%,#0d1020 100%) !important"' if SIDEBAR_NAV else "")
-    html(f'<div class="pro-hero pro-hero-s"{_hbg}><div class="hero-ring"></div><div class="hero-ring r2"></div>'
-         f'<div class="hs-left"><span class="pro-mark">{_hi if SIDEBAR_NAV else "🏀"}</span><div><div class="pro-title">{H(_ht) if SIDEBAR_NAV else "NBA Prediction Engine"}</div>'
-         f'<div class="pro-sub">{H(_hs) if SIDEBAR_NAV else "Live scores<i>·</i>Projections<i>·</i>Props<i>·</i>Picks"}</div></div></div>'
-         '<div class="hs-right">'
-         f'<div class="pro-chips"><span class="pro-live">{H(date.strftime("%A, %B %-d"))}</span>'
-         '<span class="pro-live"><span class="pro-dot"></span>Live data from ESPN</span></div></div></div>')
+def _fill_hero(_navv):
+  with hero:
+      _n = len(games)
+      _lg = []
+      for _g in (games or [])[:14]:
+          for _u in (_g.get("away_logo"), _g.get("home_logo")):
+              if _u and _u not in _lg:
+                  _lg.append(_u)
+      _logos = "".join(f'<span class="hs-lg" style="background-image:url(\'{H(u)}\')"></span>' for u in _lg[:16])
+      _HP = {"Home": ("#3b82f6", "🏠", "NBA Prediction Engine", "Live scores · Projections · Props · Picks"),
+             "Game odds": ("#3b82f6", "📊", "Game odds", "Simulate one matchup 10,000 times"),
+             "Full slate": ("#a855f7", "📋", "Full slate", "Simulating every game 10,000 times"),
+             "Player props": ("#f59e0b", "🎯", "Player props", "Lookup, projections and perfect props"),
+             "First basket": ("#f97316", "🏀", "First basket", "Who scores first, tonight"),
+             "Results": ("#22c55e", "📈", "Results", "How the picks have actually done"),
+             "My bets": ("#14b8a6", "💵", "My bets", "Log, track and settle your bets"),
+             "Pick'em": ("#ec4899", "🏆", "Pick'em", "You vs the book vs the model"),
+             "Edge tools": ("#ef4444", "🧮", "Edge tools", "Sizing, CLV and model accuracy"),
+             "X post": ("#38bdf8", "📣", "X post", "Ready-to-post picks"),
+             "Sign in": ("#94a3b8", "🔒", "Sign in", "Unlock the private tabs"), "Private": ("#94a3b8", "🔒", "Private", "Sign in to unlock")}
+      _hk = re.sub(r"^[^A-Za-z0-9]+", "", str(_navv or "Home")).strip()
+      _hc, _hi, _ht, _hs = _HP.get(_hk, _HP["Home"]) if SIDEBAR_NAV else _HP["Home"]
+      _hr = tuple(int(_hc[i:i + 2], 16) for i in (1, 3, 5))
+      _hbg = (f' style="background:linear-gradient(115deg,rgba({_hr[0]},{_hr[1]},{_hr[2]},.95) 0%,rgba({_hr[0]},{_hr[1]},{_hr[2]},.4) 45%,#0d1020 100%) !important"' if SIDEBAR_NAV else "")
+      html(f'<div class="pro-hero pro-hero-s"{_hbg}><div class="hero-ring"></div><div class="hero-ring r2"></div>'
+           f'<div class="hs-left"><span class="pro-mark">{_hi if SIDEBAR_NAV else "🏀"}</span><div><div class="pro-title">{H(_ht) if SIDEBAR_NAV else "NBA Prediction Engine"}</div>'
+           f'<div class="pro-sub">{H(_hs) if SIDEBAR_NAV else "Live scores<i>·</i>Projections<i>·</i>Props<i>·</i>Picks"}</div></div></div>'
+           '<div class="hs-right">'
+           f'<div class="pro-chips"><span class="pro-live">{H(date.strftime("%A, %B %-d"))}</span>'
+           '<span class="pro-live"><span class="pro-dot"></span>Live data from ESPN</span></div></div></div>')
 
 labels = [f"{g['away']} @ {g['home']}" for g in games] + ["✏️ Manual matchup"]
 choice = st.session_state.get("sel_game")
@@ -6199,7 +6200,7 @@ def edge_tab(date):
 
 def sub_nav(labels, key):
     # The page's sections, as a small segmented control under the main menu inside the pinned menu bar, so it stays put while you scroll.
-    box = globals().get("_nav_box")
+    box = None if SIDEBAR_NAV else globals().get("_nav_box")
     k = f"subnav_{key}"
     if st.session_state.get(k) not in labels:
         st.session_state[k] = st.session_state.get(f"{k}_last") if st.session_state.get(f"{k}_last") in labels else labels[0]
@@ -8622,6 +8623,7 @@ div[data-testid="stMainBlockContainer"].block-container{max-width:1500px !import
     if nav not in menu:                                  # tapping the selected button again clears it; stay on the same page
         nav = st.session_state.get("_main_last") if st.session_state.get("_main_last") in menu else menu[0]
     st.session_state["_main_last"] = nav
+_fill_hero(nav)
 
 def tab_colors():
     # A touch of color on each main tab (matched by its label, so it survives re-renders).

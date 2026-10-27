@@ -2491,6 +2491,42 @@ def game_results_view():
             save_wide(empty_wide())
             st.success("Log erased.")
 
+    with st.expander("✏️ Fix a pick (match what you actually posted)"):
+        st.caption("If a later run flipped a pick after you had already posted or bet it, set it back here so your record matches what you "
+                   "really posted. The game is locked afterwards so it can't change again. Only use this to restore a pick you made before "
+                   "the game started.")
+        if len(wide):
+            _w = wide.sort_values(["date", "game"], ascending=[False, True])
+            _opts = {f"{_nice_date(r['date'])} · {r['game']}": r["key"] for _, r in _w.iterrows()}
+            _gsel = st.selectbox("Game", list(_opts), key="fix_game")
+            _row = wide[wide["key"] == _opts[_gsel]].iloc[0]
+            _mk = st.selectbox("Market", ["Moneyline", "Spread", "Total"], key="fix_mkt")
+            _m = {"Moneyline": "ml", "Spread": "sp", "Total": "to"}[_mk]
+            _pa, _pb = _row[f"{_m}_model_a"], _row[f"{_m}_model_b"]
+            if pd.isna(_pa) or pd.isna(_pb):
+                st.info("That game has no saved pick for this market.")
+            else:
+                _L = _row[f"{_m}_line"]
+                if _m == "sp":
+                    _la, _lb = f"{short(_row['home'])} {_L:+.1f}", f"{short(_row['away'])} {-_L + 0.0:+.1f}"
+                elif _m == "to":
+                    _la, _lb = f"Over {_L}", f"Under {_L}"
+                else:
+                    _la, _lb = f"{short(_row['home'])} moneyline", f"{short(_row['away'])} moneyline"
+                _cur = _la if _pa >= _pb else _lb
+                st.caption(f"Currently saved: **{_cur}**")
+                _want = st.radio("Set my pick to", [_la, _lb], index=0 if _pa >= _pb else 1, key=f"fix_side_{_opts[_gsel]}_{_m}")
+                if st.button("✅ Set this as my pick", key="fix_go", disabled=(_want == _cur)):
+                    _hi, _lo = max(_pa, _pb), min(_pa, _pb)
+                    wide2 = wide.copy()
+                    _i = wide2.index[wide2["key"] == _row["key"]][0]
+                    wide2.loc[_i, f"{_m}_model_a"], wide2.loc[_i, f"{_m}_model_b"] = (_hi, _lo) if _want == _la else (_lo, _hi)
+                    save_wide(clean_wide(wide2))
+                    set_locked(get_locked() | {str(_row["key"])})
+                    st.success(f"Done: your pick is now {_want}, and the game is locked. Reload to see it everywhere.")
+        else:
+            st.caption("No saved games yet.")
+
     with st.expander("🧹 Start fresh (new record from today)"):
         st.caption("Wipes YOUR model-pick record, locks and Pick'em record so everything starts from today. Your bets are not touched. "
                    "A backup copy of each file is saved first, and you can restore from a download above if you change your mind.")

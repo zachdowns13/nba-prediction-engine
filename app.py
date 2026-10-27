@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 27, 3:15 PM"          # shown at the bottom of the sidebar so you can tell which version is live
+APP_BUILD = "Oct 27, 3:25 PM"          # shown at the bottom of the sidebar so you can tell which version is live
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4216,10 +4216,6 @@ def open_bets_list(refresh=False):
     st.markdown("""<style>
 div[class*="st-key-bk_hdr_"] button{justify-content:flex-start !important;text-align:left !important;font-weight:700;width:400px !important;max-width:100% !important;background:rgba(128,128,128,.10) !important;border:1px solid rgba(128,128,128,.22) !important;border-radius:12px !important;padding:.55rem .9rem !important}
 div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
-div[class*="st-key-seg_"]{width:206px;margin-left:auto;margin-top:-62px;position:relative;z-index:2;display:flex;justify-content:flex-start}
-div[class*="st-key-seg_"] [data-testid="stButtonGroup"]{justify-content:flex-start}
-.leg-reserve{padding-right:216px;box-sizing:border-box}
-@media (max-width:760px){div[class*="st-key-seg_"]{width:100%;margin-top:0;margin-bottom:.3rem}.leg-reserve{padding-right:0}}
 </style>""", unsafe_allow_html=True)
     if st.session_state.pop("want_refresh", False):
         refresh = True
@@ -4278,17 +4274,23 @@ div[class*="st-key-seg_"] [data-testid="stButtonGroup"]{justify-content:flex-sta
                         with st.expander(f"Legs · {_ls0.count('H')} of {len(legs)} hit" + "\u200b" * st.session_state["legs_ver"], expanded=st.session_state["legs_open"]):
                                 ls = leg_states(r)
                                 for i, leg in enumerate(legs):
+                                    try:
+                                        q = st.columns([4.2, 2], vertical_alignment="bottom", gap="small")
+                                    except TypeError:
+                                        q = st.columns([4.2, 2], gap="small")
                                     _pp = parse_leg(leg) if games else None
                                     if _pp:
-                                        html(live_leg_html(leg_live(_pp, games, r["date"]), title=f"{_leg_icon(ls[i])} {leg}"))
+                                        with q[0]:                       # name, live numbers and bar as one tight block
+                                            html(live_leg_html(leg_live(_pp, games, r["date"]), title=f"{_leg_icon(ls[i])} {leg}"))
                                     else:                                    # not tracked live: same look, with an empty bar and the status you set by hand
                                         _st = {"H": "hit", "M": "miss", "P": "push"}.get(ls[i], "wait")
-                                        html(live_leg_html({"status": _st, "cur": None, "line": None, "unit": "", "bar": 100 if _st in ("hit", "miss") else 0,
-                                                            "label": "Not tracked live" if parse_leg(leg) is None else "Waiting for live stats"},
-                                                           title=f"{_leg_icon(ls[i])} {leg}"))
+                                        with q[0]:
+                                            html(live_leg_html({"status": _st, "cur": None, "line": None, "unit": "", "bar": 100 if _st in ("hit", "miss") else 0,
+                                                                "label": "Not tracked live" if parse_leg(leg) is None else "Waiting for live stats"},
+                                                               title=f"{_leg_icon(ls[i])} {leg}"))
                                     _cp = leg_can_push(leg)
                                     try:
-                                        pick_ = st.segmented_control("Leg result", ["✅", "➖", "❌"] if _cp else ["✅", "❌"],
+                                        pick_ = q[1].segmented_control("Leg result", ["✅", "➖", "❌"] if _cp else ["✅", "❌"],
                                                                        default={"H": "✅", "M": "❌", "P": "➖"}.get(ls[i]),
                                                                        key=f"seg_{r['id']}_{i}_{ls[i]}_{int(_cp)}", label_visibility="collapsed")
                                         new_ = {"✅": "H", "❌": "M", "➖": "P"}.get(pick_, "-")
@@ -4297,7 +4299,7 @@ div[class*="st-key-seg_"] [data-testid="stButtonGroup"]{justify-content:flex-sta
                                             st.rerun()
                                     except AttributeError:                                   # older Streamlit: plain buttons
                                         _labs, _vals = (["✅", "➖", "❌", "↩️"], ["H", "P", "M", "-"]) if _cp else (["✅", "❌", "↩️"], ["H", "M", "-"])
-                                        z = st.columns(len(_labs))
+                                        z = q[1].columns(len(_labs))
                                         for col_, lab_, val_ in zip(z, _labs, _vals):
                                             if col_.button(lab_, key=f"lg_{r['id']}_{i}_{val_}"):
                                                 set_leg(r["id"], i, val_)

@@ -2015,8 +2015,9 @@ def perfect_props_tab(M, games, injuries, date, b2b):
     pick = st.selectbox("Game", opts, index=opts.index(first), format_func=lambda x: lbl[x], key="pp_game_pick")
     show = gl if pick == "All games" else [g for g in gl if g["id"] == pick]
     _labs = [v[0] for v in PP_STD.values()]
-    f1, f2, f3 = st.columns([3, 2, 1.5])
-    stat_sel = f1.multiselect("Stat type", _labs, default=_labs, key="pp_stats") or _labs
+    f1, f2, f3 = st.columns(3)
+    _sp = f1.selectbox("Stat type", ["All stats"] + _labs, key="pp_stat_pick")
+    stat_sel = _labs if _sp == "All stats" else [_sp]
     _tm = ["Both teams"]
     if pick != "All games":
         _g0 = show[0]

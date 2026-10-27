@@ -4334,9 +4334,17 @@ div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
             _rows = [r_ for _, r_ in open_.iterrows()]
             def _grid(rs):
                 if _lay == "Two columns":
-                    for _i in range(0, len(rs), 2):
-                        for _c, _r in zip(st.columns(2, gap="small"), rs[_i:_i + 2]):
-                            with _c:
+                    # Two independent stacks (not rows), so a tall card never leaves a hole beside it. Each card goes to the shorter stack.
+                    _open_legs = st.session_state.get("legs_open", False)
+                    _h, _bk = [0.0, 0.0], [[], []]
+                    for _r in rs:
+                        _n = len(split_legs(_r["desc"]))
+                        _k = 0 if _h[0] <= _h[1] else 1
+                        _bk[_k].append(_r)
+                        _h[_k] += 10 + (_n * 6 if (_open_legs and _n > 1) else 0)
+                    for _c, _items in zip(st.columns(2, gap="small"), _bk):
+                        with _c:
+                            for _r in _items:
                                 _card(_r)
                 else:
                     for _r in rs:

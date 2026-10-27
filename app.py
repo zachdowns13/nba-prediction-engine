@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 27, 3:25 PM"          # shown at the bottom of the sidebar so you can tell which version is live
+APP_BUILD = "Oct 27, 4:10 PM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -3584,7 +3584,7 @@ LEG_STATS = ["Points", "Rebounds", "Assists", "3-pointers made",
              "Points + rebounds + assists", "Points + rebounds", "Points + assists", "Rebounds + assists",
              "Steals", "Blocks",
              "3-pointers attempted", "Field goals made", "Field goals attempted", "Free throws made", "Free throws attempted",
-             "Double-double", "Triple-double"]
+             "Fantasy score", "Double-double", "Triple-double"]
 TEAM_BETS = ["Moneyline (to win)", "Spread", "Game total over", "Game total under", "Team total over", "Team total under"]
 
 
@@ -3733,7 +3733,7 @@ Today's date is {today}. Return {{"bets": [ ... ]}} with one object per bet slip
 - "date": the date the bet was placed as YYYY-MM-DD, or null if not shown.
 - "status": "pending", "won", "lost" or "push" if the slip shows it, else "pending".
 - "legs": a list of strings, one per pick, written in EXACTLY these formats (full official NBA team names, full player names):
-  Player prop: "<Player> over|under <line> <stat>" where stat is one of: points, rebounds, assists, 3s made, steals, blocks, points + rebounds + assists, points + rebounds, points + assists, rebounds + assists, 3s attempted, field goals made, field goals attempted, free throws made, free throws attempted
+  Player prop: "<Player> over|under <line> <stat>" where stat is one of: points, rebounds, assists, 3s made, steals, blocks, points + rebounds + assists, points + rebounds, points + assists, rebounds + assists, fantasy score (PrizePicks NBA fantasy points), 3s attempted, field goals made, field goals attempted, free throws made, free throws attempted
   Double or triple double: "<Player> double-double" / "<Player> triple-double"
   Moneyline: "<Team> ML vs <Opponent>"
   Spread: "<Team> +3.5 vs <Opponent>" (use the sign shown, - for the favorite)
@@ -3984,7 +3984,8 @@ LIVE_REFRESH_SECONDS = 30
 STAT_PARTS = {"points": ("pts",), "rebounds": ("reb",), "assists": ("ast",), "3s made": ("tpm",), "steals": ("stl",), "blocks": ("blk",),
               "points + rebounds + assists": ("pts", "reb", "ast"), "points + rebounds": ("pts", "reb"), "points + assists": ("pts", "ast"),
               "rebounds + assists": ("reb", "ast"), "3s attempted": ("tpa",), "field goals made": ("fgm",), "field goals attempted": ("fga",),
-              "free throws made": ("ftm",), "free throws attempted": ("fta",)}
+              "free throws made": ("ftm",), "free throws attempted": ("fta",), "fantasy score": ("fantasy",)}
+FANTASY_W = {"pts": 1.0, "reb": 1.2, "ast": 1.5, "blk": 3.0, "stl": 3.0, "tov": -1.0}      # PrizePicks NBA fantasy score
 _LEG_RE = re.compile(r"^(?P<who>.+?) (?P<side>over|under) (?P<line>\d+(?:\.\d+)?) (?P<stat>.+)$", re.I)
 _DD_RE = re.compile(r"^(?P<who>.+?) (?P<kind>double-double|triple-double)$", re.I)
 
@@ -3999,6 +4000,10 @@ def parse_leg(leg):
     """Turns a saved leg like 'Devin Booker over 26.5 points' or 'Phoenix Suns ML vs Portland Trail Blazers' into its parts, or None if it can't be tracked."""
     leg = leg.strip()
     if leg.upper().startswith("NFL:"):          # NFL legs are scored by hand
+        return None
+    if leg.upper().startswith("NBA:"):          # NBA-tagged legs (e.g. fantasy score) still track
+        leg = leg[4:].strip()
+    if re.search(r"\(1H\)|first half|1st half", leg, re.I):
         return None
     for kind, rx in (("ml", _ML_RE), ("ttotal", _TT_RE), ("gtotal", _GT_RE)):
         m = rx.match(leg)
@@ -4019,6 +4024,8 @@ def parse_leg(leg):
 
 
 def _live_value(p, stat):
+    if stat == "fantasy score":
+        return round(sum(w * ((p["oreb"] + p["dreb"]) if k == "reb" else p.get(k, 0)) for k, w in FANTASY_W.items()), 1)
     return sum((p["oreb"] + p["dreb"]) if k == "reb" else p.get(k, 0) for k in STAT_PARTS[stat])
 
 

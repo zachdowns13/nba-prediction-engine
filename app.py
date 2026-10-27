@@ -4212,6 +4212,11 @@ def _want_refresh():
 
 
 def open_bets_list(refresh=False):
+    st.markdown("""<style>
+div[class*="st-key-seg_"]{display:flex;justify-content:flex-end;width:100%}
+div[class*="st-key-seg_"] [data-testid="stButtonGroup"]{justify-content:flex-end}
+[data-testid="stColumn"]:has(div[class*="st-key-seg_"]){display:flex;align-items:flex-end}
+</style>""", unsafe_allow_html=True)
     if st.session_state.pop("want_refresh", False):
         refresh = True
     if refresh:
@@ -4269,7 +4274,7 @@ def open_bets_list(refresh=False):
                         with st.expander(f"Legs · {_ls0.count('H')} of {len(legs)} hit" + "\u200b" * st.session_state["legs_ver"], expanded=st.session_state["legs_open"]):
                                 ls = leg_states(r)
                                 for i, leg in enumerate(legs):
-                                    q = st.columns([3, 1.3])
+                                    q = st.columns([6, 1.2])
                                     _pp = parse_leg(leg) if games else None
                                     if _pp:
                                         with q[0]:                       # name, live numbers and bar as one tight block
@@ -4320,19 +4325,23 @@ def open_bets_list(refresh=False):
                         delete_bet(r["id"])
                         st.rerun()
             _rows = [r_ for _, r_ in open_.iterrows()]
-            if _lay == "Two columns" and not by_book:
-                for _i in range(0, len(_rows), 2):
-                    for _c, _r in zip(st.columns(2, gap="small"), _rows[_i:_i + 2]):
-                        with _c:
-                            _card(_r)
+            def _grid(rs):
+                if _lay == "Two columns":
+                    for _i in range(0, len(rs), 2):
+                        for _c, _r in zip(st.columns(2, gap="small"), rs[_i:_i + 2]):
+                            with _c:
+                                _card(_r)
+                else:
+                    for _r in rs:
+                        _card(_r)
+            if by_book:
+                for _bk in dict.fromkeys(r_["book"] for r_ in _rows):
+                    grp = [r_ for r_ in _rows if r_["book"] == _bk]
+                    html(f'<div style="margin:14px 0 4px">{book_chip(_bk, 22)}<b style="vertical-align:middle">{H(_bk)}</b>'
+                         f'<span class="nb-muted" style="vertical-align:middle"> · {len(grp)} bet{"s" if len(grp) != 1 else ""} · ${sum(float(g_["stake"]) for g_ in grp):,.0f} at risk</span></div>')
+                    _grid(grp)
             else:
-                for _r in _rows:
-                    if by_book and _r["book"] != last_book:
-                        last_book = _r["book"]
-                        grp = open_[open_["book"] == last_book]
-                        html(f'<div style="margin:14px 0 4px">{book_chip(last_book, 22)}<b style="vertical-align:middle">{H(last_book)}</b>'
-                             f'<span class="nb-muted" style="vertical-align:middle"> · {len(grp)} bet{"s" if len(grp) != 1 else ""} · ${grp["stake"].sum():,.0f} at risk</span></div>')
-                    _card(_r)
+                _grid(_rows)
     if games:
         st.caption(f"Live stats as of {_snap[0].strftime('%-I:%M:%S %p')}. Tap Refresh live stats to update. They come from ESPN's live box score, which can run about a minute behind the broadcast.")
 

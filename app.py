@@ -6295,7 +6295,7 @@ def _logo_img(url, px):
         return None
 
 
-def x_graphic(res, fb, g, tipstr, handle):
+def x_graphic(res, fb, g, tipstr, handle, fb_odds=None):
     # A 1200x675 stat card for one game: projected score, win probability, each market with its edge, and the first-basket odds.
     from PIL import Image, ImageDraw
     import io
@@ -6395,10 +6395,14 @@ def x_graphic(res, fb, g, tipstr, handle):
         r0 = fb["T"].iloc[0]
         nm = str(r0["Player"])
         d.text((px0 + 20, cy0 + 76), nm, font=_fit(d, nm, 1152 - px0 - 40, 34), fill=(255, 255, 255), anchor="lm")
-        d.text((px0 + 20, cy0 + 138), f"{r0['prob'] * 100:.0f}%", font=_gfont(46), fill=(251, 191, 36), anchor="lm")
-        d.text((px0 + 20, cy0 + 172), f"TO SCORE FIRST  |  {str(r0['Team']).upper()}", font=_gfont(15), fill=(148, 163, 184), anchor="lm")
-        d.rounded_rectangle([px0 + 20, cy0 + 190, 1152 - 20, cy0 + 200], 5, fill=(30, 41, 59))
-        d.rounded_rectangle([px0 + 20, cy0 + 190, px0 + 20 + int((1152 - px0 - 40) * min(float(r0["prob"]) * 5, 1)), cy0 + 200], 5, fill=(251, 191, 36))
+        if fb_odds is not None:                                         # the sportsbook's price, not the model's chance
+            d.text((px0 + 20, cy0 + 138), _am(fb_odds), font=_gfont(46), fill=(251, 191, 36), anchor="lm")
+            d.text((px0 + 20, cy0 + 172), f"BOOK ODDS  |  {str(r0['Team']).upper()}", font=_gfont(15), fill=(148, 163, 184), anchor="lm")
+        else:
+            d.text((px0 + 20, cy0 + 138), f"{r0['prob'] * 100:.0f}%", font=_gfont(46), fill=(251, 191, 36), anchor="lm")
+            d.text((px0 + 20, cy0 + 172), f"TO SCORE FIRST  |  {str(r0['Team']).upper()}", font=_gfont(15), fill=(148, 163, 184), anchor="lm")
+            d.rounded_rectangle([px0 + 20, cy0 + 190, 1152 - 20, cy0 + 200], 5, fill=(30, 41, 59))
+            d.rounded_rectangle([px0 + 20, cy0 + 190, px0 + 20 + int((1152 - px0 - 40) * min(float(r0["prob"]) * 5, 1)), cy0 + 200], 5, fill=(251, 191, 36))
         tp = (fb.get("tip") or {}).get("p_home")
         if tp is not None:
             d.text((px0 + 20, cy0 + 228), f"TIP-OFF  {H_.upper()} {tp * 100:.0f}%", font=_gfont(17), fill=(203, 213, 225), anchor="lm")
@@ -6410,7 +6414,7 @@ def x_graphic(res, fb, g, tipstr, handle):
     return buf.getvalue()
 
 
-def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False):
+def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False, fb_odds=None):
     # Build the post (or the two parts of a thread) from the saved simulation. Returns a list of strings.
     short = short_pk                       # T-Wolves and Cavs, like the Pick'em screen
     home, away, o = g["home"], g["away"], res["odds"]
@@ -6435,7 +6439,7 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False):
     fb_line = ""
     if opts["fb"] and fb:
         T = fb["T"]
-        fb_line = f"🎯 First basket: {T.iloc[0]['Player']} ({T.iloc[0]['prob'] * 100:.0f}%)"
+        fb_line = f"🎯 First basket: {T.iloc[0]['Player']}" + (f" ({_am(fb_odds)} at the books)" if fb_odds is not None else "")
 
     tip_line = ""
     if opts["fb"] and fb and mode != "short":
@@ -6779,7 +6783,7 @@ def _vsmooth(s):
     return s * s * (3 - 2 * s)
 
 
-def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
+def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb_odds=None):
     # Renders the whole 16:9 clip and returns MP4 bytes.
     import random, tempfile, os as _os, math, zlib
     from PIL import Image, ImageDraw
@@ -7152,8 +7156,9 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
                 if first_done:
                     d.text((924, 428), featured["name"], font=fit(d, featured["name"], 330, 36), fill=(255, 255, 255), anchor="lm")
                     d.text((924, 464), (H_ if featured["home"] else A_).upper(), font=FS(18), fill=(160, 175, 205), anchor="lm")
-                    d.text((924, 528), f"{featured['prob'] * 100:.0f}%", font=FS(72), fill=gold, anchor="lm")
-                    d.text((924 + d.textlength(f"{featured['prob'] * 100:.0f}%", font=FS(72)) + 12, 540), "model chance\npregame", font=FS(16, False), fill=(190, 200, 225), anchor="lm", spacing=4)
+                    big_ = _am(fb_odds) if fb_odds is not None else f"{featured['prob'] * 100:.0f}%"
+                    d.text((924, 528), big_, font=FS(72 if fb_odds is None else 66), fill=gold, anchor="lm")
+                    d.text((924 + d.textlength(big_, font=FS(72 if fb_odds is None else 66)) + 12, 540), "at the books\nfirst basket" if fb_odds is not None else "model chance\npregame", font=FS(16, False), fill=(190, 200, 225), anchor="lm", spacing=4)
                     d.text((924, 572), "SCORED FIRST IN THIS SIM", font=FS(14), fill=(34, 197, 94), anchor="lm")
                 else:
                     d.text((1087, 465), "?", font=FS(170), fill=gold, anchor="mm")
@@ -7169,7 +7174,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
                     txt = "Who scores it first?"
                 else:
                     d.text((W // 2, 632), "FIRST BASKET", font=FS(20), fill=(90, 60, 0), anchor="mm")
-                    txt = f"{featured['name']} {'hits the three' if p['pts'] == 3 else 'scores first'}  -  model had him at {featured['prob'] * 100:.0f}%"
+                    txt = f"{featured['name']} {'hits the three' if p['pts'] == 3 else 'scores first'}  -  " + (f"books had him at {_am(fb_odds)}" if fb_odds is not None else f"model had him at {featured['prob'] * 100:.0f}%")
                 d.text((W // 2, 676), txt, font=fit(d, txt, 1200, 40), fill=(10, 14, 30), anchor="mm")
             else:
                 d.text((36, 655), "LAST PLAY", font=FS(16), fill=(160, 175, 205), anchor="lm")
@@ -7342,10 +7347,21 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
     o1, o2, o3, o4 = st.columns(4)
     opts = {"score": o1.checkbox("Projected score", True, key="x_o_score"), "fb": o2.checkbox("First basket", True, key="x_o_fb"),
             "inj": o3.checkbox("Key injuries", True, key="x_o_inj"), "tag": o4.checkbox("Sign-off", True, key="x_o_tag")}
-    gk = f"xg_{key}_{handle}"
+    fb_odds = None
+    if d["fb"] is not None and len(d["fb"]["T"]):
+        _pn = str(d["fb"]["T"].iloc[0]["Player"])
+        _saved = ((st.session_state.get(f"fbres_{g['id']}") or {}).get("odds") or {}).get(_pn.lower())       # a price you already pasted on the First basket tab
+        _txt = st.text_input(f"Sportsbook odds for {_pn} to score first (optional, like +850)", value=(f"{int(_saved):+d}" if _saved is not None else ""),
+                             key=f"x_fbodds_{key}", help="Shown instead of the model's percentage in the post, graphic and video. Leave it blank to show the percentage on the graphic and video.")
+        _m = re.search(r"[+-]?\d{3,5}", _txt or "")
+        if _m:
+            fb_odds = int(_m.group(0))
+            if fb_odds > 0 and "+" not in _m.group(0) and "-" not in _m.group(0):
+                fb_odds = int(_m.group(0))
+    gk = f"xg_{key}_{handle}_{fb_odds}"
     if gk not in st.session_state:
         try:
-            st.session_state[gk] = x_graphic(d["res"], d["fb"], g, d["tip"], handle)
+            st.session_state[gk] = x_graphic(d["res"], d["fb"], g, d["tip"], handle, fb_odds)
         except Exception as e:
             st.session_state[gk] = None
             st.warning(f"Couldn't draw the graphic ({e}). The text still works.")
@@ -7356,7 +7372,7 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
         st.download_button("⬇️ Download graphic (PNG)", png, file_name=f"{short(g['away'])}_at_{short(g['home'])}.png".lower(), mime="image/png",
                            key=f"xdl_{key}")
         st.markdown("**2. Your sim video** (optional)")
-        vk = f"xv_{key}_{handle}"
+        vk = f"xv_{key}_{handle}_{fb_odds}"
         n_alt = st.session_state.get(f"xvn_{key}", 0)
         vc1, vc2 = st.columns(2)
         make = vc1.button("🎬 Make sim video (about a minute)", key=f"xvmk_{key}", use_container_width=True,
@@ -7370,7 +7386,7 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
                 bar = st.progress(0.0, text="Simulating 10,000 games and drawing the winner...")
                 props = props_auto(M, g, injuries, date, d["res"], b2b)
                 st.session_state[vk] = sim_video(d["res"], d["fb"], props, g, d["tip"], handle,
-                                                 progress=lambda x: bar.progress(x, text="Rendering the video..."), seed_extra=n_alt)
+                                                 progress=lambda x: bar.progress(x, text="Rendering the video..."), seed_extra=n_alt, fb_odds=fb_odds)
                 bar.empty()
             except Exception as e:
                 st.session_state.pop(vk, None)
@@ -7380,8 +7396,8 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
             st.video(vid)
             st.download_button("⬇️ Download video (MP4)", vid, file_name=f"{short(g['away'])}_at_{short(g['home'])}_sim.mp4".lower(), mime="video/mp4", key=f"xvdl_{key}")
         st.markdown("**3. Your post** (open it in X, then attach the downloaded graphic or video)")
-    video_post = st.checkbox("🎬 I'm posting this with the sim video (changes the post text)", value=bool(st.session_state.get(f"xv_{key}_{handle}")), key=f"x_vidpost_{key}")
-    texts = x_post_texts(d["res"], d["fb"], g, d["tip"], d["inj"], mode, opts, handle, video=video_post)
+    video_post = st.checkbox("🎬 I'm posting this with the sim video (changes the post text)", value=bool(st.session_state.get(f"xv_{key}_{handle}_{fb_odds}")), key=f"x_vidpost_{key}")
+    texts = x_post_texts(d["res"], d["fb"], g, d["tip"], d["inj"], mode, opts, handle, video=video_post, fb_odds=fb_odds)
     import urllib.parse as _up
     for i, tx in enumerate(texts):
         label = "Post" if len(texts) == 1 else (f"Post {i + 1} of {len(texts)}" + (" (post it first)" if i == 0 else " (reply to post 1)"))

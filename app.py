@@ -879,9 +879,9 @@ def render_result(res):
     g = res["game"]
     home_wins = res["hp"] >= res["ap"]
     html(f'<div class="nb-card"><div class="nb-score">'
-         f'<div class="t {"" if home_wins else "w"}">{logo(g.get("away_logo"), True)}<div class="n">{H(g["away"])}</div><div class="p">{res["ap"]:.0f}</div></div>'
+         f'<div class="t {"" if home_wins else "w"}">{logo(g.get("away_logo"), True)}<div class="n">{H(g["away"])}</div><div class="p">{_proj_pair(res)[1]}</div></div>'
          f'<div class="at">@</div>'
-         f'<div class="t {"w" if home_wins else ""}">{logo(g.get("home_logo"), True)}<div class="n">{H(g["home"])}</div><div class="p">{res["hp"]:.0f}</div></div></div>'
+         f'<div class="t {"w" if home_wins else ""}">{logo(g.get("home_logo"), True)}<div class="n">{H(g["home"])}</div><div class="p">{_proj_pair(res)[0]}</div></div></div>'
          f'<div class="nb-muted" style="text-align:center">Projected score · {SIMS:,} simulations · lines from {H(res["odds"]["provider"])}</div></div>')
     st.caption(f"Raw rating-based projection (before blending with the sportsbook line): "
                f"{by_txt(g['home'], g['away'], res['raw_m'])}, {res['raw_t']:.0f} total points.")
@@ -1565,7 +1565,7 @@ def props_tab(M, g, odds, injuries, date, b2b):
                 f'{logo(lg, True)}<span style="font-size:1.2rem">{H(team)}</span></div>')
     html('<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:2px 0 10px">'
          + _side(home, g.get("home_logo"))
-         + f'<div style="flex:none;text-align:center"><div style="font-size:2rem;font-weight:800;line-height:1.1">{res["hp"]:.0f} – {res["ap"]:.0f}</div>'
+         + f'<div style="flex:none;text-align:center"><div style="font-size:2rem;font-weight:800;line-height:1.1">{_proj_pair(res)[0]} – {_proj_pair(res)[1]}</div>'
            '<div class="nb-muted" style="font-size:.7rem;letter-spacing:.06em;text-transform:uppercase">Projected score</div></div>'
          + _side(away, g.get("away_logo")) + '</div>')
     pcols = st.columns(2)
@@ -3915,6 +3915,14 @@ def bets_tab():
 # =====================================================================
 # FULL SLATE
 # =====================================================================
+def _proj_pair(res):
+    # Projected score as whole numbers whose gap equals the rounded margin (so 111.6-108.4 shows 111-108, not 112-108 "by 4").
+    m = int(round(res["hp"] - res["ap"]))
+    t = res["hp"] + res["ap"]
+    a = int(round((t - m) / 2))
+    return a + m, a                    # (home, away)
+
+
 def pick_name(r):
     if r["market"] == "Moneyline":
         return f"{short(r['side'])} moneyline"
@@ -3994,7 +4002,7 @@ def game_card_html(res, best, has_val):
             f'<div class="gc-top"><span class="gc-tag">{H(g.get("date_label", "Tonight"))}</span>{badge_}</div>'
             f'<div class="gc-teams">'
             f'<div class="gc-team{" fav" if not fav_home else ""}">{logo_xl(g.get("away_logo"))}<div class="gc-name">{H(short(g["away"]))}</div><div class="gc-role">Away</div></div>'
-            f'<div class="gc-mid"><div class="gc-score"><b class="{"hi" if not fav_home else ""}">{round(res["ap"])}</b><i>–</i><b class="{"hi" if fav_home else ""}">{round(res["hp"])}</b></div>'
+            f'<div class="gc-mid"><div class="gc-score"><b class="{"hi" if not fav_home else ""}">{_proj_pair(res)[1]}</b><i>–</i><b class="{"hi" if fav_home else ""}">{_proj_pair(res)[0]}</b></div>'
             f'<div class="gc-proj">Projected</div></div>'
             f'<div class="gc-team right{" fav" if fav_home else ""}">{logo_xl(g.get("home_logo"))}<div class="gc-name">{H(short(g["home"]))}</div><div class="gc-role">Home</div></div>'
             f'</div>'
@@ -4201,7 +4209,7 @@ def slate_tab(M, date, games, injuries, b2b):
         wp = p_h if home_fav else 1 - p_h
         win_team = g["home"] if home_fav else g["away"]
         lose_team = g["away"] if home_fav else g["home"]
-        hi, lo = sorted((round(res["hp"]), round(res["ap"])), reverse=True)       # higher score always shown first
+        hi, lo = sorted(_proj_pair(res), reverse=True)       # higher score always shown first
         best = max(res["rows"], key=lambda r: r["edge"]) if res["rows"] else None
         has_val = bool(best and strength(best["edge"], best["ev"]))
         cards.append({"res": res, "wp": wp, "edge": best["edge"] if has_val else -1.0, "val": has_val, "order": len(cards),
@@ -5845,7 +5853,7 @@ def _model_line(x, res):
     fav_home = ph >= 0.5
     fav = short(x["home"] if fav_home else x["away"])
     wp = ph if fav_home else 1 - ph
-    txt = f'Model: {H(fav)} {wp * 100:.0f}% · proj {round(res["ap"])}–{round(res["hp"])}'
+    txt = f'Model: {H(fav)} {wp * 100:.0f}% · proj {_proj_pair(res)[1]}–{_proj_pair(res)[0]}'
     tag = ""
     if x["state"] in ("in", "post"):
         try:
@@ -6271,7 +6279,7 @@ def x_graphic(res, fb, g, tipstr, handle):
             d.ellipse([cx - 56, 84, cx + 56, 196], outline=(255, 255, 255), width=4)
             d.text((cx, 140), short(team)[:3].upper(), font=_gfont(36), fill=(255, 255, 255), anchor="mm")
         d.text((cx, 224), short_pk(team), font=_fit(d, short_pk(team), 300, 36), fill=(255, 255, 255), anchor="mm")
-    hp, ap = res["hp"], res["ap"]
+    hp, ap = _proj_pair(res)
     d.text((600, 84), "PROJECTED SCORE", font=_gfont(18), fill=(148, 163, 184), anchor="mm")
     d.text((600, 144), f"{ap:.0f} - {hp:.0f}", font=_gfont(84), fill=(255, 255, 255), anchor="mm")
     marg = hp - ap
@@ -6345,7 +6353,7 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle):
     short = short_pk                       # T-Wolves and Cavs, like the Pick'em screen
     home, away, o = g["home"], g["away"], res["odds"]
     H_, A_ = short(home), short(away)
-    hp, ap = res["hp"], res["ap"]
+    hp, ap = _proj_pair(res)
     rows = res["rows"]
 
     def best(mk):
@@ -6864,7 +6872,8 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
         d.text((W // 2, 595), "GAMES SIMULATED", font=FS(26), fill=(160, 175, 205), anchor="mm")
         if t > 0.72:
             a_ = _vsmooth((t - 0.72) / 0.2)
-            line = f"Now watching the one closest to the model's projection:  {A_} {ap:.0f} - {H_} {hp:.0f}"
+            _ph, _pa = _proj_pair(res)
+            line = f"Now watching the one closest to the model's projection:  {A_} {_pa} - {H_} {_ph}"
             d.text((W // 2, 665), line, font=fit(d, line, 1180, 30), fill=(int(40 + 215 * a_),) * 3, anchor="mm")
         emit(fr)
 
@@ -7087,7 +7096,7 @@ def _vfinal_card(res, g, sim, hc, ac, alogo, hlogo, handle):
         win = (sim["A"] > sim["H"]) == (i == 0)
         d.text((596, y + 75), str(sc), font=_gfont(96), fill=(255, 255, 255) if win else (150, 165, 195), anchor="rm")
     d.text((330, 470), "MODEL PROJECTION", font=_gfont(18), fill=(160, 175, 205), anchor="mm")
-    d.text((330, 510), f"{A_} {res['ap']:.0f}  -  {H_} {res['hp']:.0f}", font=_gfont(34), fill=(255, 255, 255), anchor="mm")
+    d.text((330, 510), f"{A_} {_proj_pair(res)[1]}  -  {H_} {_proj_pair(res)[0]}", font=_gfont(34), fill=(255, 255, 255), anchor="mm")
     rows = res["rows"]
 
     def best(mk):

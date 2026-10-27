@@ -2014,6 +2014,15 @@ def perfect_props_tab(M, games, injuries, date, b2b):
     first = next((g["id"] for g in gl if by_game[g["id"]]), "All games")
     pick = st.selectbox("Game", opts, index=opts.index(first), format_func=lambda x: lbl[x], key="pp_game_pick")
     show = gl if pick == "All games" else [g for g in gl if g["id"] == pick]
+    _labs = [v[0] for v in PP_STD.values()]
+    f1, f2, f3 = st.columns([3, 2, 1.5])
+    stat_sel = f1.multiselect("Stat type", _labs, default=_labs, key="pp_stats") or _labs
+    _tm = ["Both teams"]
+    if pick != "All games":
+        _g0 = show[0]
+        _tm += [short(_g0["away"]), short(_g0["home"])]
+    tsel = f2.selectbox("Team", _tm, key=f"pp_team_{pick}")
+    side_sel = f3.selectbox("Side", ["Both", "Over", "Under"], key="pp_side")
     for g in show:
         rows = by_game[g["id"]]
         html(f'<div style="display:flex;align-items:center;gap:10px;margin:18px 0 8px;font-weight:800;font-size:1.15rem">{logo(g.get("away_logo"), True)} {H(g["away"])}'
@@ -2022,28 +2031,24 @@ def perfect_props_tab(M, games, injuries, date, b2b):
         if not rows:
             st.caption("Nothing here has cleared every game at your price limit." if pd_["lines"].get((_nick(g["home"]), _nick(g["away"]))) else "No prop lines posted for this game yet.")
             continue
-        players = {}
-        for r in rows:
-            players.setdefault((r["Player"], r["Team"], r["id"]), []).append(r)
-        order = sorted(players.items(), key=lambda kv: -max(_am_dec(r["Price"]) for r in kv[1]))
-        cards = []
-        for (name, tm, aid), props in order:
-            chips = []
-            for r in sorted(props, key=lambda r: -_am_dec(r["Price"])):
-                up = r["Side"] == "over"
-                col = "var(--ok)" if up else "var(--acc)"
-                pcol = "var(--ok)" if r["Price"] > 0 else "inherit"
-                chips.append(f'<div style="border:1px solid var(--line);border-radius:12px;padding:8px 10px">'
-                             f'<div style="font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.6">{H(r["Prop"])}</div>'
-                             f'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">'
-                             f'<span style="font-size:1.1rem;font-weight:800;color:{col}">{"▲ Over" if up else "▼ Under"} {r["Line"]:g}</span>'
-                             f'<span style="font-size:1.05rem;font-weight:800;color:{pcol}">{r["Price"]:+d}</span></div>'
-                             f'<div class="nb-muted" style="font-size:.72rem;margin-top:2px">{H(r["Book"])} · {r["Games"]}/{r["Games"]} games · low {r["Low"]:g} · high {r["High"]:g} · avg {r["Avg"]:g}</div></div>')
-            cards.append(f'<div class="nb-card" style="padding:12px 14px"><div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">'
-                         f'<div class="nb-head" style="width:54px;height:54px;margin:0;flex:none;background-image:url(\'{headshot(aid)}\')"></div>'
-                         f'<div><div class="nb-title" style="font-size:1.05rem">{H(name)}</div><div class="nb-muted">{H(tm)} · {len(props)} prop{"s" if len(props) != 1 else ""} that haven\'t missed</div></div></div>'
-                         f'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px">' + "".join(chips) + '</div></div>')
-        html('<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:10px">' + "".join(cards) + '</div>')
+        for team in (g["away"], g["home"]):
+            if tsel not in ("Both teams", short(team)):
+                continue
+            tr = [r for r in rows if r["Team"] == short(team) and r["Prop"] in stat_sel and (side_sel == "Both" or r["Side"] == side_sel.lower())]
+            html(f'<div style="display:flex;align-items:center;gap:8px;margin:10px 0 4px;font-weight:700">{logo(g.get("home_logo") if team == g["home"] else g.get("away_logo"))} {H(team)}'
+                 f'<span class="nb-muted" style="font-weight:600;font-size:.8rem">{len(tr)} prop{"s" if len(tr) != 1 else ""}</span></div>')
+            if not tr:
+                st.caption("Nothing matches these filters.")
+                continue
+            tdf = pd.DataFrame([{"Player": r["Player"], "Prop": r["Prop"], "Pick": f'{"Over" if r["Side"] == "over" else "Under"} {r["Line"]:g}', "Price": r["Price"],
+                                 "Games": r["Games"], "Low": r["Low"], "High": r["High"], "Avg": r["Avg"], "Book": r["Book"], "_o": _am_dec(r["Price"])} for r in tr])
+            tdf = tdf.sort_values(["Player", "_o"], ascending=[True, False]).drop(columns="_o")
+            st.dataframe(tdf, hide_index=True, use_container_width=True, height=min(38 + 35 * len(tdf), 420),
+                         column_config={"Price": st.column_config.NumberColumn("Price", format="%+d", width="small"),
+                                        "Player": st.column_config.TextColumn("Player", width="medium"),
+                                        "Prop": st.column_config.TextColumn("Prop", width="small"), "Pick": st.column_config.TextColumn("Pick", width="small"),
+                                        "Games": st.column_config.NumberColumn("Gms", width="small"), "Low": st.column_config.NumberColumn("Low", format="%g", width="small"),
+                                        "High": st.column_config.NumberColumn("High", format="%g", width="small"), "Avg": st.column_config.NumberColumn("Avg", format="%g", width="small")})
     with st.expander("See it as a table"):
         flat = [{**{k: v for k, v in r.items() if k != "id"}, "Game": f"{short(g['away'])} @ {short(g['home'])}"} for g in show for r in by_game[g["id"]]]
         if flat:

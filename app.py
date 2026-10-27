@@ -3722,12 +3722,138 @@ def leg_builder(key):
     return f"{team}{vs}: game total {'over' if 'over' in what else 'under'} {tot:g}"
 
 
+SLIP_PROMPT = """You read sportsbook bet-slip screenshots and return the bets as JSON only (no other text, no code fences).
+Today's date is {today}. Return {{"bets": [ ... ]}} with one object per bet slip or parlay visible, each with:
+- "book": the sportsbook shown (e.g. DraftKings, FanDuel, PrizePicks, Underdog, Kalshi, Novig, Sleeper, Chalkboard) or "Other".
+- "type": "Straight" for one pick, "Parlay" for several.
+- "stake": dollars wagered, a number.
+- "payout": the TOTAL dollars returned if it wins (stake plus profit). If the slip only shows a profit / "to win" amount, add the stake. If it only shows odds, compute it.
+- "date": the date the bet was placed as YYYY-MM-DD, or null if not shown.
+- "status": "pending", "won", "lost" or "push" if the slip shows it, else "pending".
+- "legs": a list of strings, one per pick, written in EXACTLY these formats (full official NBA team names, full player names):
+  Player prop: "<Player> over|under <line> <stat>" where stat is one of: points, rebounds, assists, 3s made, steals, blocks, points + rebounds + assists, points + rebounds, points + assists, rebounds + assists, 3s attempted, field goals made, field goals attempted, free throws made, free throws attempted
+  Double or triple double: "<Player> double-double" / "<Player> triple-double"
+  Moneyline: "<Team> ML vs <Opponent>"
+  Spread: "<Team> +3.5 vs <Opponent>" (use the sign shown, - for the favorite)
+  Team total: "<Team> team total over|under <line> vs <Opponent>"
+  Game total: "<Team>: game total over|under <line>"  (use "<Team> vs <Opponent>: game total over <line>" when both teams are shown)
+  First basket: "<Player> first basket"
+  Any other sport or anything that does not fit: "NFL: <short description>"
+Never invent bets or numbers that are not on the screenshot. If a value is unreadable, use null."""
+
+
+def _slip_to_bytes(upl):
+    # Shrinks big phone screenshots a little (cheaper and just as readable) and returns (bytes, media_type).
+    import io
+    raw = upl.getvalue()
+    try:
+        from PIL import Image
+        im = Image.open(io.BytesIO(raw))
+        im.thumbnail((1600, 2400))
+        buf = io.BytesIO()
+        im.convert("RGB").save(buf, "JPEG", quality=88)
+        return buf.getvalue(), "image/jpeg"
+    except Exception:
+        return raw, (upl.type or "image/png")
+
+
+def read_slip(upl, key):
+    import base64
+    import json as _json
+    import anthropic
+    data, mt = _slip_to_bytes(upl)
+    client = anthropic.Anthropic(api_key=key)
+    msg = client.messages.create(
+        model="claude-sonnet-5-5", max_tokens=2000,
+        messages=[{"role": "user", "content": [
+            {"type": "image", "source": {"type": "base64", "media_type": mt, "data": base64.b64encode(data).decode()}},
+            {"type": "text", "text": SLIP_PROMPT.format(today=local_today().isoformat())}]}])
+    txt = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text").strip()
+    txt = re.sub(r"^```(?:json)?|```$", "", txt.strip(), flags=re.M).strip()
+    out = _json.loads(txt)
+    return out.get("bets", []) if isinstance(out, dict) else out
+
+
+def slip_import():
+    with st.expander("📸 Import bets from a screenshot"):
+        st.caption("Upload a screenshot of a bet slip or your bet history. Claude reads the legs, stake and payout and fills them in below. "
+                   "You check each one and press Save, so nothing is added until you confirm.")
+        key = get_api_key()
+        if not key:
+            st.info('To use this, add your Anthropic key to the app secrets as `ANTHROPIC_API_KEY = "sk-ant-..."` (the same one the chat uses).')
+            return
+        tok = st.session_state.setdefault("slip_n", 0)
+        ups = st.file_uploader("Bet slip screenshots", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key=f"slip_up_{tok}")
+        if ups and st.button("🔍 Read the screenshot" + ("s" if len(ups) > 1 else ""), type="primary", key=f"slip_read_{tok}"):
+            found, errs = [], []
+            with st.spinner("Reading your slip..."):
+                for u in ups:
+                    try:
+                        found += read_slip(u, key)
+                    except Exception as e:
+                        errs.append(f"{u.name}: {e}")
+            st.session_state["slip_found"] = found
+            st.session_state["slip_errs"] = errs
+        for e in st.session_state.get("slip_errs", []):
+            st.error(f"Couldn't read {e}")
+        found = st.session_state.get("slip_found") or []
+        if st.session_state.get("slip_found") is not None and not found and not st.session_state.get("slip_errs"):
+            st.warning("I couldn't find any bets in that picture. Try a clearer or larger screenshot.")
+        if not found:
+            return
+        picks = []
+        books_ = BET_BOOKS + ["Other"]
+        for i, b in enumerate(found):
+            with st.container(border=True):
+                k = lambda n: f"slip_{tok}_{i}_{n}"
+                use = st.checkbox(f"Add bet {i + 1}", True, key=k("use"))
+                c1, c2, c3 = st.columns(3)
+                bk = str(b.get("book") or "Other")
+                bk = next((x for x in books_ if x.lower() == bk.lower()), "Other")
+                book = c1.selectbox("Book", books_, index=books_.index(bk), key=k("book"))
+                stake = float(c2.number_input("Stake ($)", min_value=0.0, value=float(b.get("stake") or 0), step=1.0, key=k("stake")))
+                payout = float(c3.number_input("Payout if it wins ($, total back)", min_value=0.0, value=float(b.get("payout") or 0), step=1.0, key=k("pay")))
+                legs_txt = st.text_area("Legs (one per line)", "\n".join(str(x) for x in (b.get("legs") or [])), key=k("legs"), height=40 + 24 * max(len(b.get("legs") or []), 1))
+                legs = [x.strip() for x in legs_txt.split("\n") if x.strip()]
+                tracked = sum(1 for l in legs if parse_leg(l))
+                try:
+                    placed = dt.date.fromisoformat(str(b.get("date")))
+                except Exception:
+                    placed = default_date()
+                st.caption(f"{tracked} of {len(legs)} leg{'s' if len(legs) != 1 else ''} can be tracked live. The rest you check off by hand."
+                           + (f" Status on the slip: {b.get('status')}." if b.get("status") not in (None, "", "pending") else ""))
+                picks.append((use, book, legs, stake, payout, placed, str(b.get("status") or "pending")))
+        if st.button("💾 Save the checked bets", type="primary", key=f"slip_save_{tok}"):
+            saved, skipped = 0, 0
+            for use, book, legs, stake, payout, placed, status in picks:
+                if not use:
+                    continue
+                if not legs or stake <= 0 or payout <= stake:
+                    skipped += 1
+                    continue
+                row = {"id": uuid.uuid4().hex[:8], "date": placed.isoformat(), "book": book, "type": "Parlay" if len(legs) > 1 else "Straight",
+                       "desc": " + ".join(legs), "legs": len(legs), "stake": float(stake), "payout": float(payout), "result": "", "returned": np.nan,
+                       "cord": "", "profit": np.nan, "settled_at": "", "leg_status": ""}
+                add_bet(row)
+                if status in ("won", "lost", "push"):
+                    try:
+                        settle_bet(row["id"], {"won": payout, "lost": 0.0, "push": stake}[status])
+                    except Exception:
+                        pass
+                saved += 1
+            st.session_state["slip_found"] = None
+            st.session_state["slip_n"] = tok + 1
+            st.session_state["bet_msg"] = f"Imported {saved} bet{'s' if saved != 1 else ''} from your screenshot." + (f" Skipped {skipped} that were missing a stake, payout or legs." if skipped else "")
+            st.rerun()
+
+
 def bets_input_view():
     st.caption("Log every bet you place, then mark it Won, Lost or Push when it settles. Track them in the **Open bets** tab, and see your results in the **Results** tab.")
     n = st.session_state.setdefault("bet_form_n", 0)
     k = lambda name: f"bet_{n}_{name}"
     if st.session_state.get("bet_msg"):
         st.success(st.session_state.pop("bet_msg"))
+    slip_import()
     with st.container(border=True):
         st.markdown("**Add a bet**")
         books_ = BET_BOOKS + ["Other"]

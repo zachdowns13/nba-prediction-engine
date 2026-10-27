@@ -1631,11 +1631,11 @@ def _pl_bars(vals, xl, xs, line, proj=None):
     # Bar chart of one stat over his games, with the line drawn across: green bars cleared it, red bars didn't.
     n = len(vals)
     bw, gap, padl, padr, H_, top, bot = 46, 20, 14, 78, 270, 36, 58
-    W_ = padl + n * (bw + gap) + padr
+    W_ = max(padl + n * (bw + gap) + padr, 640)                       # a short window doesn't blow the bars up to fill the screen
     ymax = max(max(vals) if vals else 1, line, proj or 0, 1) * 1.2
     yp = lambda v: top + (H_ - top - bot) * (1 - v / ymax)
     base = yp(0)
-    parts = [f'<svg viewBox="0 0 {W_} {H_}" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg" font-family="inherit">']
+    parts = [f'<svg viewBox="0 0 {W_} {H_}" style="width:100%;max-width:{min(int(W_ * 1.25), 1000)}px;height:auto;display:block" xmlns="http://www.w3.org/2000/svg" font-family="inherit">']
     parts.append(f'<line x1="0" y1="{base:.1f}" x2="{W_}" y2="{base:.1f}" stroke="currentColor" stroke-opacity=".18"/>')
     for i, v in enumerate(vals):
         x = padl + i * (bw + gap)

@@ -4235,7 +4235,7 @@ def open_bets_list(refresh=False):
         if open_all.empty:
             st.caption("No open bets. Add one in the **Add a bet** tab.")
         else:
-            st.session_state.setdefault("legs_open", True)
+            st.session_state.setdefault("legs_open", False)
             st.session_state.setdefault("legs_ver", 0)
 
             def _leg_buttons():
@@ -4254,12 +4254,9 @@ def open_bets_list(refresh=False):
                              + (f" · showing {len(open_)} of {len(open_all)}" if len(open_) != len(open_all) else "") + '</div>', unsafe_allow_html=True)
             by_book = st.session_state.get("bo_sort") == BOOK_SORT
             last_book = None
-            for _, r in open_.iterrows():
-                if by_book and r["book"] != last_book:
-                    last_book = r["book"]
-                    grp = open_[open_["book"] == last_book]
-                    html(f'<div style="margin:14px 0 4px">{book_chip(last_book, 22)}<b style="vertical-align:middle">{H(last_book)}</b>'
-                         f'<span class="nb-muted" style="vertical-align:middle"> · {len(grp)} bet{"s" if len(grp) != 1 else ""} · ${grp["stake"].sum():,.0f} at risk</span></div>')
+            _lay = _seg("Layout", ["Two columns", "One column"], "open_layout", "Two columns")
+
+            def _card(r):
                 with st.container(border=True):
                     legs = split_legs(r["desc"])
                     pick_rows_html([bet_item(r, controls=True)])
@@ -4322,6 +4319,20 @@ def open_bets_list(refresh=False):
                     if b4.button("🗑️ Delete", key=f"bd_{r['id']}"):
                         delete_bet(r["id"])
                         st.rerun()
+            _rows = [r_ for _, r_ in open_.iterrows()]
+            if _lay == "Two columns" and not by_book:
+                for _i in range(0, len(_rows), 2):
+                    for _c, _r in zip(st.columns(2, gap="small"), _rows[_i:_i + 2]):
+                        with _c:
+                            _card(_r)
+            else:
+                for _r in _rows:
+                    if by_book and _r["book"] != last_book:
+                        last_book = _r["book"]
+                        grp = open_[open_["book"] == last_book]
+                        html(f'<div style="margin:14px 0 4px">{book_chip(last_book, 22)}<b style="vertical-align:middle">{H(last_book)}</b>'
+                             f'<span class="nb-muted" style="vertical-align:middle"> · {len(grp)} bet{"s" if len(grp) != 1 else ""} · ${grp["stake"].sum():,.0f} at risk</span></div>')
+                    _card(_r)
     if games:
         st.caption(f"Live stats as of {_snap[0].strftime('%-I:%M:%S %p')}. Tap Refresh live stats to update. They come from ESPN's live box score, which can run about a minute behind the broadcast.")
 

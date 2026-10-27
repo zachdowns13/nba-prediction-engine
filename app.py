@@ -1627,34 +1627,49 @@ def _pl_games(M, team, aid, date):
     return out
 
 
-def _pl_bars(vals, xl, xs, line, proj=None):
-    # Bar chart of one stat over his games, with the line drawn across: green bars cleared it, red bars didn't.
+def _pl_bars(vals, xl, xs, line, proj=None, label="PTS"):
+    # Dotted bars with the stat inside, a dashed line for the book's number, and a "?" slot for tonight's game (with the model's projection).
     n = len(vals)
-    bw, gap, padl, padr, H_, top, bot = 46, 20, 14, 78, 270, 36, 58
-    W_ = max(padl + n * (bw + gap) + padr, 640)                       # a short window doesn't blow the bars up to fill the screen
+    slots = n + 1
+    bw, gap, padl, padr, H_, top, bot = 50, 18, 16, 70, 300, 40, 56
+    W_ = max(padl + slots * (bw + gap) + padr, 680)
     ymax = max(max(vals) if vals else 1, line, proj or 0, 1) * 1.2
     yp = lambda v: top + (H_ - top - bot) * (1 - v / ymax)
     base = yp(0)
-    parts = [f'<svg viewBox="0 0 {W_} {H_}" style="width:100%;max-width:{min(int(W_ * 1.25), 1000)}px;height:auto;display:block" xmlns="http://www.w3.org/2000/svg" font-family="inherit">']
-    parts.append(f'<line x1="0" y1="{base:.1f}" x2="{W_}" y2="{base:.1f}" stroke="currentColor" stroke-opacity=".18"/>')
+    p = [f'<svg viewBox="0 0 {W_} {H_}" style="width:100%;max-width:{min(int(W_ * 1.25), 1000)}px;height:auto;display:block" xmlns="http://www.w3.org/2000/svg" font-family="inherit">',
+         '<defs><pattern id="pl_dots" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="3.5" cy="3.5" r="1.25" fill="#fff" fill-opacity=".22"/></pattern>'
+         '<linearGradient id="pl_g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#16a34a"/></linearGradient>'
+         '<linearGradient id="pl_r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f87171"/><stop offset="1" stop-color="#b91c1c"/></linearGradient></defs>']
+    for gy in range(1, 4):
+        yy = top + (base - top) * gy / 4
+        p.append(f'<line x1="{padl}" y1="{yy:.1f}" x2="{W_ - padr + 8}" y2="{yy:.1f}" stroke="#fff" stroke-opacity=".05"/>')
+    p.append(f'<line x1="{padl}" y1="{base:.1f}" x2="{W_ - padr + 8}" y2="{base:.1f}" stroke="#fff" stroke-opacity=".18"/>')
     for i, v in enumerate(vals):
         x = padl + i * (bw + gap)
-        col = "#22c55e" if v > line else ("#ef4444" if v < line else "#9ca3af")
+        fill = "url(#pl_g)" if v > line else ("url(#pl_r)" if v < line else "#9ca3af")
         y = yp(v)
-        parts.append(f'<rect x="{x}" y="{y:.1f}" width="{bw}" height="{max(base - y, 2):.1f}" rx="7" fill="{col}" fill-opacity=".92"/>')
-        parts.append(f'<text x="{x + bw / 2}" y="{y - 8:.1f}" text-anchor="middle" font-size="17" font-weight="800" fill="currentColor">{v:g}</text>')
-        parts.append(f'<text x="{x + bw / 2}" y="{base + 18:.1f}" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor" fill-opacity=".8">{H(xl[i])}</text>')
-        parts.append(f'<text x="{x + bw / 2}" y="{base + 33:.1f}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity=".55">{H(xs[i])}</text>')
+        hgt = max(base - y, 3)
+        p.append(f'<rect x="{x}" y="{y:.1f}" width="{bw}" height="{hgt:.1f}" rx="9" fill="{fill}"/>')
+        p.append(f'<rect x="{x}" y="{y:.1f}" width="{bw}" height="{hgt:.1f}" rx="9" fill="url(#pl_dots)"/>')
+        p.append(f'<text x="{x + bw / 2}" y="{y - 9:.1f}" text-anchor="middle" font-size="16" font-weight="800" fill="#fff">{v:g}</text>')
+        p.append(f'<text x="{x + bw / 2}" y="{base + 20:.1f}" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" fill-opacity=".85">{H(xs[i])}</text>')
+        p.append(f'<text x="{x + bw / 2}" y="{base + 36:.1f}" text-anchor="middle" font-size="11" fill="#fff" fill-opacity=".5">{H(xl[i])}</text>')
+    # tonight: a dashed empty slot, with the projection standing in
+    x = padl + n * (bw + gap)
+    ph = yp(proj) if proj is not None else yp(line)
+    p.append(f'<rect x="{x}" y="{top - 6}" width="{bw}" height="{base - top + 6:.1f}" rx="9" fill="none" stroke="#fff" stroke-opacity=".35" stroke-dasharray="5 5"/>')
+    p.append(f'<text x="{x + bw / 2}" y="{(top + base) / 2:.1f}" text-anchor="middle" font-size="30" font-weight="800" fill="#fff" fill-opacity=".55">?</text>')
+    p.append(f'<text x="{x + bw / 2}" y="{base + 20:.1f}" text-anchor="middle" font-size="12" font-weight="800" fill="#facc15">TONIGHT</text>')
     yl = yp(line)
-    parts.append(f'<line x1="0" y1="{yl:.1f}" x2="{W_ - padr + 8}" y2="{yl:.1f}" stroke="#facc15" stroke-width="2" stroke-dasharray="7 6"/>')
-    parts.append(f'<rect x="{W_ - padr + 10}" y="{yl - 13:.1f}" width="{padr - 12}" height="26" rx="8" fill="#facc15"/>'
-                 f'<text x="{W_ - padr + 10 + (padr - 12) / 2}" y="{yl + 5:.1f}" text-anchor="middle" font-size="14" font-weight="800" fill="#1f2937">{line:g}</text>')
+    p.append(f'<line x1="{padl}" y1="{yl:.1f}" x2="{W_ - padr + 8}" y2="{yl:.1f}" stroke="#facc15" stroke-width="2" stroke-dasharray="7 6"/>')
+    p.append(f'<rect x="{W_ - padr + 10}" y="{yl - 13:.1f}" width="{padr - 12}" height="26" rx="9" fill="#facc15"/>'
+             f'<text x="{W_ - padr + 10 + (padr - 12) / 2}" y="{yl + 5:.1f}" text-anchor="middle" font-size="14" font-weight="800" fill="#1f2937">{line:g}</text>')
     if proj is not None:
         yq = yp(proj)
-        parts.append(f'<line x1="0" y1="{yq:.1f}" x2="{W_ - padr + 8}" y2="{yq:.1f}" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="2 5"/>')
-        parts.append(f'<text x="{W_ - padr + 10}" y="{(yq + 4 if abs(yq - yl) >= 24 else min(yq, yl) - 18):.1f}" font-size="11" font-weight="700" fill="#60a5fa">proj {proj:.1f}</text>')
-    parts.append("</svg>")
-    return "".join(parts)
+        p.append(f'<line x1="{padl}" y1="{yq:.1f}" x2="{W_ - padr + 8}" y2="{yq:.1f}" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="2 5"/>')
+        p.append(f'<text x="{W_ - padr + 10}" y="{(yq + 4 if abs(yq - yl) >= 24 else min(yq, yl) - 18):.1f}" font-size="11" font-weight="700" fill="#60a5fa">proj {proj:.1f}</text>')
+    p.append("</svg>")
+    return "".join(p)
 
 
 def _game_projections(M, g, odds, injuries, date, b2b):
@@ -1736,11 +1751,20 @@ def player_lookup_tab(M, games, odds, injuries, date, b2b):
     home_side = team == g["home"]
     opp = g["away"] if home_side else g["home"]
     tlogo = g.get("home_logo") if home_side else g.get("away_logo")
-    html(f'<div class="nb-card" style="padding:14px 16px;display:flex;gap:14px;align-items:center;margin:8px 0">'
-         f'<div class="nb-head" style="width:78px;height:78px;margin:0;flex:none;background-image:url(\'{headshot(pid)}\')"></div>'
-         f'<div style="flex:1;min-width:0"><div class="nb-muted">{H(short_pk(g["away"]))} @ {H(short_pk(g["home"]))}</div>'
-         f'<div class="nb-title" style="font-size:1.45rem">{H(r0["name"])} {badge(stt, "bad" if _inj_out(stt) else "lean") if stt else ""}</div>'
-         f'<div class="nb-muted">{logo(tlogo)}{H(team)} · {r0["mpg"]:.0f} min per game lately · {len(games_all)} games on record</div></div></div>')
+    try:
+        _hc, _ac = team_colors(g["home"], g["away"])
+        _c1 = _vrgb(_hc if home_side else _ac)
+    except Exception:
+        _c1 = (91, 33, 182)
+    html('<style>button[data-testid^="stBaseButton-pills"]{border-radius:12px !important;background:#141428 !important;border:1px solid rgba(255,255,255,.09) !important;'
+         'font-weight:700 !important;padding:.42rem .8rem !important}button[data-testid="stBaseButton-pillsActive"]{background:#2b1f5c !important;'
+         'border:1px solid #8b5cf6 !important;box-shadow:0 0 0 1px #8b5cf6 inset !important}</style>')
+    html(f'<div style="border-radius:22px;padding:18px 22px;margin:8px 0 12px;background:linear-gradient(120deg,rgba({_c1[0]},{_c1[1]},{_c1[2]},.75) 0%,#1b1038 60%,#0b0b1c 100%);'
+         f'border:1px solid rgba(255,255,255,.1);display:flex;gap:18px;align-items:center;flex-wrap:wrap">'
+         f'<div style="width:96px;height:96px;flex:none;border-radius:20px;background:#0c0c1c center/cover no-repeat url(\'{headshot(pid)}\');border:2px solid rgba(255,255,255,.22)"></div>'
+         f'<div style="flex:1;min-width:230px"><div style="letter-spacing:.07em;font-size:.78rem;font-weight:700;opacity:.75">{H(short_pk(g["away"]).upper())} @ {H(short_pk(g["home"]).upper())}</div>'
+         f'<div style="font-size:1.9rem;font-weight:800;line-height:1.15">{H(r0["name"])} {badge(stt, "bad" if _inj_out(stt) else "lean") if stt else ""}</div>'
+         f'<div style="opacity:.8;margin-top:2px">{logo(tlogo)}{H(team)} · {r0["mpg"]:.0f} min lately · {len(games_all)} games on record</div></div></div>')
     if _inj_out(stt):
         st.warning(f"ESPN lists {r0['name']} as **{stt}**, so he is not expected to play tonight.")
 
@@ -1793,25 +1817,25 @@ def player_lookup_tab(M, games, odds, injuries, date, b2b):
     n = len(vals)
     pct_o = over / n * 100 if n else 0
 
-    def _tile(label, val, sub_=""):
-        return (f'<div style="flex:1;min-width:110px;border:1px solid var(--line);border-radius:12px;padding:8px 10px;text-align:center">'
-                f'<div style="font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.6">{label}</div>'
-                f'<div style="font-size:1.35rem;font-weight:800;line-height:1.25">{val}</div><div class="nb-muted" style="font-size:.72rem">{sub_}</div></div>')
-    hc = "var(--ok)" if pct_o >= 60 else ("#ef4444" if pct_o <= 40 else "inherit")
-    tiles = [_tile(f"Over {line:g}", f'<span style="color:{hc}">{pct_o:.0f}%</span>', f"{over} of {n} games"),
-             _tile("Under", f"{under / n * 100 if n else 0:.0f}%", f"{under} of {n}"),
-             _tile("Average", f"{np.mean(vals):.1f}", f"median {np.median(vals):g}"),
-             _tile("Range", f"{min(vals):g} to {max(vals):g}", "low to high")]
+    hc = "#4ade80" if pct_o >= 60 else ("#f87171" if pct_o <= 40 else "#e5e7eb")
+    wtab = "".join(f'<div style="opacity:.6;font-weight:700">{k.replace("Last ", "L")}</div><div style="font-weight:800;color:{"#4ade80" if _hit(v)[0] / max(_hit(v)[1], 1) >= .6 else ("#f87171" if _hit(v)[0] / max(_hit(v)[1], 1) <= .4 else "#e5e7eb")}">'
+                   f'{_hit(v)[0] / max(_hit(v)[1], 1) * 100:.0f}%</div>' for k, v in wins.items())
+    mdl = ""
     if proj is not None:
         try:
             po, pp, pu = prop_probs(sim_prop(info["p"], keys), line)
-            tiles.append(_tile("Model", f"{proj:.1f}", f"{po * 100:.0f}% over {line:g}"))
+            mdl = f' &nbsp;·&nbsp; Model <b>{proj:.1f}</b> ({po * 100:.0f}% over {line:g})'
         except Exception:
-            tiles.append(_tile("Model", f"{proj:.1f}", "projection"))
-    html('<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">' + "".join(tiles) + '</div>')
+            mdl = f' &nbsp;·&nbsp; Model <b>{proj:.1f}</b>'
+    html(f'<div style="border-radius:18px;padding:16px 20px;background:#0f0f1f;border:1px solid rgba(255,255,255,.08);margin:8px 0">'
+         f'<div style="display:flex;gap:28px;align-items:flex-end;flex-wrap:wrap"><div><div style="opacity:.6;font-size:.8rem;font-weight:700">{H(wname)} · over {line:g} {H(nm.lower())}</div>'
+         f'<div><span style="font-size:2.6rem;font-weight:800;color:{hc};line-height:1.1">{pct_o:.0f}%</span> <span style="opacity:.65">{over} of {n}</span></div></div>'
+         f'<div style="margin-left:auto;display:grid;grid-template-columns:repeat(4,auto);gap:2px 16px;font-size:.9rem;text-align:center">{wtab}</div></div>'
+         f'<div style="margin-top:10px;opacity:.85;font-size:.92rem;border-top:1px solid rgba(255,255,255,.07);padding-top:8px">Average <b>{np.mean(vals):.1f}</b> &nbsp; Median <b>{np.median(vals):g}</b>'
+         f' &nbsp;·&nbsp; Under <b>{under / n * 100 if n else 0:.0f}%</b> &nbsp;·&nbsp; Range <b>{min(vals):g}</b> to <b>{max(vals):g}</b>{mdl}</div></div>')
     xl = [x["date"].strftime("%-m/%-d") if x["date"] else "" for x in sub]
     xs = [(("vs " if x["home"] == 1 else "@ ") + x["opp"]) if x["opp"] else "" for x in sub]
-    html('<div class="nb-card" style="padding:14px 12px 6px">' + _pl_bars(vals, xl, xs, line, proj if wname != "Season" or True else None) + '</div>')
+    html('<div style="border-radius:18px;padding:16px 14px 8px;background:#0c0c1a;border:1px solid rgba(255,255,255,.08)">' + _pl_bars(vals, xl, xs, line, proj, lab) + '</div>')
     st.caption(f"Green bars cleared {line:g}, red bars didn't. The dashed yellow line is your line" + (", the blue dotted line is the model's projection." if proj is not None else "."))
 
     # ----- open any single game -----

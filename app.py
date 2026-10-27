@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 27, 5:20 PM"
+APP_BUILD = "Oct 27, 5:35 PM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4246,7 +4246,8 @@ def leg_live(parsed, games, bet_date=None, book=""):
     """Where one leg stands: dict with cur, line, status (hit / miss / push / live / wait / dnp), game label."""
     sport = parsed.get("sport", "nba")
     if parsed["kind"] in ("ml", "spread", "gtotal", "ttotal"):
-        return _team_leg_live(parsed, [g for g in games if g.get("sport", "nba") == sport], bet_date)
+        _own = [g for g in games if g.get("sport", "nba") == sport]
+        return _team_leg_live(parsed, _own + [g for g in games if g not in _own], bet_date)     # untagged "Brewers ML" still finds the MLB game
     mine = [g for g in games if g.get("sport", "nba") == sport]
     games = mine + [g for g in games if g not in mine]       # own sport first; older legs tagged with the wrong sport still get found
     if bet_date:                                            # prefer the game on the day the bet was placed
@@ -4323,7 +4324,10 @@ def live_games_for(open_df):
         return []
     today = local_today().isoformat()
     dates = tuple(sorted({d for d in open_df["date"] if d <= today} | {today}))[-3:]
-    sports = tuple(sorted({x.get("sport", "nba") for x in _ps} | {"nba"}))
+    sports = {x.get("sport", "nba") for x in _ps} | {"nba"}
+    if any(x["kind"] in ("ml", "spread", "gtotal", "ttotal") and x.get("sport", "nba") == "nba" for x in _ps):
+        sports |= {"nfl", "mlb"}                       # an untagged "Brewers ML" could be any league, so look in all of them
+    sports = tuple(sorted(sports))
     return live_scores(dates, sports)
 
 

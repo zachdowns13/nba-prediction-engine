@@ -5127,7 +5127,7 @@ with hero:
     _logos = "".join(f'<span class="hs-lg" style="background-image:url(\'{H(u)}\')"></span>' for u in _lg[:16])
     _HP = {"Home": ("#3b82f6", "🏠", "NBA Prediction Engine", "Live scores · Projections · Props · Picks"),
            "Game odds": ("#3b82f6", "📊", "Game odds", "Simulate one matchup 10,000 times"),
-           "Full slate": ("#a855f7", "📋", "Full slate", "Every game ranked by value"),
+           "Full slate": ("#a855f7", "📋", "Full slate", "Simulating every game 10,000 times"),
            "Player props": ("#f59e0b", "🎯", "Player props", "Lookup, projections and perfect props"),
            "First basket": ("#f97316", "🏀", "First basket", "Who scores first, tonight"),
            "Results": ("#22c55e", "📈", "Results", "How the picks have actually done"),
@@ -8573,7 +8573,7 @@ section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"]
   box-shadow:inset 3px 0 0 #8b5cf6 !important;opacity:1}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"] p{font-weight:700 !important}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:focus{outline:none !important}
-.nb-sbbrand{display:flex !important;align-items:center;gap:.75rem;padding:1.1rem 3rem 1rem 1.1rem;border-bottom:1px solid rgba(128,128,128,.16);margin-bottom:.6rem;white-space:nowrap}
+.nb-sbbrand{display:flex !important;align-items:center;gap:.75rem;padding:1.1rem 3rem 1rem 1.1rem;border-bottom:1px solid rgba(128,128,128,.16);margin-bottom:1.1rem;white-space:nowrap}
 .nb-sbbrand .lg{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#8b5cf6,#3b82f6);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex:none}
 .nb-sbbrand .tx{display:flex;flex-direction:column;gap:2px;min-width:0}
 .nb-sbbrand b{font-size:1.1rem;line-height:1.1}
@@ -8604,7 +8604,6 @@ div[data-testid="stMainBlockContainer"].block-container{max-width:1500px !import
                 for _m in _items:
                     st.button(nav_label(_m), key=f"sbnav_{menu.index(_m)}", use_container_width=True, on_click=_sbgo, args=(_m,),
                               type="primary" if st.session_state["main_nav"] == _m else "secondary")
-            st.markdown('<div class="nb-sbfoot">Posted before tip and tracked in units.<br>Entertainment only.</div>', unsafe_allow_html=True)
             if private_ok:
                 st.markdown(f'<div class="nb-sbuser"><div class="av">{H((st.session_state.get("user_name", "") or "?")[:1].upper())}</div>'
                             f'<div class="tx"><span class="s">Signed in as</span><b>{H(st.session_state.get("user_name", ""))}</b></div>'
@@ -9057,7 +9056,7 @@ with _css_slot:
 }
 </style>""", unsafe_allow_html=True)
 PAGE_INFO = {NAV[0]: ("Game odds", "Simulate one matchup 10,000 times and compare every price with the model."),
-             NAV[1]: ("Full slate", "Every game on the date, ranked by where the model sees the most value."),
+             NAV[1]: ("Full slate", "Simulating every game 10,000 times and ranking where the model sees the most value."),
              NAV[2]: ("Player props", "Projected stat lines for each player, checked against the book's number."),
              NAV[3]: ("First basket", "Who is most likely to score first, from lineups, tip-off odds and recent play."),
              NAV[4]: ("Results", "How the model's saved picks and value plays have actually done."),

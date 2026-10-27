@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 27, 4:10 PM"
+APP_BUILD = "Oct 27, 4:50 PM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -3999,6 +3999,8 @@ _SP_RE = re.compile(r"^(?P<team>.+?) (?P<sp>[+-]\d+(?:\.\d+)?)(?: vs (?P<opp>.+)
 def parse_leg(leg):
     """Turns a saved leg like 'Devin Booker over 26.5 points' or 'Phoenix Suns ML vs Portland Trail Blazers' into its parts, or None if it can't be tracked."""
     leg = leg.strip()
+    if leg.upper().startswith("NFL:") and re.search(r"fantasy score\s*$", leg, re.I):
+        leg = leg[4:].strip()                   # the importer used to tag NBA fantasy legs "NFL:"; try them against NBA box scores
     if leg.upper().startswith("NFL:"):          # NFL legs are scored by hand
         return None
     if leg.upper().startswith("NBA:"):          # NBA-tagged legs (e.g. fantasy score) still track
@@ -5364,7 +5366,7 @@ def _fill_hero(_navv):
       _hk = re.sub(r"^[^A-Za-z0-9]+", "", str(_navv or "Home")).strip()
       _hc, _hi, _ht, _hs = _HP.get(_hk, _HP["Home"]) if SIDEBAR_NAV else _HP["Home"]
       _hr = tuple(int(_hc[i:i + 2], 16) for i in (1, 3, 5))
-      _suns = f'<img src="https://a.espncdn.com/i/teamlogos/nba/500/phx.png" alt="Suns" style="width:70%;height:70%;object-fit:contain">'
+      _suns = f'<img src="https://a.espncdn.com/i/teamlogos/nba/500/phx.png" alt="Suns" width="30" height="30" style="width:30px;height:30px;max-width:30px;object-fit:contain">'
       _title = H(_ht) if SIDEBAR_NAV else "Zach's NBA Hub"
       _mark = _suns if (_hi == "SUNS" or not SIDEBAR_NAV) else _hi
       _hbg = (f' style="background:linear-gradient(115deg,rgba({_hr[0]},{_hr[1]},{_hr[2]},.95) 0%,rgba({_hr[0]},{_hr[1]},{_hr[2]},.4) 45%,#0d1020 100%) !important"' if SIDEBAR_NAV else "")
@@ -8838,7 +8840,7 @@ div[data-testid="stMainBlockContainer"].block-container{max-width:1500px !import
             st.session_state["main_nav"] = m
         _groups = [("", [HOME_NAV]), ("Model", NAV[:4]), ("Track", NAV[4:7]), ("Tools", NAV[7:]), ("Account", [LOCKED_NAV])]
         with st.sidebar:
-            st.markdown('<div class="nb-sbbrand"><div class="lg"><img src="https://a.espncdn.com/i/teamlogos/nba/500/phx.png" alt="Suns"></div><div class="tx"><b>Zach&#39;s NBA Hub</b><span class="s">Picks &amp; props</span></div></div>', unsafe_allow_html=True)
+            st.markdown('<div class="nb-sbbrand"><div class="lg"><img src="https://a.espncdn.com/i/teamlogos/nba/500/phx.png" alt="Suns" width="26" height="26" style="width:26px;height:26px;max-width:26px"></div><div class="tx"><b>Zach&#39;s NBA Hub</b><span class="s">Picks &amp; props</span></div></div>', unsafe_allow_html=True)
             for _gname, _items in _groups:
                 _items = [m for m in _items if m in menu]
                 if not _items:

@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 27, 5:50 PM"
+APP_BUILD = "Oct 27, 6:05 PM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4524,15 +4524,25 @@ div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
             if by_book:
                 def _flip(bk_):
                     st.session_state[f"bk_shut_{bk_}"] = not st.session_state.get(f"bk_shut_{bk_}", False)
-                for _bk in dict.fromkeys(r_["book"] for r_ in _rows):
+                _books = list(dict.fromkeys(r_["book"] for r_ in _rows))
+                _all_shut = all(st.session_state.get(f"bk_shut_{b_}", False) for b_ in _books)
+                def _flip_all():
+                    for b_ in _books:
+                        st.session_state[f"bk_shut_{b_}"] = not _all_shut
+                for _bk in _books:
                     grp = sorted([r_ for r_ in _rows if r_["book"] == _bk], key=lambda r_: len(split_legs(r_["desc"])))      # fewest legs first
                     shut = st.session_state.get(f"bk_shut_{_bk}", False)
                     _site = BOOK_SITE.get(_bk)
                     if _site:
                         st.markdown(f'<style>div[class*="st-key-bk_hdr_{re.sub(r"[^A-Za-z0-9_-]", "-", _bk)}"] button{{background-image:url("https://www.google.com/s2/favicons?domain={_site}&sz=64") !important;'
                                     f'background-repeat:no-repeat !important;background-position:12px center !important;background-size:22px 22px !important;padding-left:44px !important}}</style>', unsafe_allow_html=True)
-                    st.button(f"{_bk}   ·   {len(grp)} bet{'s' if len(grp) != 1 else ''}   ·   ${sum(float(g_['stake']) for g_ in grp):,.0f} at risk   {'▸' if shut else '▾'}",
-                              key=f"bk_hdr_{_bk}", on_click=_flip, args=(_bk,))
+                    _hdr_lbl = f"{_bk}   ·   {len(grp)} bet{'s' if len(grp) != 1 else ''}   ·   ${sum(float(g_['stake']) for g_ in grp):,.0f} at risk   {'▸' if shut else '▾'}"
+                    if _bk == _books[0]:
+                        _hc = st.columns([3, 1], gap="small")
+                        _hc[0].button(_hdr_lbl, key=f"bk_hdr_{_bk}", on_click=_flip, args=(_bk,))
+                        _hc[1].button("▸ Expand all slips" if _all_shut else "▾ Collapse all slips", key="bk_all_toggle", on_click=_flip_all, use_container_width=True)
+                    else:
+                        st.button(_hdr_lbl, key=f"bk_hdr_{_bk}", on_click=_flip, args=(_bk,))
                     if not shut:
                         _grid(grp)
             else:

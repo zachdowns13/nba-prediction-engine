@@ -6519,7 +6519,7 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False, f
             picks.append(f"📊 Total: {to['side']} {to['line']} ({to['model_p'] * 100:.0f}%, model projects {res['med_t']:.0f})")
         if picks:
             out.append("\n".join(picks))
-        last = "\n".join(x for x in (fb_line, tip_line, inj_line) if x)
+        last = "\n".join(x for x in (fb_line, inj_line) if x)
         if opts["tag"]:
             last += ("\n\n" if last else "") + f"Every pick is posted before tip and tracked in units. Entertainment only.\nFollow @{handle} for the full record 📊"
         if last:

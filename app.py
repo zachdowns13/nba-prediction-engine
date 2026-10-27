@@ -307,11 +307,7 @@ def live_season(d):
 # =====================================================================
 # ESPN DATA (cached so the page stays fast)
 # =====================================================================
-def _fetch_day(d):
-    try:
-        data = _get(f"{BASE}/scoreboard", {"dates": d.strftime("%Y%m%d"), "limit": 100}, tries=2)
-    except Exception:
-        return []
+def _parse_day(d, data):
     out = []
     for ev in data.get("events", []):
         if not ev["status"]["type"].get("completed"):
@@ -329,6 +325,30 @@ def _fetch_day(d):
         out.append({"date": d, "event_id": ev["id"], "home": h["team"]["displayName"],
                     "away": a["team"]["displayName"], "hs": hs, "as": as_})
     return out
+
+
+@st.cache_resource
+def _day_store():
+    return {}          # finished days already downloaded (they never change), shared by every visitor
+
+
+def _day_settled(ds):
+    # A failed download raises and is never stored, so a bad moment can't stick.
+    store = _day_store()
+    if ds not in store:
+        d = dt.date.fromisoformat(ds)
+        store[ds] = _parse_day(d, _get(f"{BASE}/scoreboard", {"dates": d.strftime("%Y%m%d"), "limit": 100}, tries=2))
+    return store[ds]
+
+
+def _fetch_day(d):
+    try:
+        if d < local_today() - dt.timedelta(days=3):
+            return _day_settled(d.isoformat())
+        data = _get(f"{BASE}/scoreboard", {"dates": d.strftime("%Y%m%d"), "limit": 100}, tries=2)
+    except Exception:
+        return []
+    return _parse_day(d, data)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -4001,6 +4021,14 @@ def live_games_for(open_df):
     today = local_today().isoformat()
     dates = tuple(sorted({d for d in open_df["date"] if d <= today} | {today}))[-3:]
     return live_scores(dates)
+
+
+def _frag(fn):
+    # Runs one tab as its own fragment, so changing a dropdown inside it reruns only that tab and not the whole page.
+    try:
+        return st.fragment(fn)
+    except Exception:
+        return fn
 
 
 def _refreshing(fn):
@@ -9156,13 +9184,13 @@ if nav == NAV[1]:
 if nav == NAV[2]:
     _pt0, _pt1, _pt2 = st.tabs(["Player lookup", "Projections", "Perfect props"])
     with _pt0:
-        player_lookup_tab(M, games, odds, injuries, date, b2b_teams)
+        _frag(player_lookup_tab)(M, games, odds, injuries, date, b2b_teams)
     with _pt1:
         game_picker("props")
         props_tab(M, g, odds, injuries, date, b2b_teams)
         terms_help()
     with _pt2:
-        perfect_props_tab(M, games, injuries, date, b2b_teams)
+        _frag(perfect_props_tab)(M, games, injuries, date, b2b_teams)
 
 if nav == NAV[3]:
     game_picker("fb")

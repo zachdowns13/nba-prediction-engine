@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 27, 4:50 PM"
+APP_BUILD = "Oct 27, 5:20 PM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -3672,9 +3672,11 @@ def leg_builder(key):
     st.session_state[f"{key}_kind_last"] = kind
     if kind == "NFL play":
         txt = st.text_input("Name the play however you like (any sport)", placeholder="e.g. Mahomes over 275.5 passing yards", key=f"{key}_nfl").strip()
-        txt = re.sub(r"^nfl\s*:\s*", "", txt, flags=re.I).replace(" + ", " & ")
-        st.caption("Shows as an NFL leg. The live tracker skips it, so check it off as hit, missed or pushed yourself.")
-        return f"NFL: {txt}" if txt else ""
+        _m = re.match(r"^(nfl|mlb|nba|cfb)\s*:\s*(.*)$", txt, re.I)
+        _tag = _m.group(1).upper() if _m else "NFL"
+        txt = (_m.group(2) if _m else txt).strip()
+        st.caption("Type 'Player over 275.5 passing yards' for NFL or 'MLB: Player over 6.5 strikeouts' for MLB and the live tracker follows it (fantasy score too). Anything else, check off yourself.")
+        return f"{_tag}: {txt}" if txt else ""
     if kind == "Type it myself":
         return st.text_input("The bet", placeholder="e.g. Booker first basket", key=f"{key}_free").strip()
     if kind == "Player prop":
@@ -3740,7 +3742,11 @@ Today's date is {today}. Return {{"bets": [ ... ]}} with one object per bet slip
   Team total: "<Team> team total over|under <line> vs <Opponent>"
   Game total: "<Team>: game total over|under <line>"  (use "<Team> vs <Opponent>: game total over <line>" when both teams are shown)
   First basket: "<Player> first basket"
-  Any other sport or anything that does not fit: "NFL: <short description>"
+  NFL player prop: "NFL: <Player> over|under <line> <stat>" where stat is one of: passing yards, passing tds, interceptions, pass attempts, pass completions, rushing yards, rushing attempts, rushing tds, receiving yards, receptions, receiving tds, rushing + receiving yards, passing + rushing yards, fantasy score
+  MLB player prop: "MLB: <Player> over|under <line> <stat>" where stat is one of: hits, home runs, rbis, runs, walks, hitter strikeouts, strikeouts (for a pitcher), total bases, hits + runs + rbis, stolen bases, earned runs allowed, outs recorded, hits allowed, fantasy score
+  NFL or MLB moneyline, spread or totals: same formats as the NBA ones, with "NFL: " or "MLB: " in front, e.g. "NFL: Kansas City Chiefs ML vs Las Vegas Raiders"
+  "Fantasy Score" on an NBA player is just "<Player> over|under <line> fantasy score" (no prefix). For NFL or MLB players put the prefix first.
+  Any other sport or anything that does not fit: "NFL: <short description>" (or "CFB: <short description>" for college)
 Never invent bets or numbers that are not on the screenshot. If a value is unreadable, use null."""
 
 
@@ -3996,32 +4002,50 @@ _GT_RE = re.compile(r"^(?P<team>.+?)(?: vs (?P<opp>.+?))?:? game total (?P<side>
 _SP_RE = re.compile(r"^(?P<team>.+?) (?P<sp>[+-]\d+(?:\.\d+)?)(?: vs (?P<opp>.+))?$", re.I)
 
 
+NFL_STATS = {"passing yards": ("pass_yds",), "passing tds": ("pass_td",), "passing touchdowns": ("pass_td",), "interceptions": ("int",),
+             "pass attempts": ("pass_att",), "passing attempts": ("pass_att",), "pass completions": ("pass_cmp",), "completions": ("pass_cmp",),
+             "rushing yards": ("rush_yds",), "rushing attempts": ("rush_att",), "rush attempts": ("rush_att",), "carries": ("rush_att",), "rushing tds": ("rush_td",),
+             "receiving yards": ("rec_yds",), "receptions": ("rec",), "receiving tds": ("rec_td",),
+             "rushing + receiving yards": ("rush_yds", "rec_yds"), "rush + rec yards": ("rush_yds", "rec_yds"),
+             "passing + rushing yards": ("pass_yds", "rush_yds"), "pass + rush yards": ("pass_yds", "rush_yds"), "fantasy score": ("fantasy",)}
+MLB_STATS = {"hits": ("h",), "home runs": ("hr",), "rbis": ("rbi",), "runs": ("r",), "walks": ("bb",), "hitter strikeouts": ("k",), "batter strikeouts": ("k",),
+             "strikeouts": ("p_k",), "pitcher strikeouts": ("p_k",), "total bases": ("tb",), "hits + runs + rbis": ("h", "r", "rbi"),
+             "stolen bases": ("sb",), "doubles": ("d2",), "earned runs allowed": ("p_er",), "earned runs": ("p_er",), "outs recorded": ("p_outs",), "pitching outs": ("p_outs",),
+             "hits allowed": ("p_h",), "walks allowed": ("p_bb",), "fantasy score": ("fantasy",)}
+SPORT_STATS = {"nba": STAT_PARTS, "nfl": NFL_STATS, "mlb": MLB_STATS}
+
+
 def parse_leg(leg):
-    """Turns a saved leg like 'Devin Booker over 26.5 points' or 'Phoenix Suns ML vs Portland Trail Blazers' into its parts, or None if it can't be tracked."""
+    """Turns a saved leg like 'Devin Booker over 26.5 points' or 'Phoenix Suns ML vs Portland Trail Blazers' into its parts, or None if it can't be tracked.
+    Legs can carry a sport tag ('NFL: Mahomes over 275.5 passing yards', 'MLB: ...'); no tag means NBA."""
     leg = leg.strip()
-    if leg.upper().startswith("NFL:") and re.search(r"fantasy score\s*$", leg, re.I):
-        leg = leg[4:].strip()                   # the importer used to tag NBA fantasy legs "NFL:"; try them against NBA box scores
-    if leg.upper().startswith("NFL:"):          # NFL legs are scored by hand
-        return None
-    if leg.upper().startswith("NBA:"):          # NBA-tagged legs (e.g. fantasy score) still track
-        leg = leg[4:].strip()
-    if re.search(r"\(1H\)|first half|1st half", leg, re.I):
+    sport = "nba"
+    m0 = re.match(r"^(NFL|MLB|NBA|CFB|NCAAF)\s*:\s*(.*)$", leg, re.I)
+    if m0:
+        tag = m0.group(1).upper()
+        if tag not in ("NFL", "MLB", "NBA"):
+            return None
+        sport, leg = tag.lower(), m0.group(2).strip()
+    if re.search(r"\(1H\)|first half|1st half|\bfirst [0-9]+ innings|\b1st [0-9]+ innings|\bF5\b", leg, re.I):
         return None
     for kind, rx in (("ml", _ML_RE), ("ttotal", _TT_RE), ("gtotal", _GT_RE)):
         m = rx.match(leg)
         if m:
             d = m.groupdict()
-            return {"kind": kind, "team": d["team"].strip(), "opp": (d.get("opp") or "").strip(), "side": (d.get("side") or "").lower(),
+            return {"kind": kind, "sport": sport, "team": d["team"].strip(), "opp": (d.get("opp") or "").strip(), "side": (d.get("side") or "").lower(),
                     "line": float(d["line"]) if d.get("line") else None}
-    m = _LEG_RE.match(leg)
-    if m and m["stat"].lower() in STAT_PARTS:
-        return {"kind": "stat", "who": m["who"], "side": m["side"].lower(), "line": float(m["line"]), "stat": m["stat"].lower()}
-    m = _DD_RE.match(leg)
+    m = _LEG_RE.match(leg.replace(" & ", " + "))
     if m:
-        return {"kind": "dd", "who": m["who"], "dd": m["kind"].lower()}
+        stat = m["stat"].lower().strip()
+        if stat in SPORT_STATS[sport] or (sport != "nba" and stat in STAT_PARTS) or stat in NFL_STATS or stat in MLB_STATS:
+            return {"kind": "stat", "sport": sport, "who": m["who"], "side": m["side"].lower(), "line": float(m["line"]), "stat": stat}
+    if sport == "nba":
+        m = _DD_RE.match(leg)
+        if m:
+            return {"kind": "dd", "sport": sport, "who": m["who"], "dd": m["kind"].lower()}
     m = _SP_RE.match(leg)
     if m and not _LEG_RE.match(leg):
-        return {"kind": "spread", "team": m["team"].strip(), "opp": (m["opp"] or "").strip(), "sp": float(m["sp"]), "line": None}
+        return {"kind": "spread", "sport": sport, "team": m["team"].strip(), "opp": (m["opp"] or "").strip(), "sp": float(m["sp"]), "line": None}
     return None
 
 
@@ -4031,13 +4055,123 @@ def _live_value(p, stat):
     return sum((p["oreb"] + p["dreb"]) if k == "reb" else p.get(k, 0) for k in STAT_PARTS[stat])
 
 
+# Fantasy scoring for the other sports (Underdog and PrizePicks differ, so the bet's book picks the table).
+NFL_FANTASY = {"PrizePicks": {"pass_yds": .04, "pass_td": 4, "int": -1, "rush_yds": .1, "rush_td": 6, "rec_yds": .1, "rec_td": 6, "rec": 1, "fum_lost": -1},
+               "Underdog":   {"pass_yds": .04, "pass_td": 4, "int": -1, "rush_yds": .1, "rush_td": 6, "rec_yds": .1, "rec_td": 6, "rec": .5, "fum_lost": -2}}
+MLB_BAT_FANTASY = {"PrizePicks": {"s1": 3, "d2": 5, "d3": 8, "hr": 10, "r": 2, "rbi": 2, "bb": 2, "hbp": 2, "sb": 5},
+                   "Underdog":   {"s1": 3, "d2": 6, "d3": 8, "hr": 10, "r": 2, "rbi": 2, "bb": 3, "hbp": 3, "sb": 4}}
+MLB_PITCH_FANTASY = {"PrizePicks": {"win": 6, "qs": 4, "p_er": -3, "p_k": 3, "p_outs": 1},
+                     "Underdog":   {"win": 5, "qs": 5, "p_er": -3, "p_k": 3, "p_outs": 1}}     # Underdog pays 3 per inning = 1 per out
+
+
+def _book_key(book):
+    return "Underdog" if str(book or "").strip().lower().startswith("underdog") else "PrizePicks"
+
+
+def _sport_value(p, sport, stat, book=""):
+    """(current value, approximate?) for a stat in an NFL or MLB box-score line. 'approximate' means the box score didn't carry every piece."""
+    bk = _book_key(book)
+    parts = SPORT_STATS[sport][stat]
+    if sport == "nfl":
+        if parts == ("fantasy",):
+            return round(sum(w * p.get(k, 0) for k, w in NFL_FANTASY[bk].items()), 2), False
+        return sum(p.get(k, 0) for k in parts), False
+    approx = False
+    if parts == ("fantasy",):
+        if p.get("is_pitcher"):
+            w = MLB_PITCH_FANTASY[bk]
+            return round(sum(w[k] * p.get(k, 0) for k in ("p_er", "p_k", "p_outs")) + w["qs"] * p.get("qs", 0) + w["win"] * p.get("win", 0), 2), not p.get("has_win")
+        w = MLB_BAT_FANTASY[bk]
+        s1 = max(0, p.get("h", 0) - p.get("d2", 0) - p.get("d3", 0) - p.get("hr", 0))
+        val = (w["s1"] * s1 + w["d2"] * p.get("d2", 0) + w["d3"] * p.get("d3", 0) + w["hr"] * p.get("hr", 0) + w["r"] * p.get("r", 0)
+               + w["rbi"] * p.get("rbi", 0) + w["bb"] * p.get("bb", 0) + w["hbp"] * p.get("hbp", 0) + w["sb"] * p.get("sb", 0))
+        return round(val, 2), not p.get("has_extras")
+    if parts == ("tb",):
+        return p.get("h", 0) + p.get("d2", 0) + 2 * p.get("d3", 0) + 3 * p.get("hr", 0), not p.get("has_extras")
+    if parts in (("sb",), ("d2",)):
+        approx = not p.get("has_extras")
+    return sum(p.get(k, 0) for k in parts), approx
+
+
+_SPORT_PATH = {"nfl": "football/nfl", "mlb": "baseball/mlb"}
+
+
+def _sport_base(sport):
+    return BASE if sport == "nba" else f"https://site.api.espn.com/apis/site/v2/sports/{_SPORT_PATH[sport]}"
+
+
+def _ip_outs(x):
+    # "6.1" innings pitched is 6 and 1/3 = 19 outs.
+    m = re.match(r"^\s*(\d+)(?:\.(\d))?", str(x))
+    return int(m.group(1)) * 3 + int(m.group(2) or 0) if m else 0
+
+
+def _fetch_box_other(sport, event_id):
+    """NFL / MLB box score as {"players": {id: stats}}, read by group name + column label so column order doesn't matter."""
+    try:
+        data = _get(f"{_sport_base(sport)}/summary", {"event": event_id}, tries=2)
+    except Exception:
+        return None
+    players = {}
+    for t in (data.get("boxscore") or {}).get("players", []):
+        team = (t.get("team") or {}).get("displayName")
+        for grp in t.get("statistics", []):
+            gname = str(grp.get("name") or grp.get("type") or "").lower()
+            labels = grp.get("labels") or grp.get("names") or grp.get("keys") or []
+            keys = grp.get("keys") or []
+            for a in grp.get("athletes", []):
+                stt = a.get("stats") or []
+                if not stt:
+                    continue
+                ath = a.get("athlete") or {}
+                pid = str(ath.get("id"))
+                row = {}
+                for i, v in enumerate(stt):
+                    if i < len(labels):
+                        row[str(labels[i]).upper()] = v
+                    if i < len(keys):
+                        row[str(keys[i]).lower()] = v
+                pl = players.setdefault(pid, {"name": ath.get("displayName", "?"), "team": team})
+                if sport == "nfl":
+                    if gname.startswith("pass"):
+                        pl["pass_yds"], pl["pass_td"], pl["int"] = _num(row.get("YDS")), _num(row.get("TD")), _num(row.get("INT"))
+                        c, att = _made_att(row.get("C/ATT", ""))
+                        pl["pass_cmp"], pl["pass_att"] = c, att
+                    elif gname.startswith("rush"):
+                        pl["rush_att"], pl["rush_yds"], pl["rush_td"] = _num(row.get("CAR")), _num(row.get("YDS")), _num(row.get("TD"))
+                    elif gname.startswith("rec"):
+                        pl["rec"], pl["rec_yds"], pl["rec_td"] = _num(row.get("REC")), _num(row.get("YDS")), _num(row.get("TD"))
+                    elif gname.startswith("fumb"):
+                        pl["fum_lost"] = _num(row.get("LOST"))
+                else:
+                    if gname.startswith("bat"):
+                        h_ab = row.get("H-AB")
+                        pl["h"] = _num(row.get("H")) if row.get("H") not in (None, "") else (_made_att(h_ab)[0] if h_ab else 0.0)
+                        pl["ab"] = _num(row.get("AB")) or (_made_att(h_ab)[1] if h_ab else 0.0)
+                        pl["r"], pl["rbi"], pl["hr"], pl["bb"], pl["k"] = (_num(row.get("R")), _num(row.get("RBI")), _num(row.get("HR")), _num(row.get("BB")), _num(row.get("K")))
+                        got = False
+                        for dst, names in (("d2", ("2B", "doubles")), ("d3", ("3B", "triples")), ("sb", ("SB", "stolenbases")), ("hbp", ("HBP", "hitbypitch"))):
+                            for nm in names:
+                                if nm in row:
+                                    pl[dst] = _num(row[nm])
+                                    got = True
+                        if got:
+                            pl["has_extras"] = True
+                    elif gname.startswith("pitch"):
+                        outs = _ip_outs(row.get("IP"))
+                        er = _num(row.get("ER"))
+                        pl.update(is_pitcher=True, p_outs=float(outs), p_h=_num(row.get("H")), p_er=er, p_bb=_num(row.get("BB")), p_k=_num(row.get("K")),
+                                  qs=1.0 if (outs >= 18 and er <= 3) else 0.0)
+    return {"players": players}
+
+
 @st.cache_data(ttl=20, show_spinner=False)
-def live_scores(dates):
+def live_scores(dates, sports=("nba",)):
     """Games on these dates with their status and, for games that have started, every player's box-score line."""
     out = []
-    for d in dates:
+    for sp, d in [(sp, d) for sp in sports for d in dates]:
         try:
-            data = _get(f"{BASE}/scoreboard", {"dates": dt.date.fromisoformat(d).strftime("%Y%m%d")}, tries=2)
+            data = _get(f"{_sport_base(sp)}/scoreboard", {"dates": dt.date.fromisoformat(d).strftime("%Y%m%d")}, tries=2)
         except Exception:
             continue
         for ev in data.get("events", []):
@@ -4050,14 +4184,14 @@ def live_scores(dates):
                     return float(c.get("score"))
                 except (TypeError, ValueError):
                     return None
-            out.append({"id": ev["id"], "date": d, "hs": _sc(home), "as": _sc(away), "state": stt.get("state", "pre"), "detail": stt.get("shortDetail") or stt.get("detail") or "",
+            out.append({"id": ev["id"], "sport": sp, "date": d, "hs": _sc(home), "as": _sc(away), "state": stt.get("state", "pre"), "detail": stt.get("shortDetail") or stt.get("detail") or "",
                         "home": home["team"]["displayName"], "away": away["team"]["displayName"],
                         "score": f"{away['team'].get('abbreviation', '')} {away.get('score', '0')} - {home['team'].get('abbreviation', '')} {home.get('score', '0')}",
                         "players": {}})
     started = [g for g in out if g["state"] in ("in", "post")]
     if started:
         with ThreadPoolExecutor(8) as ex:
-            for g, box in zip(started, ex.map(lambda x: _fetch_box_raw(x["id"]), started)):
+            for g, box in zip(started, ex.map(lambda x: _fetch_box_raw(x["id"]) if x.get("sport", "nba") == "nba" else _fetch_box_other(x["sport"], x["id"]), started)):
                 if box:
                     g["players"] = {v["name"].lower(): dict(v) for v in box["players"].values()}
     return out
@@ -4108,10 +4242,13 @@ def _team_leg_live(p, games, bet_date):
     return out
 
 
-def leg_live(parsed, games, bet_date=None):
+def leg_live(parsed, games, bet_date=None, book=""):
     """Where one leg stands: dict with cur, line, status (hit / miss / push / live / wait / dnp), game label."""
+    sport = parsed.get("sport", "nba")
     if parsed["kind"] in ("ml", "spread", "gtotal", "ttotal"):
-        return _team_leg_live(parsed, games, bet_date)
+        return _team_leg_live(parsed, [g for g in games if g.get("sport", "nba") == sport], bet_date)
+    mine = [g for g in games if g.get("sport", "nba") == sport]
+    games = mine + [g for g in games if g not in mine]       # own sport first; older legs tagged with the wrong sport still get found
     if bet_date:                                            # prefer the game on the day the bet was placed
         same = [g for g in games if g.get("date") == bet_date]
         games = same + [g for g in games if g not in same]
@@ -4127,16 +4264,24 @@ def leg_live(parsed, games, bet_date=None):
             need = 2 if parsed["dd"] == "double-double" else 3
             status = "hit" if cats >= need else ("miss" if final else "live")
             return {"cur": cats, "line": need, "status": status, "label": label, "unit": "cats"}
-        cur, line = _live_value(p, parsed["stat"]), parsed["line"]
+        gsport = g.get("sport", "nba")
+        line = parsed["line"]
+        approx = False
+        if gsport == "nba":
+            cur = _live_value(p, parsed["stat"]) if parsed["stat"] in STAT_PARTS else None
+        else:
+            cur, approx = _sport_value(p, gsport, parsed["stat"], book) if parsed["stat"] in SPORT_STATS[gsport] else (None, False)
+        if cur is None:
+            return {"cur": None, "line": line, "status": "wait", "label": "Stat not tracked for this sport", "unit": ""}
         if parsed["side"] == "over":
             status = "hit" if cur > line else (("miss" if cur < line else "push") if final else "live")
         else:
             status = "miss" if cur > line else (("hit" if cur < line else "push") if final else "live")
-        return {"cur": cur, "line": line, "status": status, "label": label, "unit": ""}
+        if approx and status != ("hit" if parsed["side"] == "over" else "miss"):
+            # the box score is missing some pieces (extra-base hits, steals, a win), so the count can run low: only call it when already certain
+            return {"cur": cur, "line": line, "status": "wait" if final else "live", "label": ("Final · count is approximate, check by hand" if final else label + " · ~approx"), "unit": ""}
+        return {"cur": cur, "line": line, "status": status, "label": label + (" · ~approx" if approx and not final else ""), "unit": ""}
     # not in any started game's box score
-    for g in games:
-        if parsed["who"].lower() in g["players"]:
-            break
     started_any = any(g["state"] in ("in", "post") for g in games)
     return {"cur": None, "line": parsed.get("line"), "status": "wait", "label": "Game hasn't started" if not started_any else "Not in a box score yet", "unit": ""}
 
@@ -4172,11 +4317,14 @@ def live_leg_html(info, title=None):
 
 def live_games_for(open_df):
     """Live scoreboard data, only fetched when some open bet has a player stat leg."""
-    if not any(parse_leg(leg) for d in open_df["desc"] for leg in split_legs(d)):
+    _ps = [parse_leg(leg) for d in open_df["desc"] for leg in split_legs(d)]
+    _ps = [x for x in _ps if x]
+    if not _ps:
         return []
     today = local_today().isoformat()
     dates = tuple(sorted({d for d in open_df["date"] if d <= today} | {today}))[-3:]
-    return live_scores(dates)
+    sports = tuple(sorted({x.get("sport", "nba") for x in _ps} | {"nba"}))
+    return live_scores(dates, sports)
 
 
 def _frag(fn):
@@ -4212,7 +4360,7 @@ def refresh_live_snapshot():
                 p = parse_leg(leg)
                 if not p or ls[i] != "-":
                     continue
-                st_ = leg_live(p, games, r["date"])["status"]
+                st_ = leg_live(p, games, r["date"], r["book"])["status"]
                 if st_ in ("hit", "miss", "push"):
                     set_leg(r["id"], i, {"hit": "H", "miss": "M", "push": "P"}[st_])
 
@@ -4277,7 +4425,7 @@ div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
                     if len(legs) == 1 and games:
                         _p1 = parse_leg(legs[0])
                         if _p1:
-                            html(live_leg_html(leg_live(_p1, games, r["date"])))
+                            html(live_leg_html(leg_live(_p1, games, r["date"], r["book"])))
                     if len(legs) > 1:
                         _ls0 = leg_states(r)
                         with st.expander(f"Legs · {_ls0.count('H')} of {len(legs)} hit" + "\u200b" * st.session_state["legs_ver"], expanded=st.session_state["legs_open"]):
@@ -4290,7 +4438,7 @@ div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
                                     _pp = parse_leg(leg) if games else None
                                     if _pp:
                                         with q[0]:                       # name, live numbers and bar as one tight block
-                                            html(live_leg_html(leg_live(_pp, games, r["date"]), title=f"{_leg_icon(ls[i])} {leg}"))
+                                            html(live_leg_html(leg_live(_pp, games, r["date"], r["book"]), title=f"{_leg_icon(ls[i])} {leg}"))
                                     else:                                    # not tracked live: same look, with an empty bar and the status you set by hand
                                         _st = {"H": "hit", "M": "miss", "P": "push"}.get(ls[i], "wait")
                                         with q[0]:

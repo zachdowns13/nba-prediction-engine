@@ -5125,9 +5125,24 @@ with hero:
             if _u and _u not in _lg:
                 _lg.append(_u)
     _logos = "".join(f'<span class="hs-lg" style="background-image:url(\'{H(u)}\')"></span>' for u in _lg[:16])
-    html('<div class="pro-hero pro-hero-s"><div class="hero-ring"></div><div class="hero-ring r2"></div>'
-         '<div class="hs-left"><span class="pro-mark">🏀</span><div><div class="pro-title">NBA Prediction Engine</div>'
-         '<div class="pro-sub">Live scores<i>·</i>Projections<i>·</i>Props<i>·</i>Picks</div></div></div>'
+    _HP = {"Home": ("#3b82f6", "🏠", "NBA Prediction Engine", "Live scores · Projections · Props · Picks"),
+           "Game odds": ("#3b82f6", "📊", "Game odds", "Simulate one matchup 10,000 times"),
+           "Full slate": ("#a855f7", "📋", "Full slate", "Every game ranked by value"),
+           "Player props": ("#f59e0b", "🎯", "Player props", "Lookup, projections and perfect props"),
+           "First basket": ("#f97316", "🏀", "First basket", "Who scores first, tonight"),
+           "Results": ("#22c55e", "📈", "Results", "How the picks have actually done"),
+           "My bets": ("#14b8a6", "💵", "My bets", "Log, track and settle your bets"),
+           "Pick'em": ("#ec4899", "🏆", "Pick'em", "You vs the book vs the model"),
+           "Edge tools": ("#ef4444", "🧮", "Edge tools", "Sizing, CLV and model accuracy"),
+           "X post": ("#38bdf8", "📣", "X post", "Ready-to-post picks"),
+           "Sign in": ("#94a3b8", "🔒", "Sign in", "Unlock the private tabs"), "Private": ("#94a3b8", "🔒", "Private", "Sign in to unlock")}
+    _hk = re.sub(r"^[^A-Za-z0-9]+", "", str(st.session_state.get("main_nav") or "Home")).strip()
+    _hc, _hi, _ht, _hs = _HP.get(_hk, _HP["Home"]) if SIDEBAR_NAV else _HP["Home"]
+    _hr = tuple(int(_hc[i:i + 2], 16) for i in (1, 3, 5))
+    _hbg = (f' style="background:linear-gradient(115deg,rgba({_hr[0]},{_hr[1]},{_hr[2]},.95) 0%,rgba({_hr[0]},{_hr[1]},{_hr[2]},.4) 45%,#0d1020 100%) !important"' if SIDEBAR_NAV else "")
+    html(f'<div class="pro-hero pro-hero-s"{_hbg}><div class="hero-ring"></div><div class="hero-ring r2"></div>'
+         f'<div class="hs-left"><span class="pro-mark">{_hi if SIDEBAR_NAV else "🏀"}</span><div><div class="pro-title">{H(_ht) if SIDEBAR_NAV else "NBA Prediction Engine"}</div>'
+         f'<div class="pro-sub">{H(_hs) if SIDEBAR_NAV else "Live scores<i>·</i>Projections<i>·</i>Props<i>·</i>Picks"}</div></div></div>'
          '<div class="hs-right">'
          f'<div class="pro-chips"><span class="pro-live">{H(date.strftime("%A, %B %-d"))}</span>'
          '<span class="pro-live"><span class="pro-dot"></span>Live data from ESPN</span></div></div></div>')
@@ -8548,22 +8563,30 @@ section[data-testid="stSidebar"] [data-testid="stSidebarHeader"] img,section[dat
 section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"]{padding:0 !important;margin:0}
 section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] > div,section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] [data-testid="stVerticalBlock"]{gap:0 !important}
 section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] [data-testid="stElementContainer"]{width:100% !important}
-section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button{justify-content:flex-start;text-align:left;background:transparent;border:0;box-shadow:none;
-  padding:.62rem 1rem;min-height:0;border-radius:0;width:100%;color:inherit;font-weight:500;opacity:.8;transition:background .15s,opacity .15s}
-section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button p{font-size:.94rem;text-align:left;color:inherit;display:flex;align-items:center;gap:.6rem;margin:0}
-section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:hover{background:rgba(128,128,128,.14);opacity:1;color:inherit}
-section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"]{background:linear-gradient(90deg,rgba(139,92,246,.3),rgba(139,92,246,.06));
-  box-shadow:inset 3px 0 0 #8b5cf6;color:inherit;opacity:1}
-section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"] p{font-weight:700}
-section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:focus{outline:none;box-shadow:none}
-.nb-sbbrand{display:flex;align-items:center;gap:.65rem;padding:1rem 3rem .9rem 1rem;border-bottom:1px solid rgba(128,128,128,.16);margin-bottom:.2rem}
-.nb-sbbrand .lg{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#3b82f6);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex:none}
-.nb-sbbrand b{font-size:1.05rem;line-height:1.1;display:block}
-.nb-sbbrand span.s{font-size:.72rem;opacity:.6}
-.nb-sbgrp{font-size:.66rem;font-weight:700;letter-spacing:.11em;text-transform:uppercase;opacity:.5;padding:.95rem 1rem .3rem}
-.nb-sbfoot{padding:.9rem 1rem;margin-top:.8rem;border-top:1px solid rgba(128,128,128,.16);font-size:.72rem;opacity:.55;line-height:1.4}
+section[data-testid="stSidebar"] [data-testid="stSidebarContent"],section[data-testid="stSidebar"] [data-testid="stSidebarContent"] > div{padding-left:0 !important;padding-right:0 !important}
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] [data-testid="stElementContainer"][class*="st-key-sbnav_"]{margin:0 0 .3rem !important;padding:0 .6rem !important;width:100% !important}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button{justify-content:flex-start !important;text-align:left !important;background:transparent !important;border:0 !important;box-shadow:none !important;
+  padding:.8rem 1rem !important;min-height:0 !important;border-radius:12px !important;width:100% !important;color:inherit !important;font-weight:500 !important;opacity:.82;transition:background .15s,opacity .15s}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button p{font-size:.95rem !important;text-align:left !important;color:inherit !important;display:flex;align-items:center;gap:.7rem;margin:0 !important}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:hover{background:rgba(128,128,128,.15) !important;opacity:1;color:inherit !important}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"]{background:linear-gradient(90deg,rgba(139,92,246,.34),rgba(139,92,246,.08)) !important;
+  box-shadow:inset 3px 0 0 #8b5cf6 !important;opacity:1}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"] p{font-weight:700 !important}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:focus{outline:none !important}
+.nb-sbbrand{display:flex !important;align-items:center;gap:.75rem;padding:1.1rem 3rem 1rem 1.1rem;border-bottom:1px solid rgba(128,128,128,.16);margin-bottom:.6rem;white-space:nowrap}
+.nb-sbbrand .lg{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#8b5cf6,#3b82f6);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex:none}
+.nb-sbbrand .tx{display:flex;flex-direction:column;gap:2px;min-width:0}
+.nb-sbbrand b{font-size:1.1rem;line-height:1.1}
+.nb-sbbrand .s{font-size:.74rem;opacity:.6;line-height:1.1}
+.nb-sbgrp{font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.5;padding:1.3rem 1.6rem .55rem;line-height:1}
+.nb-sbuser{position:sticky;bottom:0;display:flex;align-items:center;gap:.7rem;padding:.85rem 1rem;margin-top:1rem;border-top:1px solid rgba(128,128,128,.18);background:var(--nb-bg,#0e1117);z-index:3}
+.nb-sbuser .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#3b82f6);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
+.nb-sbuser .tx{display:flex;flex-direction:column;min-width:0;flex:1;line-height:1.2}
+.nb-sbuser .tx .s{font-size:.68rem;opacity:.55}.nb-sbuser .tx b{font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-sbuser a{font-size:.75rem;font-weight:600;text-decoration:none;padding:.3rem .6rem;border:1px solid rgba(128,128,128,.35);border-radius:8px;color:inherit !important}
+.nb-sbfoot{padding:1rem 1.4rem;margin-top:1rem;border-top:1px solid rgba(128,128,128,.16);font-size:.72rem;opacity:.55;line-height:1.5}
 /* give the pages more room */
-div[data-testid="stMainBlockContainer"].block-container{max-width:1500px !important;padding-top:2.6rem !important}
+div[data-testid="stMainBlockContainer"].block-container{max-width:1500px !important;padding-top:4.4rem !important}
 </style>""", unsafe_allow_html=True)
         if st.session_state.get("main_nav") not in menu:
             st.session_state["main_nav"] = st.session_state.get("_main_last") if st.session_state.get("_main_last") in menu else menu[0]
@@ -8571,7 +8594,7 @@ div[data-testid="stMainBlockContainer"].block-container{max-width:1500px !import
             st.session_state["main_nav"] = m
         _groups = [("", [HOME_NAV]), ("Model", NAV[:4]), ("Track", NAV[4:7]), ("Tools", NAV[7:]), ("Account", [LOCKED_NAV])]
         with st.sidebar:
-            st.markdown('<div class="nb-sbbrand"><div class="lg">🏀</div><div><b>NBA Hub</b><span class="s">Model picks &amp; props</span></div></div>', unsafe_allow_html=True)
+            st.markdown('<div class="nb-sbbrand"><div class="lg">🏀</div><div class="tx"><b>NBA Hub</b><span class="s">Picks &amp; props</span></div></div>', unsafe_allow_html=True)
             for _gname, _items in _groups:
                 _items = [m for m in _items if m in menu]
                 if not _items:
@@ -8582,6 +8605,10 @@ div[data-testid="stMainBlockContainer"].block-container{max-width:1500px !import
                     st.button(nav_label(_m), key=f"sbnav_{menu.index(_m)}", use_container_width=True, on_click=_sbgo, args=(_m,),
                               type="primary" if st.session_state["main_nav"] == _m else "secondary")
             st.markdown('<div class="nb-sbfoot">Posted before tip and tracked in units.<br>Entertainment only.</div>', unsafe_allow_html=True)
+            if private_ok:
+                st.markdown(f'<div class="nb-sbuser"><div class="av">{H((st.session_state.get("user_name", "") or "?")[:1].upper())}</div>'
+                            f'<div class="tx"><span class="s">Signed in as</span><b>{H(st.session_state.get("user_name", ""))}</b></div>'
+                            '<a href="?so=1" target="_self">Sign out</a></div>', unsafe_allow_html=True)
         nav = st.session_state["main_nav"]
     else:
         try:
@@ -9038,21 +9065,14 @@ PAGE_INFO = {NAV[0]: ("Game odds", "Simulate one matchup 10,000 times and compar
              NAV[6]: ("Pick'em", "Pick the winners yourself and see how you stack up against the book and the model."),
              NAV[7]: ("Edge tools", "Bet sizing, closing line value, model accuracy and ready-to-post picks."),
              NAV[8]: ("X post", "Turn the model's numbers for one game into a ready-to-post cheat sheet.")}
-if private_ok:
+if private_ok and not SIDEBAR_NAV:
     _ub_style = " style='margin-top:.5rem'" if nav == HOME_NAV else ""
     html(f'<div class="ub-bar"><span>👤 Signed in as <b>{H(st.session_state.get("user_name", ""))}</b></span>'
          '<a href="?so=1" target="_self">Sign out</a></div>')
 _pi = PAGE_INFO.get(nav)
 if _pi:
-    _rc = {NAV[0]: ("#3b82f6", "📊"), NAV[1]: ("#a855f7", "📋"), NAV[2]: ("#f59e0b", "🎯"), NAV[3]: ("#f97316", "🏀"), NAV[4]: ("#22c55e", "📈"),
-           NAV[5]: ("#14b8a6", "💵"), NAV[6]: ("#ec4899", "🏆"), NAV[7]: ("#ef4444", "🧮"), NAV[8]: ("#38bdf8", "📣")}
-    _col, _ic = _rc.get(nav, ("#8b5cf6", "🏀"))
-    _cr = _vrgb(_col)
-    html(f'<style>.pg-rib{{display:flex;align-items:center;gap:16px;border-radius:16px;padding:16px 22px;margin:0 0 14px;color:#fff;'
-         f'background:linear-gradient(110deg,rgba({_cr[0]},{_cr[1]},{_cr[2]},.92) 0%,rgba({_cr[0]},{_cr[1]},{_cr[2]},.38) 38%,#0f1020 100%);border:1px solid rgba({_cr[0]},{_cr[1]},{_cr[2]},.55)}}'
-         f'.pg-rib .ic{{width:46px;height:46px;border-radius:13px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex:none}}'
-         f'.pg-rib .t{{font-size:1.55rem;font-weight:800;letter-spacing:-.03em;line-height:1.1}}.pg-rib .s{{opacity:.85;font-size:.9rem;margin-top:3px}}</style>'
-         f'<div class="pg-rib"><div class="ic">{_ic}</div><div><div class="t">{H(_pi[0])}</div><div class="s">{H(_pi[1])}</div></div></div>')
+    if not SIDEBAR_NAV:
+        html(f'<div class="pro-page"><div class="pro-page-t">{H(_pi[0])}</div><div class="pro-page-s">{H(_pi[1])}</div></div>')
 record_closing(date, games)
 record_closing(date - dt.timedelta(days=1), prev_games if "prev_games" in globals() else [])
 

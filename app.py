@@ -3724,7 +3724,8 @@ def leg_builder(key):
 
 SLIP_PROMPT = """You read sportsbook bet-slip screenshots and return the bets as JSON only (no other text, no code fences).
 Today's date is {today}. Return {{"bets": [ ... ]}} with one object per bet slip or parlay visible, each with:
-- "book": the sportsbook shown (e.g. DraftKings, FanDuel, PrizePicks, Underdog, Kalshi, Novig, Sleeper, Chalkboard) or "Other".
+- "book": which app the screenshot is from. Look at the logo, name, colors and wording anywhere in the image, including the top bar and the status bar, and pick one of: Underdog, PrizePicks, DraftKings, FanDuel, Kalshi, Sleeper, Novig, Chalkboard, Other. Clues: Underdog has a yellow and black look, "Underdog" wording, "Higher"/"Lower" buttons, and entries called "Pick'em" with Flex or Standard payouts. PrizePicks is purple/white with "More"/"Less" and Power Play or Flex Play entries. Sleeper is dark with "Sleeper Picks". Kalshi shows "Yes"/"No" contracts and prices in cents. DraftKings is green/black ("DK", "SGP" parlays). FanDuel is blue/white with "Same Game Parlay". Only use "Other" when no clue points to one of these.
+  For Underdog and PrizePicks: "Higher"/"More" means over and "Lower"/"Less" means under; the entry amount is the stake and "To pay"/"Payout"/"To win" is the payout (total back).
 - "type": "Straight" for one pick, "Parlay" for several.
 - "stake": dollars wagered, a number.
 - "payout": the TOTAL dollars returned if it wins (stake plus profit). If the slip only shows a profit / "to win" amount, add the stake. If it only shows odds, compute it.
@@ -3783,6 +3784,8 @@ def slip_import():
             st.info('To use this, add your Anthropic key to the app secrets as `ANTHROPIC_API_KEY = "sk-ant-..."` (the same one the chat uses).')
             return
         tok = st.session_state.setdefault("slip_n", 0)
+        _bk = st.selectbox("Which book are these from?", ["Auto-detect"] + BET_BOOKS + ["Other"], key=f"slip_book_{tok}",
+                           help="Auto-detect reads the logo and wording on the screenshot. Pick a book here if it ever gets it wrong, and it will be used for every bet in the upload.")
         ups = st.file_uploader("Bet slip screenshots", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key=f"slip_up_{tok}")
         if ups and st.button("🔍 Read the screenshot" + ("s" if len(ups) > 1 else ""), type="primary", key=f"slip_read_{tok}"):
             found, errs = [], []
@@ -3792,6 +3795,9 @@ def slip_import():
                         found += read_slip(u, key)
                     except Exception as e:
                         errs.append(f"{u.name}: {e}")
+            if _bk != "Auto-detect":
+                for _b in found:
+                    _b["book"] = _bk
             st.session_state["slip_found"] = found
             st.session_state["slip_errs"] = errs
         for e in st.session_state.get("slip_errs", []):
@@ -8756,12 +8762,13 @@ section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"]
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:focus{outline:none !important}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button > div,section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button [data-testid="stMarkdownContainer"]{display:flex !important;justify-content:flex-start !important;width:100% !important;margin:0 !important}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button p{justify-content:flex-start !important;width:100%}
-.nb-sbbrand{display:flex !important;align-items:center;gap:.75rem;padding:1.1rem 3rem 1rem 1.1rem;border-bottom:1px solid rgba(128,128,128,.16);margin-bottom:1.1rem;white-space:nowrap}
+.nb-sbbrand{container-type:inline-size;display:flex !important;align-items:center;gap:.7rem;padding:1.1rem 2.6rem 1rem 1.1rem;border-bottom:1px solid rgba(128,128,128,.16);margin-bottom:1.1rem;white-space:nowrap}
 .nb-sbbrand .lg{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#2b1055,#e56020);display:flex;align-items:center;justify-content:center;flex:none}
 .nb-sbbrand .lg img{width:26px;height:26px;object-fit:contain}
 .nb-sbbrand .tx{display:flex;flex-direction:column;gap:2px;min-width:0}
-.nb-sbbrand b{font-size:1.1rem;line-height:1.1}
-.nb-sbbrand .s{font-size:.74rem;opacity:.6;line-height:1.1}
+.nb-sbbrand b{font-size:clamp(.72rem,calc((100cqw - 56px) / 8.2),1.1rem);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-sbbrand .s{font-size:clamp(.62rem,calc((100cqw - 56px) / 12),.74rem);opacity:.6;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-sbbrand .lg{flex:none}
 .nb-sbgrp{font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.5;padding:1.1rem 1.1rem .15rem;line-height:1.2;display:block;margin:0 !important}
 section[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(.nb-sbgrp),section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(.nb-sbgrp){margin-bottom:.35rem !important;height:auto !important;overflow:visible !important}
 .nb-sbuser{display:flex;align-items:center;gap:.6rem;padding:.7rem 1rem;border-top:1px solid rgba(128,128,128,.18);box-sizing:border-box;width:100%}

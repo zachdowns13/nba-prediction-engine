@@ -4215,11 +4215,10 @@ def open_bets_list(refresh=False):
     st.markdown("""<style>
 div[class*="st-key-bk_hdr_"] button{justify-content:flex-start !important;text-align:left !important;font-weight:700;width:400px !important;max-width:100% !important;background:rgba(128,128,128,.10) !important;border:1px solid rgba(128,128,128,.22) !important;border-radius:12px !important;padding:.55rem .9rem !important}
 div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
-div[class*="st-key-seg_"]{display:flex;justify-content:flex-end;width:100%}
-div[class*="st-key-seg_"] [data-testid="stButtonGroup"]{justify-content:flex-end}
-[data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > [class*="st-key-seg_"]){flex:0 0 212px !important;width:212px !important;min-width:212px !important}
-[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-seg_"]){flex-wrap:nowrap !important;align-items:flex-end}
-[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-seg_"]) > [data-testid="stColumn"]:first-child{flex:1 1 0 !important;min-width:0 !important;width:auto !important}
+div[class*="st-key-seg_"]{display:flex;justify-content:flex-start;width:100%}
+div[class*="st-key-seg_"] [data-testid="stButtonGroup"]{justify-content:flex-start}
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-seg_"]){display:grid !important;grid-template-columns:minmax(0,1fr) 206px !important;align-items:end !important;column-gap:.6rem !important}
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-seg_"]) > [data-testid="stColumn"]{width:auto !important;min-width:0 !important;flex:none !important}
 </style>""", unsafe_allow_html=True)
     if st.session_state.pop("want_refresh", False):
         refresh = True
@@ -4346,7 +4345,7 @@ div[class*="st-key-seg_"] [data-testid="stButtonGroup"]{justify-content:flex-end
                 def _flip(bk_):
                     st.session_state[f"bk_shut_{bk_}"] = not st.session_state.get(f"bk_shut_{bk_}", False)
                 for _bk in dict.fromkeys(r_["book"] for r_ in _rows):
-                    grp = [r_ for r_ in _rows if r_["book"] == _bk]
+                    grp = sorted([r_ for r_ in _rows if r_["book"] == _bk], key=lambda r_: len(split_legs(r_["desc"])))      # fewest legs first
                     shut = st.session_state.get(f"bk_shut_{_bk}", False)
                     _site = BOOK_SITE.get(_bk)
                     if _site:

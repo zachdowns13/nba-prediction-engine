@@ -6492,7 +6492,7 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False, f
     fb_line = ""
     if opts["fb"] and fb:
         T = fb["T"]
-        fb_line = f"🎯 First basket: {T.iloc[0]['Player']}" + (f" ({_am(fb_odds)} at the books)" if fb_odds is not None else "")
+        fb_line = f"🎯 First basket: {T.iloc[0]['Player']}" + (f" ({_am(fb_odds)})" if fb_odds is not None else "")
 
     tip_line = ""
     if opts["fb"] and fb and (mode != "short" or video):
@@ -7515,7 +7515,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
             if featured and (not first_done or gframe - first_gf[0] < int(_VFPS * 6.5)):
                 gold = (251, 191, 36)
                 if first_done:
-                    pill = f"FIRST BASKET   {featured['name']}" + (f"   {_am(fb_odds)}" if fb_odds is not None else "")
+                    pill = f"FIRST BASKET   {featured['name']}" + (f" ({_am(fb_odds)})" if fb_odds is not None else "")
                     pc, pt_ = gold, (10, 14, 30)
                 else:
                     pill = "FIRST BASKET   who scores it first?"
@@ -7531,7 +7531,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
                 if not scored_now:
                     txt = "Who scores it first?"
                 else:
-                    txt = f"{featured['name']} {'hits the three' if p['pts'] == 3 else 'scores first'}" + (f"  -  books had him at {_am(fb_odds)}" if fb_odds is not None else f"  -  model had him at {featured['prob'] * 100:.0f}%")
+                    txt = f"{featured['name']} {'hits the three' if p['pts'] == 3 else 'scores first'}" + (f" ({_am(fb_odds)})" if fb_odds is not None else f"  -  model had him at {featured['prob'] * 100:.0f}%")
                 d.text((W // 2, 678), txt, font=fit(d, txt, 1200, 38), fill=(10, 14, 30), anchor="mm")
             else:
                 d.rounded_rectangle([12, 618, W - 12, 702], 20, fill=(7, 11, 24, 232), outline=(255, 255, 255, 40), width=1)

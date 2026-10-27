@@ -170,7 +170,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 
 # Set to False to go back to the tabs across the top.
-SIDEBAR_NAV = False
+SIDEBAR_NAV = True
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -8540,23 +8540,30 @@ with _nav_box:
     if SIDEBAR_NAV:
         st.markdown("""<style>
 .st-key-navbar, *:has(> .st-key-navbar):not(:has(> *:not(.st-key-navbar))){display:none !important}
+/* sidebar: edge to edge, nothing wasted at the top or the sides */
+section[data-testid="stSidebar"][aria-expanded="true"]{width:238px !important;min-width:238px !important}
 section[data-testid="stSidebar"]{border-right:1px solid rgba(128,128,128,.18)}
-section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"]{padding:.4rem .75rem 1rem}
-section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.15rem}
+section[data-testid="stSidebar"] [data-testid="stSidebarHeader"]{position:absolute;top:.45rem;right:.35rem;padding:0;margin:0;height:auto;width:auto;z-index:5;background:transparent}
+section[data-testid="stSidebar"] [data-testid="stSidebarHeader"] img,section[data-testid="stSidebar"] [data-testid="stLogo"]{display:none}
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"]{padding:0 !important;margin:0}
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] > div,section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] [data-testid="stVerticalBlock"]{gap:0 !important}
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] [data-testid="stElementContainer"]{width:100% !important}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button{justify-content:flex-start;text-align:left;background:transparent;border:0;box-shadow:none;
-  padding:.5rem .8rem;min-height:0;border-radius:10px;width:100%;color:inherit;font-weight:500;opacity:.82;transition:background .15s,opacity .15s}
-section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button p{font-size:.93rem;text-align:left;color:inherit;display:flex;align-items:center;gap:.55rem}
+  padding:.62rem 1rem;min-height:0;border-radius:0;width:100%;color:inherit;font-weight:500;opacity:.8;transition:background .15s,opacity .15s}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button p{font-size:.94rem;text-align:left;color:inherit;display:flex;align-items:center;gap:.6rem;margin:0}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:hover{background:rgba(128,128,128,.14);opacity:1;color:inherit}
-section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"]{background:linear-gradient(90deg,rgba(139,92,246,.26),rgba(139,92,246,.07));
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"]{background:linear-gradient(90deg,rgba(139,92,246,.3),rgba(139,92,246,.06));
   box-shadow:inset 3px 0 0 #8b5cf6;color:inherit;opacity:1}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"] p{font-weight:700}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:focus{outline:none;box-shadow:none}
-.nb-sbbrand{display:flex;align-items:center;gap:.65rem;padding:.35rem .4rem .9rem}
-.nb-sbbrand .lg{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#3b82f6);display:flex;align-items:center;justify-content:center;font-size:1.1rem}
+.nb-sbbrand{display:flex;align-items:center;gap:.65rem;padding:1rem 3rem .9rem 1rem;border-bottom:1px solid rgba(128,128,128,.16);margin-bottom:.2rem}
+.nb-sbbrand .lg{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#3b82f6);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex:none}
 .nb-sbbrand b{font-size:1.05rem;line-height:1.1;display:block}
 .nb-sbbrand span.s{font-size:.72rem;opacity:.6}
-.nb-sbgrp{font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.5;padding:.9rem .8rem .25rem}
-.nb-sbfoot{margin-top:1.4rem;padding:.7rem .8rem;border-top:1px solid rgba(128,128,128,.18);font-size:.72rem;opacity:.55;line-height:1.4}
+.nb-sbgrp{font-size:.66rem;font-weight:700;letter-spacing:.11em;text-transform:uppercase;opacity:.5;padding:.95rem 1rem .3rem}
+.nb-sbfoot{padding:.9rem 1rem;margin-top:.8rem;border-top:1px solid rgba(128,128,128,.16);font-size:.72rem;opacity:.55;line-height:1.4}
+/* give the pages more room */
+div[data-testid="stMainBlockContainer"].block-container{max-width:1500px !important;padding-top:2.6rem !important}
 </style>""", unsafe_allow_html=True)
         if st.session_state.get("main_nav") not in menu:
             st.session_state["main_nav"] = st.session_state.get("_main_last") if st.session_state.get("_main_last") in menu else menu[0]
@@ -9037,7 +9044,15 @@ if private_ok:
          '<a href="?so=1" target="_self">Sign out</a></div>')
 _pi = PAGE_INFO.get(nav)
 if _pi:
-    html(f'<div class="pro-page"><div class="pro-page-t">{H(_pi[0])}</div><div class="pro-page-s">{H(_pi[1])}</div></div>')
+    _rc = {NAV[0]: ("#3b82f6", "📊"), NAV[1]: ("#a855f7", "📋"), NAV[2]: ("#f59e0b", "🎯"), NAV[3]: ("#f97316", "🏀"), NAV[4]: ("#22c55e", "📈"),
+           NAV[5]: ("#14b8a6", "💵"), NAV[6]: ("#ec4899", "🏆"), NAV[7]: ("#ef4444", "🧮"), NAV[8]: ("#38bdf8", "📣")}
+    _col, _ic = _rc.get(nav, ("#8b5cf6", "🏀"))
+    _cr = _vrgb(_col)
+    html(f'<style>.pg-rib{{display:flex;align-items:center;gap:16px;border-radius:16px;padding:16px 22px;margin:0 0 14px;color:#fff;'
+         f'background:linear-gradient(110deg,rgba({_cr[0]},{_cr[1]},{_cr[2]},.92) 0%,rgba({_cr[0]},{_cr[1]},{_cr[2]},.38) 38%,#0f1020 100%);border:1px solid rgba({_cr[0]},{_cr[1]},{_cr[2]},.55)}}'
+         f'.pg-rib .ic{{width:46px;height:46px;border-radius:13px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex:none}}'
+         f'.pg-rib .t{{font-size:1.55rem;font-weight:800;letter-spacing:-.03em;line-height:1.1}}.pg-rib .s{{opacity:.85;font-size:.9rem;margin-top:3px}}</style>'
+         f'<div class="pg-rib"><div class="ic">{_ic}</div><div><div class="t">{H(_pi[0])}</div><div class="s">{H(_pi[1])}</div></div></div>')
 record_closing(date, games)
 record_closing(date - dt.timedelta(days=1), prev_games if "prev_games" in globals() else [])
 

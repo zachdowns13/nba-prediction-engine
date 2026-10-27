@@ -5576,7 +5576,15 @@ def pickem_tab(M, date, games, injuries, b2b):
                     row[lab] = f"{w}-{l}"
                 by.append(row)
             st.markdown('<div class="nb-sec">By day</div>', unsafe_allow_html=True)
-            st.dataframe(pd.DataFrame(by).sort_values("Date", ascending=False), hide_index=True, use_container_width=True)
+            _bd = pd.DataFrame(by).sort_values("Date", ascending=False)
+            _th = "padding:.6rem .9rem;font-weight:600;opacity:.65;border-bottom:1px solid var(--line);"
+            _td = "padding:.6rem .9rem;border-bottom:1px solid rgba(128,128,128,.14);"
+            _cols = list(_bd.columns)
+            _hd = "".join(f'<th style="{_th}text-align:{"left" if c == "Date" else "right"}">{H(str(c))}</th>' for c in _cols)
+            _bdy = "".join("<tr>" + "".join(f'<td style="{_td}text-align:{"left" if c == "Date" else "right"};font-variant-numeric:tabular-nums">{H(str(r[c]))}</td>' for c in _cols) + "</tr>"
+                           for _, r in _bd.iterrows())
+            html(f'<div style="border:1px solid var(--line);border-radius:14px;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:.92rem">'
+                 f'<thead><tr>{_hd}</tr></thead><tbody>{_bdy}</tbody></table></div>')
             with st.expander("Every finished pick"):
                 tbl = done.assign(**{"Game": done["away"].map(short) + " @ " + done["home"].map(short), "Final (away-home)": done["score"],
                                      "Winner": done["winner"].map(short), "You": done["my_pick"].map(lambda x: short_pk(x) if x else "") + done["me_ok"].map({True: " ✅", False: " ❌"}).fillna(""),

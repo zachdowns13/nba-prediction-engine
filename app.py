@@ -6634,7 +6634,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
     wts = {t: weights(t, lineups[t]) for t in (home, away)}
     names10 = lineups[away] + lineups[home]
     cols10 = [ac] * 5 + [hc] * 5
-    inits = [_vinit(n) for n in names10]
+    inits = [""] * 10                               # plain dots: nothing on the court gives away who the first-basket pick is
 
     sim = _vsim(hp, ap, featured["home"] if featured else None, zlib.crc32(f"{g.get('id')}|{seed_extra}|v".encode()))
     seq, first_k = sim["seq"], sim["first_k"]
@@ -6867,28 +6867,28 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
                     bp = hp_ + np.array([rp.uniform(-1, 1), rp.uniform(-1, 1)]) * 2.5 * (s2 - 0.85) / 0.15
             fr = base.copy()
             d = ImageDraw.Draw(fr, "RGBA")
+            scored_now = t >= 0.9
             for i in range(10):
                 x, y = _vcp(*np.clip(P[i], 1, 93))
-                spr = _vdot(cols10[i], inits[i], dim=bool(is_first and i != sh))
-                if is_first and i == sh:
+                spr = _vdot(cols10[i], inits[i])
+                if is_first and i == sh and scored_now:
                     pulse = 0.85 + 0.15 * math.sin(gframe * 0.35)
                     rr = ring.resize((int(82 * pulse), int(82 * pulse)), Image.BILINEAR)
                     fr.paste(rr, (int(x - rr.width / 2), int(y - rr.height / 2)), rr)
                 fr.paste(spr, (int(x - spr.width / 2), int(y - spr.height / 2)), spr)
             bx, by = _vcp(*np.clip(bp, 0.5, 93.5))
             fr.paste(ball, (int(bx - ball.width / 2), int(by - lift - ball.height / 2)), ball)
-            if is_first:
+            if is_first and scored_now:
                 x, y = _vcp(*np.clip(P[sh], 1, 93))
                 nm = names10[sh]
                 fnt = _gfont(24)
-                tw = max(d.textlength(nm, font=fnt), d.textlength("FIRST BASKET PICK", font=_gfont(13)))
+                tw = max(d.textlength(nm, font=fnt), d.textlength("FIRST BASKET", font=_gfont(13)))
                 cxm = x + (-1 if side == "R" else 1) * (tw / 2 + 36)          # beside him, toward midcourt, so the hoop stays visible
                 tx0 = min(max(cxm - tw / 2 - 14, 18), 886 - tw - 28)
                 ty = min(max(y - 23, 150), 560)
                 d.rounded_rectangle([tx0, ty - 23, tx0 + tw + 28, ty + 23], 12, fill=(251, 191, 36, 255))
-                d.text((tx0 + (tw + 28) / 2, ty - 11), "FIRST BASKET PICK", font=_gfont(13), fill=(90, 60, 0), anchor="mm")
+                d.text((tx0 + (tw + 28) / 2, ty - 11), "FIRST BASKET", font=_gfont(13), fill=(90, 60, 0), anchor="mm")
                 d.text((tx0 + (tw + 28) / 2, ty + 8), nm, font=fnt, fill=(10, 14, 30), anchor="mm")
-            scored_now = t >= 0.9
             cum = p["cum"] if scored_now else last_cum
             if scored_now and not p.get("popped"):
                 p["popped"] = True
@@ -6900,7 +6900,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
                     bursts.append((gframe, hx, hy))
                     sx, sy = _vcp(*np.clip(P[sh], 1, 93))
                     pops.append((gframe, sx, sy - 50 if is_first else sy - 40, "+%d" % p["pts"] if p["kind"] != "ft" else "+1 FT", (251, 191, 36)))
-                    last_play = f"{names10[sh]}  +{p['pts']}" + ("  (FT)" if p["kind"] == "ft" else "")
+                    last_play = f"{H_ if off_home else A_}  +{p['pts']}" + ("  (FT)" if p["kind"] == "ft" else "")
                 else:
                     last_play = "Turnover" if p["kind"] == "tov" else "Miss"
             for (g0, hx, hy) in bursts:
@@ -6923,16 +6923,19 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
             cur = wp[k] if scored_now else (wp[k - 1] if k > 0 else float(res.get("p_home", 0.5)))
             d.text((924, 314), f"{A_.upper()} {(1 - cur) * 100:.0f}%", font=FS(20), fill=ac if _vlum(ac) > 60 else (255, 255, 255), anchor="lm")
             d.text((W - 24, 314), f"{H_.upper()} {cur * 100:.0f}%", font=FS(20), fill=hc if _vlum(hc) > 60 else (255, 255, 255), anchor="rm")
-            # first-basket card (always on screen, so it's clear who the pick is)
+            # first-basket card: nothing about the pick is shown until he actually scores
             if featured:
                 gold = (251, 191, 36)
-                d.text((924, 376), "FIRST BASKET PICK", font=FS(16), fill=gold, anchor="lm")
-                d.text((924, 428), featured["name"], font=fit(d, featured["name"], 330, 36), fill=(255, 255, 255), anchor="lm")
-                tm = H_ if featured["home"] else A_
-                d.text((924, 464), tm.upper(), font=FS(18), fill=(160, 175, 205), anchor="lm")
-                d.text((924, 528), f"{featured['prob'] * 100:.0f}%", font=FS(72), fill=gold, anchor="lm")
-                d.text((924 + d.textlength(f"{featured['prob'] * 100:.0f}%", font=FS(72)) + 12, 540), "chance to\nscore first", font=FS(16, False), fill=(190, 200, 225), anchor="lm", spacing=4)
-                d.text((924, 572), "SCORED FIRST IN THIS SIM" if first_done else "WATCH FOR HIM FIRST", font=FS(14), fill=(34, 197, 94) if first_done else (160, 175, 205), anchor="lm")
+                d.text((924, 376), "FIRST BASKET", font=FS(16), fill=gold, anchor="lm")
+                if first_done:
+                    d.text((924, 428), featured["name"], font=fit(d, featured["name"], 330, 36), fill=(255, 255, 255), anchor="lm")
+                    d.text((924, 464), (H_ if featured["home"] else A_).upper(), font=FS(18), fill=(160, 175, 205), anchor="lm")
+                    d.text((924, 528), f"{featured['prob'] * 100:.0f}%", font=FS(72), fill=gold, anchor="lm")
+                    d.text((924 + d.textlength(f"{featured['prob'] * 100:.0f}%", font=FS(72)) + 12, 540), "model chance\npregame", font=FS(16, False), fill=(190, 200, 225), anchor="lm", spacing=4)
+                    d.text((924, 572), "SCORED FIRST IN THIS SIM", font=FS(14), fill=(34, 197, 94), anchor="lm")
+                else:
+                    d.text((1087, 465), "?", font=FS(170), fill=gold, anchor="mm")
+                    d.text((1087, 560), "Who scores it first?", font=FS(20), fill=(190, 200, 225), anchor="mm")
             else:
                 d.text((924, 376), "LAST PLAY", font=FS(16), fill=(160, 175, 205), anchor="lm")
                 d.text((924, 440), last_play, font=fit(d, last_play, 330, 32), fill=(255, 255, 255), anchor="lm")
@@ -6940,8 +6943,8 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
             if is_first:
                 d.rounded_rectangle([12, 602, W - 12, 708], 20, fill=(251, 191, 36, 255))
                 if not scored_now:
-                    d.text((W // 2, 632), "FIRST BASKET WATCH", font=FS(20), fill=(90, 60, 0), anchor="mm")
-                    txt = f"{featured['name']}  -  {featured['prob'] * 100:.0f}% to score it first"
+                    d.text((W // 2, 632), "FIRST BASKET", font=FS(20), fill=(90, 60, 0), anchor="mm")
+                    txt = "Who scores it first?"
                 else:
                     d.text((W // 2, 632), "FIRST BASKET", font=FS(20), fill=(90, 60, 0), anchor="mm")
                     txt = f"{featured['name']} {'hits the three' if p['pts'] == 3 else 'scores first'}  -  model had him at {featured['prob'] * 100:.0f}%"

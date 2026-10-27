@@ -6370,7 +6370,7 @@ def x_graphic(res, fb, g, tipstr, handle):
     return buf.getvalue()
 
 
-def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle):
+def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False):
     # Build the post (or the two parts of a thread) from the saved simulation. Returns a list of strings.
     short = short_pk                       # T-Wolves and Cavs, like the Pick'em screen
     home, away, o = g["home"], g["away"], res["odds"]
@@ -6396,6 +6396,8 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle):
     if opts["fb"] and fb:
         T = fb["T"]
         fb_line = f"🎯 First basket: {T.iloc[0]['Player']} ({T.iloc[0]['prob'] * 100:.0f}%)"
+        if video:
+            fb_line = "🎯 First basket pick: revealed in the video, watch for it 👀"      # the video hides it until he scores
     tip_line = ""
     if opts["fb"] and fb and mode != "short":
         tp = fb.get("tip") or {}
@@ -6403,6 +6405,19 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle):
             tip_line = f"🏀 Tip: {H_} win it {tp['p_home'] * 100:.0f}%"
     inj_line = f"🚑 Key outs: {inj_txt}" if (opts["inj"] and inj_txt) else ""
     tag = f"\nFull record tracked in units 📊 @{handle}" if opts["tag"] else ""
+    if video:
+        vhook = f"🎬 I simulated {A_} @ {H_} 10,000 times and watched the game that matched my model's projection."
+        if mode == "short":
+            core = [x for x in lines_core if not x.startswith("💰")]          # moneyline is on the video's end card; keep this under 280
+            fbl = ["🎯 First basket: watch for it 👀"] if (opts["fb"] and fb) else []
+            return [(vhook[:-1] + " 👇\n\n" + "\n".join(core + fbl) + (f"\n\n@{handle}" if opts["tag"] else "")).strip()]
+        head = vhook + "\n\nWatch it play out, then the model's picks at the end 👇" + (f"\n⏰ Tip: {tipstr}" if tipstr else "")
+        if mode == "thread":
+            p1 = head + "\n\n" + "\n".join(lines_core)
+            p2 = "\n".join(x for x in (fb_line, tip_line, inj_line) if x) + ("\n\nOne simulated game, tracked picks, units only. Entertainment only." if opts["tag"] else "")
+            return [p1.strip(), p2.strip()]
+        long_ = head + "\n\n" + "\n".join(lines_core + [x for x in (fb_line, tip_line, inj_line) if x])
+        return [(long_ + ("\n\nOne simulated game out of the model's run. Every pick posted pre-tip and tracked in units. Entertainment only." if opts["tag"] else "")).strip()]
     if mode == "short":
         head = f"🏀 Betting on the {A_} @ {H_} game {when}?\nI simulated it 10,000 times 👇"
         body = "\n".join(lines_core + ([fb_line] if fb_line else []))
@@ -7325,11 +7340,13 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
             st.video(vid)
             st.download_button("⬇️ Download video (MP4)", vid, file_name=f"{short(g['away'])}_at_{short(g['home'])}_sim.mp4".lower(), mime="video/mp4", key=f"xvdl_{key}")
         st.markdown("**3. Your post** (open it in X, then attach the downloaded graphic or video)")
-    texts = x_post_texts(d["res"], d["fb"], g, d["tip"], d["inj"], mode, opts, handle)
+    video_post = st.checkbox("🎬 I'm posting this with the sim video (changes the post text)", value=bool(st.session_state.get(f"xv_{key}_{handle}")), key=f"x_vidpost_{key}")
+    texts = x_post_texts(d["res"], d["fb"], g, d["tip"], d["inj"], mode, opts, handle, video=video_post)
     import urllib.parse as _up
     for i, tx in enumerate(texts):
         label = "Post" if len(texts) == 1 else (f"Post {i + 1} of {len(texts)}" + (" (post it first)" if i == 0 else " (reply to post 1)"))
-        edited = st.text_area(label, tx, height=230, key=f"x_ta_{mode}_{i}_{g['id']}")
+        import zlib as _z
+        edited = st.text_area(label, tx, height=230, key=f"x_ta_{mode}_{i}_{g['id']}_{_z.crc32(tx.encode()):x}")
         n = len(edited)
         lim = 280 if mode != "long" else 25000
         st.caption(f"{n}/{lim if mode != 'long' else '280 free · 25,000 with Premium'} characters" + ("  ⚠️ too long for a free account, trim it or use a thread" if (n > 280 and mode != "long") else ""))

@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 27, 5:35 PM"
+APP_BUILD = "Oct 27, 5:50 PM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4425,7 +4425,21 @@ div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
             def _card(r):
                 with st.container(border=True):
                     legs = split_legs(r["desc"])
-                    pick_rows_html([bet_item(r, controls=True)])
+                    _tc = st.columns([12, 1.6], vertical_alignment="center") if True else None
+                    with _tc[1]:
+                        if hasattr(st, "popover"):
+                            with st.popover("🗑️", use_container_width=True):
+                                st.markdown("**Delete this bet?**")
+                                st.caption("It goes to the trash for 30 days, so you can bring it back.")
+                                if st.button("Yes, delete", key=f"bd_{r['id']}", type="primary"):
+                                    delete_bet(r["id"])
+                                    st.rerun()
+                        else:
+                            if st.checkbox("🗑️", key=f"bdc_{r['id']}") and st.button("Confirm delete", key=f"bd_{r['id']}"):
+                                delete_bet(r["id"])
+                                st.rerun()
+                    with _tc[0]:
+                        pick_rows_html([bet_item(r, controls=True)])
                     if len(legs) == 1 and games:
                         _p1 = parse_leg(legs[0])
                         if _p1:
@@ -4472,7 +4486,7 @@ div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
                                                "otherwise use Edit and enter what you were actually paid.")
                                 elif ls.count("H") == len(ls):
                                     st.caption("Every leg hit. Tap Won to collect.")
-                    b1, b2, b3, b4 = st.columns(4)
+                    b1, b2, b3 = st.columns(3)
                     if b1.button("✅ Won", key=f"bw_{r['id']}"):
                         settle_bet(r["id"], r["payout"])
                         st.rerun()
@@ -4488,9 +4502,6 @@ div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
                                 st.rerun()
                     elif b3.button("➖ Push", key=f"bp_{r['id']}"):
                         settle_bet(r["id"], r["stake"], result="P")
-                        st.rerun()
-                    if b4.button("🗑️ Delete", key=f"bd_{r['id']}"):
-                        delete_bet(r["id"])
                         st.rerun()
             _rows = [r_ for _, r_ in open_.iterrows()]
             def _grid(rs):

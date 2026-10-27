@@ -6503,8 +6503,7 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False, f
     tag = f"\nFull record tracked in units 📊 @{handle}" if opts["tag"] else ""
     if video:
         # the main post is just the hook (the video carries the story); small replies underneath hold the winner, the picks and a couple of stats
-        poss = "tonight's" if when == "tonight" else "today's"
-        main = f"🎬 I simulated {poss} {A_} @ {H_} game 10,000 times.\n\nHere is the typical outcome the model projects based on all the sims 👇" + (f"\n\n@{handle}" if opts["tag"] else "")
+        main = f"🎬 After 10,000 simulations of the {A_} vs {H_} game today, my model likes these plays 👇" + (f"\n\n@{handle}" if opts["tag"] else "")
         out = [main]
         if ml or opts["score"]:
             win = short(ml["side"]) if ml else (H_ if hp >= ap else A_)

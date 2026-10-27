@@ -6579,7 +6579,7 @@ _VW, _VH = 1280, 720
 _VFPS = 24
 _VPAD = 3.0                       # feet of floor outside the lines
 _VS = 16                          # pixels per foot on the flat court before it is tilted
-_VQUAD = [(372, 214), (908, 214), (1010, 598), (270, 598)]      # the padded flat court on screen: top-left, top-right, bottom-right, bottom-left
+_VQUAD = [(384, 214), (896, 214), (994, 598), (286, 598)]      # the padded flat court on screen: top-left, top-right, bottom-right, bottom-left
 _VHOM = {}
 
 
@@ -7083,6 +7083,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
             Lr = slots[rteam][j]
             ww = [(0.0 if hide(rteam, Lr[s]) else rot[rteam][Lr[s]]["reb"]) for s in range(5)]
             rb = (rteam, Lr[rnd.choices(range(5), weights=ww if sum(ww) > 0 else None)[0]])
+        m3 = kind == "miss" and rnd.random() < 0.38                 # a missed three (counts as a 3-point attempt)
         if ast_s is not None:
             hd = ast_s
         else:
@@ -7098,7 +7099,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
         elif kind == "tov":
             txt = f"{who(team, L[hd])} turns it over"
         else:
-            txt = f"{S_nm} misses a {rnd.choice(['three', 'jumper', 'layup', 'floater'])}, {who(*rb)} rebound"
+            txt = f"{S_nm} misses a {'three' if m3 else rnd.choice(['jumper', 'layup', 'floater'])}, {who(*rb)} rebound"
         if is_home:
             cum_h += pts
         else:
@@ -7108,7 +7109,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
         p_h = (1.0 if m > 0 else (0.0 if m < 0 else 0.5)) if left <= 0 else _vphi((m + proj_margin * left) / (16.1 * math.sqrt(left)))
         wp.append(p_h)
         poss_list.append({"k": k, "home": is_home, "pts": pts, "kind": kind, "sh": base + sh, "hd": base + hd, "cum": (cum_a, cum_h), "j": j,
-                          "team": team, "who": L[sh], "ast": (L[ast_s] if ast_s is not None else None), "rb": rb, "txt": txt})
+                          "team": team, "m3": m3, "who": L[sh], "ast": (L[ast_s] if ast_s is not None else None), "rb": rb, "txt": txt})
     margin_end = abs(cum_h - cum_a)
     for p in poss_list:
         k = p["k"]
@@ -7126,14 +7127,14 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
         # (team, player index, [pts, fgm, fga, reb, ast, 3pm]) changes this possession causes
         out = []
         t_ = p["team"]
-        z = lambda: [0, 0, 0, 0, 0, 0]
+        z = lambda: [0, 0, 0, 0, 0, 0, 0]
         if p["pts"] > 0:
             a = z()
             a[0] = p["pts"]
             if p["pts"] >= 2:
                 a[1], a[2] = 1, 1
             if p["pts"] == 3:
-                a[5] = 1
+                a[5], a[6] = 1, 1
             out.append((t_, p["who"], a))
             if p["ast"] is not None:
                 b = z()
@@ -7142,12 +7143,14 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
         elif p["kind"] == "miss":
             a = z()
             a[2] = 1
+            if p["m3"]:
+                a[6] = 1
             out.append((t_, p["who"], a))
             b = z()
             b[3] = 1
             out.append((p["rb"][0], p["rb"][1], b))
         return out
-    final = {t_: np.zeros((len(rot[t_]), 6), int) for t_ in (home, away)}
+    final = {t_: np.zeros((len(rot[t_]), 7), int) for t_ in (home, away)}
     for p in poss_list:
         for t_, i_, a in delta(p):
             final[t_][i_] += np.array(a)
@@ -7165,8 +7168,8 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
     Hi = _vH()["i"]
     SS = _VS
     co = (SS * Hi[0, 0], SS * Hi[0, 1], SS * Hi[0, 2], SS * Hi[1, 0], SS * Hi[1, 1], SS * Hi[1, 2], Hi[2, 0], Hi[2, 1])
-    PX = {away: 6, home: W - 6 - 268}
-    PW_, PY_, PH_ = 268, 184, 412
+    PX = {away: 6, home: W - 6 - 282}
+    PW_, PY_, PH_ = 282, 184, 412
     rim_xy = {}
 
     def stage(home_right):
@@ -7189,7 +7192,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
             d0.rounded_rectangle([xx, PY_, xx + PW_, PY_ + 7], 4, fill=col + (255,))
             city = team.rsplit(" ", 1)[0] if " " in team else team
             d0.text((xx + 16, PY_ + 26), city, font=fit(d0, city, 150, 24), fill=(255, 255, 255), anchor="lm")
-            for lab, cx in (("MIN", 112), ("PTS", 140), ("REB", 168), ("AST", 196), ("FG", 258)):
+            for lab, cx in (("MIN", 110), ("PTS", 136), ("REB", 164), ("AST", 192), ("FG", 242), ("3P", 276)):
                 d0.text((xx + cx, PY_ + 52), lab, font=FS(10), fill=col if _vlum(col) > 70 else (150, 165, 205), anchor="rm")
             d0.line([(xx + 12, PY_ + 64), (xx + PW_ - 12, PY_ + 64)], fill=(255, 255, 255, 40), width=1)
             d0.text((xx + 16, PY_ + 75), "STARTERS", font=FS(11), fill=(150, 165, 205), anchor="lm")
@@ -7236,7 +7239,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
         return ov
 
     # ----- live box scores -----------------------------------------------------------------------------
-    live = {t_: np.zeros((len(rot[t_]), 6), int) for t_ in (home, away)}
+    live = {t_: np.zeros((len(rot[t_]), 7), int) for t_ in (home, away)}
     ocnt = {t_: np.zeros(len(rot[t_]), int) for t_ in (home, away)}
     flash = {home: None, away: None}
     pan_cache = {}
@@ -7265,13 +7268,13 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
             tc = (255, 255, 255) if on else (130, 142, 170)
             nm = _vlast(x["name"])
             nf = _vf(12)                                                    # every name the same size; only very long ones are trimmed
-            while d.textlength(nm, font=nf) > 74 and len(nm) > 3:
+            while d.textlength(nm, font=nf) > 70 and len(nm) > 3:
                 nm = nm[:-2].rstrip() + "."
             d.text((20, top + 11), nm, font=nf, fill=tc, anchor="lm")
             mn = int(round(ocnt[team][i] * 48.0 / nposs))
-            for txt_, cx, c_ in ((str(mn), 112, tc), (str(st_[0]), 140, (251, 191, 36) if st_[0] > 0 else tc), (str(st_[3]), 168, tc),
-                                 (str(st_[4]), 196, tc), (f"{st_[1]}-{st_[2]}", 258, tc)):
-                d.text((cx, top + 11), txt_, font=FS(14), fill=c_, anchor="rm")
+            for txt_, cx, c_ in ((str(mn), 110, tc), (str(st_[0]), 136, (251, 191, 36) if st_[0] > 0 else tc), (str(st_[3]), 164, tc),
+                                 (str(st_[4]), 192, tc), (f"{st_[1]}-{st_[2]}", 242, tc), (f"{st_[5]}-{st_[6]}", 276, tc)):
+                d.text((cx, top + 11), txt_, font=FS(13), fill=c_, anchor="rm")
         if len(pan_cache) > 60:
             pan_cache.clear()
         pan_cache[key] = ov
@@ -7349,7 +7352,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
         elif p["kind"] == "two":
             sp = rp.choice(TWO)
         else:
-            sp = rp.choice(THREE + TWO)
+            sp = rp.choice(THREE if p["m3"] else TWO)
         spots = {shot_local: sp}
         pool = [s_ for s_ in ALL if math.hypot(s_[0] - sp[0], s_[1] - sp[1]) > 7]
         rp.shuffle(pool)

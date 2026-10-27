@@ -7272,7 +7272,8 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
             for txt_, cx, c_ in ((str(mn), 112, tc), (str(st_[0]), 140, (251, 191, 36) if st_[0] > 0 else tc), (str(st_[3]), 168, tc),
                                  (str(st_[4]), 196, tc), (f"{st_[1]}-{st_[2]}", 258, tc)):
                 d.text((cx, top + 11), txt_, font=FS(14), fill=c_, anchor="rm")
-        pan_cache.clear() if len(pan_cache) > 60 else None
+        if len(pan_cache) > 60:
+            pan_cache.clear()
         pan_cache[key] = ov
         return ov
 

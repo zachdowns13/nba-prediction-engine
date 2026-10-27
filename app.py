@@ -8540,25 +8540,41 @@ with _nav_box:
     if SIDEBAR_NAV:
         st.markdown("""<style>
 .st-key-navbar, *:has(> .st-key-navbar):not(:has(> *:not(.st-key-navbar))){display:none !important}
-section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"]{padding:.5rem .6rem 1rem}
-section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.1rem}
+section[data-testid="stSidebar"]{border-right:1px solid rgba(128,128,128,.18)}
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"]{padding:.4rem .75rem 1rem}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.15rem}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button{justify-content:flex-start;text-align:left;background:transparent;border:0;box-shadow:none;
-  padding:.5rem .75rem;min-height:0;border-radius:10px;width:100%;color:inherit;font-weight:500}
-section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button p{font-size:.95rem;text-align:left;color:inherit}
-section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:hover{background:rgba(128,128,128,.14);color:inherit}
-section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"]{background:rgba(128,128,128,.22);color:inherit}
-section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"] p{font-weight:600}
-.nb-sbhead{padding:.3rem .75rem .7rem;font-size:1.05rem;font-weight:700}
+  padding:.5rem .8rem;min-height:0;border-radius:10px;width:100%;color:inherit;font-weight:500;opacity:.82;transition:background .15s,opacity .15s}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button p{font-size:.93rem;text-align:left;color:inherit;display:flex;align-items:center;gap:.55rem}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:hover{background:rgba(128,128,128,.14);opacity:1;color:inherit}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"]{background:linear-gradient(90deg,rgba(139,92,246,.26),rgba(139,92,246,.07));
+  box-shadow:inset 3px 0 0 #8b5cf6;color:inherit;opacity:1}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"] p{font-weight:700}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:focus{outline:none;box-shadow:none}
+.nb-sbbrand{display:flex;align-items:center;gap:.65rem;padding:.35rem .4rem .9rem}
+.nb-sbbrand .lg{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#3b82f6);display:flex;align-items:center;justify-content:center;font-size:1.1rem}
+.nb-sbbrand b{font-size:1.05rem;line-height:1.1;display:block}
+.nb-sbbrand span.s{font-size:.72rem;opacity:.6}
+.nb-sbgrp{font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.5;padding:.9rem .8rem .25rem}
+.nb-sbfoot{margin-top:1.4rem;padding:.7rem .8rem;border-top:1px solid rgba(128,128,128,.18);font-size:.72rem;opacity:.55;line-height:1.4}
 </style>""", unsafe_allow_html=True)
         if st.session_state.get("main_nav") not in menu:
             st.session_state["main_nav"] = st.session_state.get("_main_last") if st.session_state.get("_main_last") in menu else menu[0]
         def _sbgo(m):
             st.session_state["main_nav"] = m
+        _groups = [("", [HOME_NAV]), ("Model", NAV[:4]), ("Track", NAV[4:7]), ("Tools", NAV[7:]), ("Account", [LOCKED_NAV])]
         with st.sidebar:
-            st.markdown('<div class="nb-sbhead">🏀 NBA Hub</div>', unsafe_allow_html=True)
-            for _i, _m in enumerate(menu):
-                st.button(nav_label(_m), key=f"sbnav_{_i}", use_container_width=True, on_click=_sbgo, args=(_m,),
-                          type="primary" if st.session_state["main_nav"] == _m else "secondary")
+            st.markdown('<div class="nb-sbbrand"><div class="lg">🏀</div><div><b>NBA Hub</b><span class="s">Model picks &amp; props</span></div></div>', unsafe_allow_html=True)
+            for _gname, _items in _groups:
+                _items = [m for m in _items if m in menu]
+                if not _items:
+                    continue
+                if _gname:
+                    st.markdown(f'<div class="nb-sbgrp">{_gname}</div>', unsafe_allow_html=True)
+                for _m in _items:
+                    st.button(nav_label(_m), key=f"sbnav_{menu.index(_m)}", use_container_width=True, on_click=_sbgo, args=(_m,),
+                              type="primary" if st.session_state["main_nav"] == _m else "secondary")
+            st.markdown('<div class="nb-sbfoot">Posted before tip and tracked in units.<br>Entertainment only.</div>', unsafe_allow_html=True)
         nav = st.session_state["main_nav"]
     else:
         try:

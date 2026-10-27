@@ -6579,7 +6579,7 @@ _VW, _VH = 1280, 720
 _VFPS = 24
 _VPAD = 3.0                       # feet of floor outside the lines
 _VS = 16                          # pixels per foot on the flat court before it is tilted
-_VQUAD = [(384, 214), (896, 214), (994, 598), (286, 598)]      # the padded flat court on screen: top-left, top-right, bottom-right, bottom-left
+_VQUAD = [(396, 214), (884, 214), (978, 598), (302, 598)]      # the padded flat court on screen: top-left, top-right, bottom-right, bottom-left
 _VHOM = {}
 
 
@@ -7168,8 +7168,8 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
     Hi = _vH()["i"]
     SS = _VS
     co = (SS * Hi[0, 0], SS * Hi[0, 1], SS * Hi[0, 2], SS * Hi[1, 0], SS * Hi[1, 1], SS * Hi[1, 2], Hi[2, 0], Hi[2, 1])
-    PX = {away: 6, home: W - 6 - 282}
-    PW_, PY_, PH_ = 282, 184, 412
+    PX = {away: 6, home: W - 6 - 300}
+    PW_, PY_, PH_ = 300, 184, 412
     rim_xy = {}
 
     def stage(home_right):
@@ -7192,7 +7192,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
             d0.rounded_rectangle([xx, PY_, xx + PW_, PY_ + 7], 4, fill=col + (255,))
             city = team.rsplit(" ", 1)[0] if " " in team else team
             d0.text((xx + 16, PY_ + 26), city, font=fit(d0, city, 150, 24), fill=(255, 255, 255), anchor="lm")
-            for lab, cx in (("MIN", 110), ("PTS", 136), ("REB", 164), ("AST", 192), ("FG", 242), ("3P", 276)):
+            for lab, cx in (("MIN", 134), ("PTS", 160), ("REB", 186), ("AST", 208), ("FG", 258), ("3P", 290)):
                 d0.text((xx + cx, PY_ + 52), lab, font=FS(10), fill=col if _vlum(col) > 70 else (150, 165, 205), anchor="rm")
             d0.line([(xx + 12, PY_ + 64), (xx + PW_ - 12, PY_ + 64)], fill=(255, 255, 255, 40), width=1)
             d0.text((xx + 16, PY_ + 75), "STARTERS", font=FS(11), fill=(150, 165, 205), anchor="lm")
@@ -7259,21 +7259,21 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
             on = i in Lset
             if flashing and fl[0] == i:
                 a_ = 1 - (gframe - fl[1]) / 18
-                d.rounded_rectangle([8, top, PW_ - 8, top + 21], 7, fill=(251, 191, 36, int(150 * a_)))
+                d.rounded_rectangle([6, top, PW_ - 6, top + 21], 7, fill=(251, 191, 36, int(150 * a_)))
             elif on:
-                d.rounded_rectangle([8, top, PW_ - 8, top + 21], 7, fill=col + (50,))
+                d.rounded_rectangle([6, top, PW_ - 6, top + 21], 7, fill=col + (50,))
             if on:
                 d.rounded_rectangle([8, top + 2, 12, top + 19], 2, fill=col + (255,))
             st_ = live[team][i]
             tc = (255, 255, 255) if on else (130, 142, 170)
             nm = _vlast(x["name"])
-            nf = _vf(12)                                                    # every name the same size; only very long ones are trimmed
-            while d.textlength(nm, font=nf) > 70 and len(nm) > 3:
-                nm = nm[:-2].rstrip() + "."
+            nf = _vf(12)                                                    # every name the same size and spelled out in full
+            if d.textlength(nm, font=nf) > 104:
+                nf = _vf(10)                                                # only a very long name (e.g. hyphenated) steps down a little
             d.text((20, top + 11), nm, font=nf, fill=tc, anchor="lm")
             mn = int(round(ocnt[team][i] * 48.0 / nposs))
-            for txt_, cx, c_ in ((str(mn), 110, tc), (str(st_[0]), 136, (251, 191, 36) if st_[0] > 0 else tc), (str(st_[3]), 164, tc),
-                                 (str(st_[4]), 192, tc), (f"{st_[1]}-{st_[2]}", 242, tc), (f"{st_[5]}-{st_[6]}", 276, tc)):
+            for txt_, cx, c_ in ((str(mn), 134, tc), (str(st_[0]), 160, (251, 191, 36) if st_[0] > 0 else tc), (str(st_[3]), 186, tc),
+                                 (str(st_[4]), 208, tc), (f"{st_[1]}-{st_[2]}", 258, tc), (f"{st_[5]}-{st_[6]}", 290, tc)):
                 d.text((cx, top + 11), txt_, font=FS(13), fill=c_, anchor="rm")
         if len(pan_cache) > 60:
             pan_cache.clear()

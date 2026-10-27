@@ -213,20 +213,31 @@ BREAKEVEN = 110 / 210
 # =====================================================================
 def _get(url, params=None, tries=3):
     # ESPN sometimes answers with an empty page when it is busy or throttling (shared cloud IPs get hit most): wait and retry, then
-    # try ESPN's second host for the same data before giving up.
+    # try ESPN's other front doors for the same data before giving up. The error says what ESPN actually sent back.
     import time as _t
-    hosts = [url]
+    tries_ = []                                           # (url, params, unwrap)
+    tries_.append((url, params, None))
     if "://site.api.espn.com/" in url:
-        hosts.append(url.replace("://site.api.espn.com/", "://site.web.api.espn.com/"))
+        tries_.append((url.replace("://site.api.espn.com/", "://site.web.api.espn.com/"), params, None))
+        if url.split("?")[0].endswith("/basketball/nba/scoreboard"):
+            tries_.append(("https://cdn.espn.com/core/nba/scoreboard", {**(params or {}), "xhr": "1", "limit": "50"}, ("content", "sbData")))
     last = None
-    for u in hosts:
+    for u, pr, unwrap in tries_:
         for i in range(tries + 1):
             try:
-                r = requests.get(u, params=params, headers=HEADERS, timeout=20)
-                r.raise_for_status()
+                r = requests.get(u, params=pr, headers=HEADERS, timeout=20)
+                if r.status_code >= 400:
+                    raise ValueError(f"ESPN answered HTTP {r.status_code}")
                 if not (r.text or "").strip():
-                    raise ValueError("ESPN sent an empty response")
-                return r.json()
+                    raise ValueError(f"ESPN sent an empty response (HTTP {r.status_code})")
+                try:
+                    data = r.json()
+                except Exception:
+                    raise ValueError(f"ESPN sent something that isn't data (HTTP {r.status_code}: {r.text[:60]!r})")
+                if unwrap:
+                    for k in unwrap:
+                        data = data[k]
+                return data
             except Exception as e:
                 last = e
                 if i < tries:

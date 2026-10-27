@@ -4109,13 +4109,22 @@ def slate_tab(M, date, games, injuries, b2b):
     _mine = [k for k in _keys if k in _lk]
     if _pre:
         lc1, lc2 = st.columns(2)
-        if lc1.button(f"🔒 Lock today's picks ({len(_keys) - len(_mine)} open)", key="lock_all", use_container_width=True,
+        if lc1.button(f"🔒 Lock all picks ({len(_keys) - len(_mine)} open)", key="lock_all", use_container_width=True,
                       disabled=len(_mine) == len(_keys)):
             set_locked(_lk | set(_keys))
             st.rerun()
         if lc2.button(f"🔓 Unlock all ({len(_mine)} locked)", key="unlock_all", use_container_width=True, disabled=not _mine):
             set_locked(_lk - set(_keys))
             st.rerun()
+
+        def _toggle_lock(k_):
+            cur_ = get_locked()
+            set_locked((cur_ | {k_}) if st.session_state.get(f"lk_{k_}") else (cur_ - {k_}))
+        with st.expander(f"Lock one game at a time ({len(_mine)} of {len(_keys)} locked)"):
+            st.caption("Tick a game to lock the pick you have right now, so later runs can't change it. Untick to let it update again.")
+            for _r, _k in zip(_pre, _keys):
+                st.session_state[f"lk_{_k}"] = _k in _lk
+                st.checkbox(f"{_r['game']['away']} @ {_r['game']['home']}", key=f"lk_{_k}", on_change=_toggle_lock, args=(_k,))
         if _mine:
             _w = load_wide().set_index("key")
             notes = []
@@ -6371,6 +6380,15 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
         return
     if d["fb"] is None:
         st.warning("First basket couldn't be built for this game (lineups or box scores aren't available yet), so it's left out.")
+    _lk_key = f"{date.isoformat()}|{g['id']}"
+    if g.get("id") != "manual" and g.get("state") == "pre":
+        if _lk_key in get_locked():
+            st.caption("🔒 This game's picks are locked in your record, so the numbers in your post can't change later.")
+        elif st.button("🔒 Save & lock these picks to my record", key=f"xlock_{_lk_key}", use_container_width=True,
+                       help="Saves exactly the picks in this post to your record and locks them, so your record matches what you posted."):
+            save_wide(upsert_wide(load_wide(), [game_to_wide(d["res"], date.isoformat())]))
+            set_locked(get_locked() | {_lk_key})
+            st.rerun()
     mode_lab = st.radio("Format", ["One short post", "Thread (2 posts)", "One long post (X Premium)"], horizontal=True, key="x_mode")
     mode = {"One short post": "short", "Thread (2 posts)": "thread"}.get(mode_lab, "long")
     o1, o2, o3, o4 = st.columns(4)

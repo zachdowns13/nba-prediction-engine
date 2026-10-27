@@ -3820,12 +3820,13 @@ def slip_import():
                     placed = dt.date.fromisoformat(str(b.get("date")))
                 except Exception:
                     placed = default_date()
+                cord = st.checkbox("💬 Also add to Cord plays", key=k("cord"), help="Tags this bet as a Cord play. It still counts in all your bets, and also shows in its own Cord plays section.")
                 st.caption(f"{tracked} of {len(legs)} leg{'s' if len(legs) != 1 else ''} can be tracked live. The rest you check off by hand."
                            + (f" Status on the slip: {b.get('status')}." if b.get("status") not in (None, "", "pending") else ""))
-                picks.append((use, book, legs, stake, payout, placed, str(b.get("status") or "pending")))
+                picks.append((use, book, legs, stake, payout, placed, str(b.get("status") or "pending"), cord))
         if st.button("💾 Save the checked bets", type="primary", key=f"slip_save_{tok}"):
             saved, skipped = 0, 0
-            for use, book, legs, stake, payout, placed, status in picks:
+            for use, book, legs, stake, payout, placed, status, cord in picks:
                 if not use:
                     continue
                 if not legs or stake <= 0 or payout <= stake:
@@ -3833,7 +3834,7 @@ def slip_import():
                     continue
                 row = {"id": uuid.uuid4().hex[:8], "date": placed.isoformat(), "book": book, "type": "Parlay" if len(legs) > 1 else "Straight",
                        "desc": " + ".join(legs), "legs": len(legs), "stake": float(stake), "payout": float(payout), "result": "", "returned": np.nan,
-                       "cord": "", "profit": np.nan, "settled_at": "", "leg_status": ""}
+                       "cord": "Y" if cord else "", "profit": np.nan, "settled_at": "", "leg_status": ""}
                 add_bet(row)
                 if status in ("won", "lost", "push"):
                     try:
@@ -3947,6 +3948,19 @@ def bets_input_view():
                 st.success(f"Bets restored: {len(merged)} saved.")
             except Exception as e:
                 st.error(f"Could not read that file: {e}")
+        st.markdown("**Clear only my past (settled) bets**")
+        st.caption("Removes bets already marked Won, Lost or Push and keeps your open bets. They go to Recently deleted for 30 days.")
+        c_ok = st.checkbox("Yes, clear my settled bets and keep the open ones", key="bets_clear_settled_ok")
+        if st.button("🧹 Clear settled bets, keep open ones") and c_ok:
+            _all = load_bets()
+            _gone = _all[_all["result"] != ""]
+            if len(_gone):
+                save_trash(clean_trash(pd.concat([load_trash(), _gone.assign(deleted_at=local_now().strftime("%Y-%m-%d %H:%M"))], ignore_index=True)))
+                save_bets(clean_bets(_all[_all["result"] == ""]))
+                st.success(f"Cleared {len(_gone)} settled bet{'s' if len(_gone) != 1 else ''}. Your {len(_all) - len(_gone)} open bet{'s' if len(_all) - len(_gone) != 1 else ''} stayed.")
+            else:
+                st.info("No settled bets to clear.")
+        st.markdown("**Erase everything**")
         confirm = st.checkbox("I'm sure I want to erase all my bets", key="bets_erase_ok")
         if st.button("🗑️ Erase all my bets") and confirm:
             _all = load_bets()

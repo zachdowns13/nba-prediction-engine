@@ -4217,7 +4217,7 @@ div[class*="st-key-bk_hdr_"] button{justify-content:flex-start !important;text-a
 div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
 div[class*="st-key-seg_"]{display:flex;justify-content:flex-start;width:100%}
 div[class*="st-key-seg_"] [data-testid="stButtonGroup"]{justify-content:flex-start}
-[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-seg_"]){display:grid !important;grid-template-columns:minmax(0,1fr) 206px !important;align-items:end !important;column-gap:.6rem !important}
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-seg_"]){display:grid !important;width:100% !important;max-width:100% !important;box-sizing:border-box;grid-template-columns:minmax(0,1fr) 206px !important;align-items:end !important;column-gap:.6rem !important}
 [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-seg_"]) > [data-testid="stColumn"]{width:auto !important;min-width:0 !important;flex:none !important}
 </style>""", unsafe_allow_html=True)
     if st.session_state.pop("want_refresh", False):

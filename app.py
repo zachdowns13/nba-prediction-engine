@@ -5590,7 +5590,7 @@ def pickem_tab(M, date, games, injuries, b2b):
                                      "Winner": done["winner"].map(short), "You": done["my_pick"].map(lambda x: short_pk(x) if x else "") + done["me_ok"].map({True: " ✅", False: " ❌"}).fillna(""),
                                      "Book": done["book_pick"].map(lambda x: short_pk(x) if x else "-") + done["book_ok"].map({True: " ✅", False: " ❌"}).fillna(""),
                                      "Model": done["model_pick"].map(lambda x: short_pk(x) if x else "-") + done["model_ok"].map({True: " ✅", False: " ❌"}).fillna("")})
-                st.dataframe(tbl[["date", "Game", "You", "Book", "Model", "Final (away-home)", "Winner"]].rename(columns={"date": "Date"}).sort_values("Date", ascending=False),
+                st.dataframe(tbl[["date", "Game", "Final (away-home)", "Winner", "You", "Model", "Book"]].rename(columns={"date": "Date"}).sort_values("Date", ascending=False),
                              hide_index=True, use_container_width=True)
 
 

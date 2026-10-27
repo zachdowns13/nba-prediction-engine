@@ -169,7 +169,9 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
                "Model expected": "How often the model said these picks would win, on average."}
 
 
-st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide")
+# Set to False to go back to the tabs across the top.
+SIDEBAR_NAV = True
+st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
 
@@ -8535,10 +8537,26 @@ try:
 except TypeError:                                        # older Streamlit without container keys
     _nav_box = st.container()
 with _nav_box:
-    try:
-        nav = st.segmented_control("Section", menu, key="main_nav", label_visibility="collapsed", format_func=nav_label)
-    except (TypeError, AttributeError):
-        nav = st.radio("Section", menu, horizontal=True, key="main_nav", label_visibility="collapsed", format_func=nav_label)
+    if SIDEBAR_NAV:
+        st.markdown("""<style>
+.st-key-navbar, *:has(> .st-key-navbar):not(:has(> *:not(.st-key-navbar))){display:none !important}
+section[data-testid="stSidebar"] [role="radiogroup"]{gap:.2rem}
+section[data-testid="stSidebar"] [role="radiogroup"] label{padding:.55rem .8rem;border-radius:12px;width:100%;cursor:pointer;border:1px solid transparent;margin:0}
+section[data-testid="stSidebar"] [role="radiogroup"] label > div:first-child{display:none}
+section[data-testid="stSidebar"] [role="radiogroup"] label:hover{background:rgba(148,163,184,.12)}
+section[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked){background:rgba(139,92,246,.18);border-color:rgba(139,92,246,.55);font-weight:700}
+section[data-testid="stSidebar"] [role="radiogroup"] label p{font-size:1rem}
+</style>""", unsafe_allow_html=True)
+        with st.sidebar:
+            st.markdown("### 🏀 NBA Hub")
+            if st.session_state.get("main_nav") not in menu:
+                st.session_state["main_nav"] = st.session_state.get("_main_last") if st.session_state.get("_main_last") in menu else menu[0]
+            nav = st.radio("Section", menu, key="main_nav", label_visibility="collapsed", format_func=nav_label)
+    else:
+        try:
+            nav = st.segmented_control("Section", menu, key="main_nav", label_visibility="collapsed", format_func=nav_label)
+        except (TypeError, AttributeError):
+            nav = st.radio("Section", menu, horizontal=True, key="main_nav", label_visibility="collapsed", format_func=nav_label)
     if nav not in menu:                                  # tapping the selected button again clears it; stay on the same page
         nav = st.session_state.get("_main_last") if st.session_state.get("_main_last") in menu else menu[0]
     st.session_state["_main_last"] = nav

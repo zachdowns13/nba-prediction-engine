@@ -4001,20 +4001,22 @@ def game_card_html(res, best, has_val):
             f'<div class="gc-split"><span style="width:{pa * 100:.1f}%;background:{ac}"></span><span style="width:{ph * 100:.1f}%;background:{ch_fix(hc)}"></span></div>'
             f'<div class="gc-pl"><span>{H(short(g["away"]))} {pa * 100:.0f}%</span><span>{ph * 100:.0f}% {H(short(g["home"]))}</span></div>'
             f'<div class="gc-chips"><span class="nb-chip">Spread {H(short(g["home"]))} {-res["med_m"]:+.1f}</span><span class="nb-chip">Total {res["med_t"]:.0f}</span></div>'
-            + (f'<div class="gc-best"><span>Best spot</span><b>{H(pick_name(best))}</b><em>{best["edge"] * 100:+.1f} pts</em></div>' if has_val else "")
             + _gc_picks_html(res)
+            + (f'<div class="gc-best"><span>Best spot</span><b>{H(pick_name(best))}</b><em>{best["edge"] * 100:+.1f} pts</em></div>' if has_val else "")
             + '</div>')
 
 
 def _gc_picks_html(res):
-    # The model's spread and total picks, small along the bottom of each game card.
-    out = []
-    for mk, lab in (("Spread", "Spread"), ("Total", "Total")):
+    # The model's spread and total picks: two equal boxes side by side, in the same spot on every card.
+    cells = []
+    for mk in ("Spread", "Total"):
         pair = [r for r in res["rows"] if r["market"] == mk]
         if len(pair) == 2:
             r = max(pair, key=lambda x: x["model_p"])
-            out.append(f'<span>{lab} <b>{H(pick_name(r))}</b> <i>{r["model_p"] * 100:.0f}%</i></span>')
-    return ('<div class="gc-picks"><em>Model picks</em>' + "".join(out) + '</div>') if out else ""
+            cells.append(f'<div class="gc-pk"><div class="gc-pk-t"><em>{mk}</em><i>{r["model_p"] * 100:.0f}%</i></div><b>{H(pick_name(r))}</b></div>')
+        else:
+            cells.append(f'<div class="gc-pk"><div class="gc-pk-t"><em>{mk}</em></div><b class="gc-pk-na">no line yet</b></div>')
+    return '<div class="gc-pkh">Model picks</div><div class="gc-picks">' + "".join(cells) + '</div>'
 
 
 def ch_fix(c):
@@ -8402,9 +8404,13 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 .gc-split span{ display:block; height:100%; transition:width .9s ease; } .gc-split span:first-child{ border-radius:99px 0 0 99px; } .gc-split span:last-child{ border-radius:0 99px 99px 0; }
 .gc-pl{ display:flex; justify-content:space-between; font-size:.8rem; font-weight:650; margin:.35rem 0 .1rem; font-variant-numeric:tabular-nums; }
 .gc-chips{ margin:.55rem 0 .5rem; }
-.gc-picks{ display:flex; flex-wrap:wrap; align-items:center; gap:.25rem .7rem; margin-top:.55rem; padding-top:.5rem; border-top:1px solid rgba(255,255,255,.08); font-size:.72rem; color:var(--p-mute); }
-.gc-picks em{ font-style:normal; text-transform:uppercase; letter-spacing:.07em; font-size:.62rem; opacity:.8; }
-.gc-picks b{ color:inherit; font-weight:700; opacity:1; } .gc-picks i{ font-style:normal; opacity:.75; }
+.gc-pkh{ margin-top:.6rem; padding-top:.55rem; border-top:1px solid rgba(255,255,255,.08); font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; color:var(--p-mute); opacity:.85; }
+.gc-picks{ display:grid; grid-template-columns:1fr 1fr; gap:.5rem; margin:.35rem 0 .6rem; }
+.gc-pk{ padding:.45rem .65rem .5rem; border-radius:12px; background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.08); min-width:0; }
+.gc-pk-t{ display:flex; justify-content:space-between; align-items:center; font-size:.62rem; letter-spacing:.07em; text-transform:uppercase; color:var(--p-mute); }
+.gc-pk-t em{ font-style:normal; } .gc-pk-t i{ font-style:normal; letter-spacing:0; opacity:.85; }
+.gc-pk b{ display:block; margin-top:.12rem; font-size:.9rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gc-pk b.gc-pk-na{ font-weight:500; opacity:.55; font-size:.8rem; }
 .gc-best{ display:flex; align-items:center; gap:.5rem; margin-top:auto;  padding:.5rem .7rem; border-radius:12px; background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.28); font-size:.84rem; }
 .gc-best span{ color:var(--p-mute); font-size:.7rem; text-transform:uppercase; letter-spacing:.07em; } .gc-best b{ flex:1; } .gc-best em{ font-style:normal; color:#4ade80; font-weight:700; }
 

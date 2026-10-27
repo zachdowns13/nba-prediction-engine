@@ -4213,7 +4213,7 @@ def _want_refresh():
 
 def open_bets_list(refresh=False):
     st.markdown("""<style>
-div[class*="st-key-bk_hdr_"] button{justify-content:flex-start !important;text-align:left !important;font-weight:700;background:rgba(128,128,128,.10) !important;border:1px solid rgba(128,128,128,.22) !important;border-radius:12px !important;padding:.55rem .9rem !important}
+div[class*="st-key-bk_hdr_"] button{justify-content:flex-start !important;text-align:left !important;font-weight:700;width:auto !important;background:rgba(128,128,128,.10) !important;border:1px solid rgba(128,128,128,.22) !important;border-radius:12px !important;padding:.55rem .9rem !important}
 div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
 div[class*="st-key-seg_"]{display:flex;justify-content:flex-end;width:100%}
 div[class*="st-key-seg_"] [data-testid="stButtonGroup"]{justify-content:flex-end}
@@ -4342,10 +4342,12 @@ div[class*="st-key-seg_"] [data-testid="stButtonGroup"]{justify-content:flex-end
                 for _bk in dict.fromkeys(r_["book"] for r_ in _rows):
                     grp = [r_ for r_ in _rows if r_["book"] == _bk]
                     shut = st.session_state.get(f"bk_shut_{_bk}", False)
-                    hc_a, hc_b = st.columns([0.6, 20], vertical_alignment="center", gap="small")
-                    hc_a.markdown(book_chip(_bk, 26), unsafe_allow_html=True)
-                    hc_b.button(f"{'▸' if shut else '▾'}  {_bk}  ·  {len(grp)} bet{'s' if len(grp) != 1 else ''}  ·  ${sum(float(g_['stake']) for g_ in grp):,.0f} at risk",
-                                key=f"bk_hdr_{_bk}", on_click=_flip, args=(_bk,), use_container_width=True)
+                    _site = BOOK_SITE.get(_bk)
+                    if _site:
+                        st.markdown(f'<style>div[class*="st-key-bk_hdr_{re.sub(r"[^A-Za-z0-9_-]", "-", _bk)}"] button{{background-image:url("https://www.google.com/s2/favicons?domain={_site}&sz=64") !important;'
+                                    f'background-repeat:no-repeat !important;background-position:12px center !important;background-size:22px 22px !important;padding-left:44px !important}}</style>', unsafe_allow_html=True)
+                    st.button(f"{_bk}   ·   {len(grp)} bet{'s' if len(grp) != 1 else ''}   ·   ${sum(float(g_['stake']) for g_ in grp):,.0f} at risk   {'▸' if shut else '▾'}",
+                              key=f"bk_hdr_{_bk}", on_click=_flip, args=(_bk,))
                     if not shut:
                         _grid(grp)
             else:

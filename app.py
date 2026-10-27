@@ -8762,12 +8762,12 @@ section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"]
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:focus{outline:none !important}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button > div,section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button [data-testid="stMarkdownContainer"]{display:flex !important;justify-content:flex-start !important;width:100% !important;margin:0 !important}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button p{justify-content:flex-start !important;width:100%}
-.nb-sbbrand{container-type:inline-size;display:flex !important;align-items:center;gap:.7rem;padding:1.1rem 2.6rem 1rem 1.1rem;border-bottom:1px solid rgba(128,128,128,.16);margin-bottom:1.1rem;white-space:nowrap}
+.nb-sbbrand{display:flex !important;align-items:center;gap:.7rem;width:100%;box-sizing:border-box;padding:1.1rem .8rem 1rem 1.1rem;border-bottom:1px solid rgba(128,128,128,.16);margin-bottom:1.1rem;white-space:nowrap}
 .nb-sbbrand .lg{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#2b1055,#e56020);display:flex;align-items:center;justify-content:center;flex:none}
 .nb-sbbrand .lg img{width:26px;height:26px;object-fit:contain}
 .nb-sbbrand .tx{display:flex;flex-direction:column;gap:2px;min-width:0}
-.nb-sbbrand b{font-size:clamp(.72rem,calc((100cqw - 56px) / 8.2),1.1rem);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nb-sbbrand .s{font-size:clamp(.62rem,calc((100cqw - 56px) / 12),.74rem);opacity:.6;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-sbbrand b{font-size:1.08rem;line-height:1.15;white-space:normal;overflow-wrap:anywhere}
+.nb-sbbrand .s{font-size:.74rem;opacity:.6;line-height:1.1;white-space:normal}
 .nb-sbbrand .lg{flex:none}
 .nb-sbgrp{font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.5;padding:1.1rem 1.1rem .15rem;line-height:1.2;display:block;margin:0 !important}
 section[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(.nb-sbgrp),section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(.nb-sbgrp){margin-bottom:.35rem !important;height:auto !important;overflow:visible !important}

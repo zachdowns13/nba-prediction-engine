@@ -1657,7 +1657,7 @@ def _season_lookup(M, team, date, injuries):
             continue
         sg = [x for x in L["games"] if x.get("o", 0) >= cs0]
         if sg:
-            res[_nn(L["name"])] = {"name": L["name"], "team": team, "games": sg}
+            res[_nn(L["name"])] = {"name": L["name"], "team": team, "games": sg, "id": aid}
     return res
 
 
@@ -1718,7 +1718,7 @@ def perfect_props_tab(M, games, injuries, date, b2b):
         st.info("Press the button to search today's games.")
         return
     every = st.checkbox("Show every line, not just the toughest one each player has cleared", False, key="pp_every")
-    shown = 0
+    by_game = {}
     for g in gl:
         pair = (_nick(g["home"]), _nick(g["away"]))
         rows = []
@@ -1732,28 +1732,64 @@ def perfect_props_tab(M, games, injuries, date, b2b):
             tot = [sum(x[s] for s in stats) for x in v["games"]]
             if not (all(t > pt for t in tot) if side == "over" else all(t < pt for t in tot)):
                 continue
-            rows.append({"Player": v["name"], "Team": short(v["team"]), "Prop": label, "Pick": f"{side.title()} {pt:g}", "Price": int(price), "Book": book,
-                         "Record": f"{len(tot)}/{len(tot)}", "Season low": min(tot), "Season high": max(tot), "Season avg": round(float(np.mean(tot)), 1),
-                         "_k": (v["name"], label, side), "_pt": pt, "_p": price})
+            rows.append({"Player": v["name"], "Team": short(v["team"]), "Prop": label, "Side": side, "Line": pt, "Price": int(price), "Book": book,
+                         "Games": len(tot), "Low": min(tot), "High": max(tot), "Avg": round(float(np.mean(tot)), 1), "id": v["id"]})
         if rows and not every:
             best = {}
             for r in rows:
-                cur = best.get(r["_k"])
-                if cur is None or (r["_pt"] > cur["_pt"] if r["Pick"].startswith("Over") else r["_pt"] < cur["_pt"]):
-                    best[r["_k"]] = r
+                k_ = (r["Player"], r["Prop"], r["Side"])
+                cur = best.get(k_)
+                if cur is None or (r["Line"] > cur["Line"] if r["Side"] == "over" else r["Line"] < cur["Line"]):
+                    best[k_] = r
             rows = list(best.values())
-        html(f'<div style="display:flex;align-items:center;gap:8px;margin:16px 0 6px;font-weight:700;font-size:1.05rem">{logo(g.get("away_logo"))} {H(g["away"])} @ {logo(g.get("home_logo"))} {H(g["home"])}'
-             f'<span class="nb-muted" style="font-weight:500;font-size:.85rem">{len(rows)} prop{"s" if len(rows) != 1 else ""}</span></div>')
-        if rows:
-            shown += len(rows)
-            df = pd.DataFrame(rows)
-            df["_o"] = df["Price"].map(_am_dec)                                   # sort by what it pays, so +120 ranks above -110 above -180
-            df = df.sort_values(["_o", "Player"], ascending=[False, True]).drop(columns=["_k", "_pt", "_p", "_o"])
-            st.dataframe(df, hide_index=True, use_container_width=True, column_config={"Price": st.column_config.NumberColumn("Price", format="%+d")})
-        else:
-            st.caption("Nothing here has cleared every game at your price limit." if pd_["lines"].get(pair) else "No prop lines posted for this game yet.")
-    if not shown:
-        st.caption("Try lowering the games minimum, or allowing a worse price.")
+        by_game[g["id"]] = rows
+    total = sum(len(v) for v in by_game.values())
+    if not total:
+        st.info("Nothing has cleared every game at your price limit. Try lowering the games minimum, or allowing a worse price.")
+        return
+    opts = ["All games"] + [g["id"] for g in gl]
+    lbl = {g["id"]: f"{short(g['away'])} @ {short(g['home'])}  ·  {len(by_game[g['id']])} props" for g in gl}
+    lbl["All games"] = f"All games  ·  {total} props"
+    first = next((g["id"] for g in gl if by_game[g["id"]]), "All games")
+    pick = st.selectbox("Game", opts, index=opts.index(first), format_func=lambda x: lbl[x], key="pp_game_pick")
+    show = gl if pick == "All games" else [g for g in gl if g["id"] == pick]
+    for g in show:
+        rows = by_game[g["id"]]
+        html(f'<div style="display:flex;align-items:center;gap:10px;margin:18px 0 8px;font-weight:800;font-size:1.15rem">{logo(g.get("away_logo"), True)} {H(g["away"])}'
+             f'<span class="nb-muted">@</span> {logo(g.get("home_logo"), True)} {H(g["home"])}'
+             f'<span class="nb-muted" style="font-weight:600;font-size:.85rem;margin-left:6px">{len(rows)} prop{"s" if len(rows) != 1 else ""}</span></div>')
+        if not rows:
+            st.caption("Nothing here has cleared every game at your price limit." if pd_["lines"].get((_nick(g["home"]), _nick(g["away"]))) else "No prop lines posted for this game yet.")
+            continue
+        players = {}
+        for r in rows:
+            players.setdefault((r["Player"], r["Team"], r["id"]), []).append(r)
+        order = sorted(players.items(), key=lambda kv: -max(_am_dec(r["Price"]) for r in kv[1]))
+        cards = []
+        for (name, tm, aid), props in order:
+            chips = []
+            for r in sorted(props, key=lambda r: -_am_dec(r["Price"])):
+                up = r["Side"] == "over"
+                col = "var(--ok)" if up else "var(--acc)"
+                pcol = "var(--ok)" if r["Price"] > 0 else "inherit"
+                chips.append(f'<div style="border:1px solid var(--line);border-radius:12px;padding:8px 10px">'
+                             f'<div style="font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.6">{H(r["Prop"])}</div>'
+                             f'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">'
+                             f'<span style="font-size:1.1rem;font-weight:800;color:{col}">{"▲ Over" if up else "▼ Under"} {r["Line"]:g}</span>'
+                             f'<span style="font-size:1.05rem;font-weight:800;color:{pcol}">{r["Price"]:+d}</span></div>'
+                             f'<div class="nb-muted" style="font-size:.72rem;margin-top:2px">{H(r["Book"])} · {r["Games"]}/{r["Games"]} games · low {r["Low"]:g} · high {r["High"]:g} · avg {r["Avg"]:g}</div></div>')
+            cards.append(f'<div class="nb-card" style="padding:12px 14px"><div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">'
+                         f'<div class="nb-head" style="width:54px;height:54px;margin:0;flex:none;background-image:url(\'{headshot(aid)}\')"></div>'
+                         f'<div><div class="nb-title" style="font-size:1.05rem">{H(name)}</div><div class="nb-muted">{H(tm)} · {len(props)} prop{"s" if len(props) != 1 else ""} that haven\'t missed</div></div></div>'
+                         f'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px">' + "".join(chips) + '</div></div>')
+        html('<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:10px">' + "".join(cards) + '</div>')
+    with st.expander("See it as a table"):
+        flat = [{**{k: v for k, v in r.items() if k != "id"}, "Game": f"{short(g['away'])} @ {short(g['home'])}"} for g in show for r in by_game[g["id"]]]
+        if flat:
+            tdf = pd.DataFrame(flat)
+            tdf["_o"] = tdf["Price"].map(_am_dec)
+            tdf = tdf.sort_values(["_o", "Player"], ascending=[False, True]).drop(columns="_o")
+            st.dataframe(tdf, hide_index=True, use_container_width=True, column_config={"Price": st.column_config.NumberColumn("Price", format="%+d")})
 
 
 def props_tab(M, g, odds, injuries, date, b2b):

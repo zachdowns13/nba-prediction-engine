@@ -6479,7 +6479,7 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False, f
         pair = [r for r in rows if r["market"] == mk]
         return max(pair, key=lambda r: r["model_p"]) if len(pair) == 2 else None
     ml, sp, to = best("Moneyline"), best("Spread"), best("Total")
-    bo = lambda r: (_am(r.get("book_odds")) if r and r.get("book_odds") not in (None, "") and _am(r.get("book_odds")) else "")        # the sportsbook's price on this pick
+    bo = lambda r: ""                                  # sportsbook prices on the picks are not shown in posts
     when = "tonight" if (tipstr and ("PM" in tipstr) and int(tipstr.split(":")[0]) in (5, 6, 7, 8, 9, 10, 11)) else "today"
     lines_core = []
     if opts["score"]:

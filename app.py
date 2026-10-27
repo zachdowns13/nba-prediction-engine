@@ -405,6 +405,19 @@ def _get_slate_raw(date_iso):
     return games
 
 
+def _inj_out(status):
+    # "Out", "Out For Season", "Doubtful" (and suspensions) all mean he is not playing tonight
+    t = str(status or "").strip().lower()
+    return t.startswith("out") or "doubtful" in t or "suspen" in t
+
+
+def _nn(name):
+    import unicodedata
+    t = unicodedata.normalize("NFKD", str(name or "")).encode("ascii", "ignore").decode().lower()
+    t = re.sub(r"[^a-z ]", "", t)
+    return " ".join(w for w in t.split() if w not in ("jr", "sr", "ii", "iii", "iv"))
+
+
 def get_injuries():
     try:
         out = _get_injuries_raw()
@@ -6220,9 +6233,10 @@ def fb_auto(M, g, injuries, now):
             roster = set(get_roster(tid))
             if roster:
                 agg = {k: a for k, a in agg.items() if k in roster}
-            out_names = {r["player"].lower() for r in injuries.get(team, []) if r["status"].lower() in ("out", "doubtful")}
+            out_names = {_nn(r["player"]) for r in injuries.get(team, []) if _inj_out(r["status"])}
+            out_ids = {str(r.get("pid")) for r in injuries.get(team, []) if _inj_out(r["status"]) and r.get("pid")}
             ranked = sorted(agg.items(), key=lambda kv: (-kv[1]["wstarts"], -kv[1]["min"]))
-            names = [kv[1]["name"] for kv in ranked if kv[1]["name"].lower() not in out_names][:5]
+            names = [kv[1]["name"] for kv in ranked if _nn(kv[1]["name"]) not in out_names and str(kv[0]) not in out_ids][:5]
             if len(names) < 5:
                 return None
             by_name = {a["name"]: (aid, a) for aid, a in agg.items()}
@@ -6442,25 +6456,35 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False, f
         fb_line = f"🎯 First basket: {T.iloc[0]['Player']}" + (f" ({_am(fb_odds)} at the books)" if fb_odds is not None else "")
 
     tip_line = ""
-    if opts["fb"] and fb and mode != "short":
+    if opts["fb"] and fb and (mode != "short" or video):
         tp = fb.get("tip") or {}
         if tp.get("p_home") is not None:
             tip_line = f"🏀 Tip: {H_} win it {tp['p_home'] * 100:.0f}%"
     inj_line = f"🚑 Key outs: {inj_txt}" if (opts["inj"] and inj_txt) else ""
     tag = f"\nFull record tracked in units 📊 @{handle}" if opts["tag"] else ""
     if video:
-        vhook = f"🎬 I simulated {A_} @ {H_} 10,000 times and watched the game that matched my model's projection."
-        if mode == "short":
-            core = [x for x in lines_core if not x.startswith("💰")]          # moneyline is on the video's end card; keep this under 280
-            fbl = [fb_line] if fb_line else []
-            return [(vhook[:-1] + " 👇\n\n" + "\n".join(core + fbl) + (f"\n\n@{handle}" if opts["tag"] else "")).strip()]
-        head = vhook + "\n\nWatch it play out, then the model's picks at the end 👇" + (f"\n⏰ Tip: {tipstr}" if tipstr else "")
-        if mode == "thread":
-            p1 = head + "\n\n" + "\n".join(lines_core)
-            p2 = "\n".join(x for x in (fb_line, tip_line, inj_line) if x) + ("\n\nOne simulated game, tracked picks, units only. Entertainment only." if opts["tag"] else "")
-            return [p1.strip(), p2.strip()]
-        long_ = head + "\n\n" + "\n".join(lines_core + [x for x in (fb_line, tip_line, inj_line) if x])
-        return [(long_ + ("\n\nOne simulated game out of the model's run. Every pick posted pre-tip and tracked in units. Entertainment only." if opts["tag"] else "")).strip()]
+        # the main post is just the hook (the video carries the story); small replies underneath hold the winner, the picks and a couple of stats
+        poss = "tonight's" if when == "tonight" else "today's"
+        main = f"🎬 I simulated {poss} {A_} @ {H_} game 10,000 times.\n\nHere is the typical outcome the model projects based on all the sims 👇" + (f"\n\n@{handle}" if opts["tag"] else "")
+        out = [main]
+        if ml or opts["score"]:
+            win = short(ml["side"]) if ml else (H_ if hp >= ap else A_)
+            t1 = f"🏆 Projected winner: {win}" + (f" ({ml['model_p'] * 100:.0f}% to win)" if ml else "")
+            if opts["score"]:
+                t1 += f"\n🔮 Typical final: {A_} {ap:.0f}, {H_} {hp:.0f}"
+            out.append(t1)
+        if sp:
+            out.append(f"📏 Spread pick: {short(sp['side'])} {sp['line']}\nModel gives it {sp['model_p'] * 100:.0f}% to cover.")
+        if to:
+            out.append(f"📊 Total pick: {to['side']} {to['line']}\nModel projects about {res['med_t']:.0f} combined points ({to['model_p'] * 100:.0f}% on the {str(to['side']).lower()}).")
+        if fb_line:
+            out.append(fb_line + ("\nPlayer to score the first basket of the game." if fb_odds is not None else ""))
+        extra = "\n".join(x for x in (tip_line, inj_line) if x)
+        if extra:
+            out.append(extra)
+        if opts["tag"]:
+            out.append(f"Every pick is posted before tip and tracked in units. Entertainment only, not financial advice.\n\nFollow @{handle} for the full record 📊")
+        return out
     if mode == "short":
         head = f"🏀 Betting on the {A_} @ {H_} game {when}?\nI simulated it 10,000 times 👇"
         body = "\n".join(lines_core + ([fb_line] if fb_line else []))
@@ -6502,7 +6526,7 @@ def props_auto(M, g, injuries, date, res, b2b=None):
             pr = project_team(team, logs, team_pts, proj_pts[team], out_probs, roster or None, _cx["cs0"], _cx["margin_abs"], _cx["on_b2b"])
             rows = []
             for aid, p in sorted(pr.items(), key=lambda kv: -kv[1]["min"]):
-                if status.get(aid, "").lower().startswith("out"):
+                if _inj_out(status.get(aid, "")) or _nn(p["name"]) in {_nn(r["player"]) for r in injuries.get(team, []) if _inj_out(r["status"])}:
                     continue
                 rows.append({"Player": p["name"], "Team": short(team), "Min": float(p["min"]), "Pts": float(p["pts"]),
                              "Reb": float(p["reb"]), "Ast": float(p["ast"]), "3PM": float(p["tpm"])})
@@ -6514,12 +6538,42 @@ def props_auto(M, g, injuries, date, res, b2b=None):
 
 _VW, _VH = 1280, 720
 _VFPS = 24
-_VCX0, _VCY0 = 12, 122
-_VFT = 880 / 94.0
+_VPAD = 3.0                       # feet of floor outside the lines
+_VS = 16                          # pixels per foot on the flat court before it is tilted
+_VQUAD = [(372, 214), (908, 214), (1010, 598), (270, 598)]      # the padded flat court on screen: top-left, top-right, bottom-right, bottom-left
+_VHOM = {}
+
+
+def _vsolve(src, dst):
+    A, b = [], []
+    for (x, y), (u, v) in zip(src, dst):
+        A.append([x, y, 1, 0, 0, 0, -u * x, -u * y])
+        b.append(u)
+        A.append([0, 0, 0, x, y, 1, -v * x, -v * y])
+        b.append(v)
+    h = np.linalg.solve(np.array(A, float), np.array(b, float))
+    return np.append(h, 1.0).reshape(3, 3)
+
+
+def _vH():
+    if "f" not in _VHOM:
+        flat = [(0, 0), (100, 0), (100, 56), (0, 56)]
+        _VHOM["f"] = _vsolve(flat, _VQUAD)
+        _VHOM["i"] = _vsolve(_VQUAD, flat)
+    return _VHOM
 
 
 def _vcp(x, y):
-    return _VCX0 + x * _VFT, _VCY0 + y * _VFT
+    # court feet -> screen pixels, with perspective
+    X, Y, w = _vH()["f"] @ np.array([x + _VPAD, y + _VPAD, 1.0])
+    return X / w, Y / w
+
+
+def _vsc(x, y):
+    # how many screen pixels one foot is, right there (nearer = bigger)
+    import math
+    a, b = _vcp(x, y), _vcp(x + 1, y)
+    return math.hypot(b[0] - a[0], b[1] - a[1])
 
 
 def _vrgb(c):
@@ -6529,6 +6583,10 @@ def _vrgb(c):
 
 def _vlum(c):
     return 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
+
+
+def _vdark(c, k):
+    return tuple(int(v * k) for v in c)
 
 
 def _vbg():
@@ -6543,85 +6601,159 @@ def _vbg():
     return Image.fromarray(np.clip(base, 0, 255).astype("uint8")).convert("RGB")
 
 
-def _vcourt(handle):
-    # The court at 2x then shrunk, so the lines are smooth.
+def _vbg3(hc, ac):
+    # dark arena: the away color glows on the left, the home color on the right, with a little floating bokeh
+    from PIL import Image, ImageDraw, ImageFilter
+    W, Hh = _VW, _VH
+    yy, xx = np.mgrid[0:Hh, 0:W]
+    base = np.zeros((Hh, W, 3), float) + np.array([5, 7, 16.])
+    for col, cx in ((ac, 0.0), (hc, W)):
+        g_ = np.clip(1 - np.sqrt(((xx - cx) / 760.) ** 2 + ((yy - 300) / 520.) ** 2), 0, 1) ** 2 * 0.55
+        base = base * (1 - g_[..., None]) + np.array(col, float) * g_[..., None] * 0.85
+    top = np.clip(1 - yy / 180., 0, 1) ** 2 * 0.25
+    base = base * (1 - top[..., None])
+    im = Image.fromarray(np.clip(base, 0, 255).astype("uint8")).convert("RGBA")
+    bk = Image.new("RGBA", (W, Hh), (0, 0, 0, 0))
+    bd = ImageDraw.Draw(bk)
+    r_ = np.random.default_rng(11)
+    for _ in range(26):
+        x, y, r = r_.uniform(0, W), r_.uniform(0, 330), r_.uniform(5, 16)
+        col = ac if x < W / 2 else hc
+        bd.ellipse([x - r, y - r, x + r, y + r], fill=col + (int(r_.uniform(14, 34)),))
+    im = Image.alpha_composite(im, bk.filter(ImageFilter.GaussianBlur(3)))
+    return im.convert("RGB")
+
+
+def _vflat(hc, ac, home_right, handle):
+    # the hardwood, flat, with the lines painted on and each team's paint in its own color
     from PIL import Image, ImageDraw
-    S = 2
-    cw, ch = int(94 * _VFT), int(50 * _VFT)
-    im = Image.new("RGBA", (cw * S, ch * S), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    f = _VFT * S
-    P = lambda x, y: (x * f, y * f)
-    d.rounded_rectangle([0, 0, cw * S - 1, ch * S - 1], 22 * S, fill=(14, 24, 56, 255), outline=(96, 140, 230, 255), width=4 * S // 2 + 2)
-    LC = (110, 150, 235, 255)
-    w = 3 * S // 2 + 1
-    d.line([P(47, 0), P(47, 50)], fill=LC, width=w)
-    d.ellipse([P(41, 19)[0], P(41, 19)[1], P(53, 31)[0], P(53, 31)[1]], outline=LC, width=w)
     import math
+    S = _VS
+    Wf, Hf = int(100 * S), int(56 * S)
+    yy, xx = np.mgrid[0:Hf, 0:Wf]
+    fx, fy = xx / S, yy / S
+    plank = np.floor(fy / 0.95).astype(int)
+    shade = 1 + (np.random.default_rng(5).random(120)[plank % 120] - 0.5) * 0.15
+    img = np.array([142, 96, 54], float)[None, None, :] * shade[..., None]
+    img[np.abs((fy / 0.95) % 1.0) < 0.035] *= 0.8
+    img *= (1.12 - 0.50 * (((fx - 50) / 58) ** 2 + ((fy - 28) / 34) ** 2))[..., None]
+    img[(fx < _VPAD) | (fx > 100 - _VPAD) | (fy < _VPAD) | (fy > 56 - _VPAD)] *= 0.6
+    im = Image.fromarray(np.clip(img, 0, 255).astype("uint8")).convert("RGBA")
+    P = lambda x, y: ((x + _VPAD) * S, (y + _VPAD) * S)
+    paint = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    pd_ = ImageDraw.Draw(paint)
     for side in (0, 1):
-        sg = 1 if side == 0 else -1
-        bx = (lambda u: u) if side == 0 else (lambda u: 94 - u)
-        # paint, free-throw circle, restricted area, three-point line
-        x0, x1 = sorted((bx(0), bx(19)))
-        d.rectangle([P(x0, 17)[0], P(x0, 17)[1], P(x1, 33)[0], P(x1, 33)[1]], outline=LC, width=w, fill=(40, 70, 150, 70))
-        cx, cy = bx(19), 25
-        ang = (-90, 90) if side == 0 else (90, 270)
-        d.arc([P(cx - 6, cy - 6)[0], P(cx - 6, cy - 6)[1], P(cx + 6, cy + 6)[0], P(cx + 6, cy + 6)[1]], ang[0], ang[1], fill=LC, width=w)
-        hx = bx(5.25)
-        d.arc([P(hx - 4, 21)[0], P(hx - 4, 21)[1], P(hx + 4, 29)[0], P(hx + 4, 29)[1]], ang[0], ang[1], fill=LC, width=w)
-        a = math.degrees(math.asin(22 / 23.75))
-        ang3 = (-a, a) if side == 0 else (180 - a, 180 + a)
-        d.arc([P(hx - 23.75, 25 - 23.75)[0], P(hx - 23.75, 25 - 23.75)[1], P(hx + 23.75, 25 + 23.75)[0], P(hx + 23.75, 25 + 23.75)[1]], ang3[0], ang3[1], fill=LC, width=w)
-        edge_x = bx(0)
-        corner_x = bx(14.2)
-        for yy_ in (3, 47):
-            d.line([P(edge_x, yy_), P(corner_x, yy_)], fill=LC, width=w)
-        # backboard and rim
-        d.line([P(bx(4), 22), P(bx(4), 28)], fill=(230, 236, 250, 255), width=w + 2)
-        d.ellipse([P(hx - 0.8, 24.2)[0], P(hx - 0.8, 24.2)[1], P(hx + 0.8, 25.8)[0], P(hx + 0.8, 25.8)[1]], outline=(255, 140, 40, 255), width=w + 1)
+        col = (hc if home_right else ac) if side == 1 else (ac if home_right else hc)
+        x0, x1 = (0, 19) if side == 0 else (75, 94)
+        pd_.rectangle([*P(x0, 17), *P(x1, 33)], fill=_vdark(col, 0.85) + (190,))
+    cc = hc
+    pd_.ellipse([*P(41, 19), *P(53, 31)], fill=_vdark(cc, 0.8) + (150,))
+    im = Image.alpha_composite(im, paint)
+    d = ImageDraw.Draw(im)
+    LC = (240, 238, 232, 255)
+    w = int(S * 0.3)
+    d.rectangle([*P(0, 0), *P(94, 50)], outline=LC, width=w)
+    d.line([P(47, 0), P(47, 50)], fill=LC, width=w)
+    d.ellipse([*P(41, 19), *P(53, 31)], outline=LC, width=w)
+    d.ellipse([*P(45, 23), *P(49, 27)], outline=LC, width=w)
     if handle:
-        d.text(P(47, 25), "@" + handle, font=_gfont(26 * S // 2 + 6), fill=(110, 150, 235, 70), anchor="mm")
-    return im.resize((cw, ch), Image.LANCZOS)
+        d.text(P(47, 25), "@" + handle, font=_gfont(int(S * 1.5)), fill=(255, 255, 255, 120), anchor="mm")
+    a3 = math.degrees(math.asin(22 / 23.75))
+    for side in (0, 1):
+        bx = (lambda u: u) if side == 0 else (lambda u: 94 - u)
+        x0, x1 = sorted((bx(0), bx(19)))
+        d.rectangle([*P(x0, 17), *P(x1, 33)], outline=LC, width=w)
+        ang = (-90, 90) if side == 0 else (90, 270)
+        ang_b = (90, 270) if side == 0 else (-90, 90)
+        cx = bx(19)
+        d.arc([*P(cx - 6, 19), *P(cx + 6, 31)], ang[0], ang[1], fill=LC, width=w)
+        for a0 in range(ang_b[0], ang_b[1], 30):
+            d.arc([*P(cx - 6, 19), *P(cx + 6, 31)], a0, a0 + 14, fill=LC, width=w)
+        hx = bx(5.25)
+        d.arc([*P(hx - 4, 21), *P(hx + 4, 29)], ang[0], ang[1], fill=LC, width=w)
+        ang3 = (-a3, a3) if side == 0 else (180 - a3, 180 + a3)
+        d.arc([*P(hx - 23.75, 25 - 23.75), *P(hx + 23.75, 25 + 23.75)], ang3[0], ang3[1], fill=LC, width=w)
+        for yy_ in (3, 47):
+            d.line([P(bx(0), yy_), P(bx(14.2), yy_)], fill=LC, width=w)
+    return im
+
+
+def _vhoops(d):
+    # backboards, stanchions and rims at both ends; returns where each rim sits on screen
+    out = {}
+    for side in ("L", "R"):
+        bx = (lambda u: u) if side == "L" else (lambda u: 94 - u)
+        sc = _vsc(bx(5.25), 25)
+
+        def pt(xf, yf, h=0.0):
+            x, y = _vcp(xf, yf)
+            return (x, y - h * 0.85 * sc)
+        d.line([pt(bx(-2.2), 25, 0), pt(bx(-2.2), 25, 12)], fill=(90, 100, 125, 255), width=max(3, int(sc * 0.55)))
+        d.line([pt(bx(-2.2), 25, 11), pt(bx(3.8), 25, 11)], fill=(90, 100, 125, 255), width=max(2, int(sc * 0.4)))
+        quad = [pt(bx(3.8), 22.5, 9), pt(bx(3.8), 27.5, 9), pt(bx(3.8), 27.5, 14), pt(bx(3.8), 22.5, 14)]
+        d.polygon(quad, fill=(228, 236, 250, 105), outline=(255, 255, 255, 235))
+        rc = pt(bx(5.25), 25, 10)
+        rx, ry = 0.85 * sc, 0.34 * sc
+        for k in (-1.0, -0.5, 0.0, 0.5, 1.0):
+            d.line([(rc[0] + k * rx, rc[1]), (rc[0] + k * rx * 0.6, rc[1] + 0.95 * sc)], fill=(255, 255, 255, 120), width=1)
+        d.ellipse([rc[0] - rx, rc[1] - ry, rc[0] + rx, rc[1] + ry], outline=(255, 120, 32, 255), width=max(2, int(sc * 0.3)))
+        out[side] = rc
+    return out
 
 
 _VSPR = {}
 
 
-def _vdot(color, text, R=18, dim=False):
+def _vdot(color, R):
+    # a puck-like player marker with a soft highlight
     from PIL import Image, ImageDraw
-    key = (color, text, R, dim)
+    key = ("dot", color, R)
     if key in _VSPR:
         return _VSPR[key]
     S = 4
-    D = (R * 2 + 8) * S
-    im = Image.new("RGBA", (D, D), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    c = D // 2
-    d.ellipse([c - R * S, c - R * S, c + R * S, c + R * S], fill=color + (255,), outline=(255, 255, 255, 255), width=int(2.4 * S))
-    tc = (10, 14, 30, 255) if _vlum(color) > 150 else (255, 255, 255, 255)
-    if text:
-        d.text((c, c), text, font=_gfont(12 * S), fill=tc, anchor="mm")
-    im = im.resize((D // S, D // S), Image.LANCZOS)
-    if dim:
-        im.putalpha(im.getchannel("A").point(lambda v: int(v * 0.35)))
-    _VSPR[key] = im
-    return im
-
-
-def _vball():
-    from PIL import Image, ImageDraw
-    if "ball" in _VSPR:
-        return _VSPR["ball"]
-    S, R = 4, 8
     D = (R * 2 + 6) * S
     im = Image.new("RGBA", (D, D), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     c = D // 2
-    d.ellipse([c - R * S, c - R * S, c + R * S, c + R * S], fill=(255, 140, 30, 255), outline=(40, 20, 5, 255), width=int(1.6 * S))
-    d.line([c - R * S, c, c + R * S, c], fill=(40, 20, 5, 255), width=int(1.2 * S))
-    d.line([c, c - R * S, c, c + R * S], fill=(40, 20, 5, 255), width=int(1.2 * S))
+    d.ellipse([c - R * S, c - R * S, c + R * S, c + R * S], fill=_vdark(color, 0.78) + (255,), outline=(255, 255, 255, 255), width=int(2.2 * S))
+    r2 = int(R * S * 0.72)
+    d.ellipse([c - r2, c - r2 - int(R * S * 0.12), c + r2, c + r2 - int(R * S * 0.12)], fill=color + (255,))
+    r3 = int(R * S * 0.38)
+    d.ellipse([c - r3 - int(R * S * 0.18), c - r3 - int(R * S * 0.34), c + r3 - int(R * S * 0.18), c + r3 - int(R * S * 0.34)], fill=(255, 255, 255, 70))
     im = im.resize((D // S, D // S), Image.LANCZOS)
-    _VSPR["ball"] = im
+    _VSPR[key] = im
+    return im
+
+
+def _vshadow(R):
+    from PIL import Image, ImageDraw, ImageFilter
+    key = ("sh", R)
+    if key in _VSPR:
+        return _VSPR[key]
+    w, h = int(R * 3.0), int(R * 1.3)
+    im = Image.new("RGBA", (w + 12, h + 12), (0, 0, 0, 0))
+    ImageDraw.Draw(im).ellipse([6, 6, 6 + w, 6 + h], fill=(0, 0, 0, 120))
+    im = im.filter(ImageFilter.GaussianBlur(max(2, R // 4)))
+    _VSPR[key] = im
+    return im
+
+
+def _vball(R=8):
+    from PIL import Image, ImageDraw
+    key = ("ball", R)
+    if key in _VSPR:
+        return _VSPR[key]
+    S = 4
+    D = (R * 2 + 4) * S
+    im = Image.new("RGBA", (D, D), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    c = D // 2
+    d.ellipse([c - R * S, c - R * S, c + R * S, c + R * S], fill=(255, 140, 30, 255), outline=(40, 20, 5, 255), width=int(1.5 * S))
+    d.line([c - R * S, c, c + R * S, c], fill=(40, 20, 5, 255), width=int(1.1 * S))
+    d.line([c, c - R * S, c, c + R * S], fill=(40, 20, 5, 255), width=int(1.1 * S))
+    d.ellipse([c - int(R * S * 0.55), c - int(R * S * 0.6), c - int(R * S * 0.1), c - int(R * S * 0.15)], fill=(255, 200, 120, 120))
+    im = im.resize((D // S, D // S), Image.LANCZOS)
+    _VSPR[key] = im
     return im
 
 
@@ -6634,6 +6766,11 @@ def _vring(px):
     d.ellipse([S * 2, S * 2, D - S * 2, D - S * 2], outline=(251, 191, 36, 70), width=S * 6)
     d.ellipse([S * 5, S * 5, D - S * 5, D - S * 5], outline=(251, 191, 36, 255), width=S * 3)
     return im.resize((px, px), Image.LANCZOS)
+
+
+def _vlast(name):
+    parts = [p for p in str(name).split() if p.lower().strip(".") not in ("jr", "sr", "ii", "iii", "iv")]
+    return parts[-1] if parts else str(name)
 
 
 def _vbadge(team_txt, color, px):
@@ -6783,10 +6920,20 @@ def _vsmooth(s):
     return s * s * (3 - 2 * s)
 
 
+_VFC = {}
+
+
+def _vf(size, bold=True):
+    k = (int(size), bool(bold))
+    if k not in _VFC:
+        _VFC[k] = _gfont(int(size), bold)
+    return _VFC[k]
+
+
 def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb_odds=None):
     # Renders the whole 16:9 clip and returns MP4 bytes.
     import random, tempfile, os as _os, math, zlib
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageFilter
     import imageio_ffmpeg
     W, HH = _VW, _VH
     home, away = g["home"], g["away"]
@@ -6801,13 +6948,6 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
     rnd = random.Random(zlib.crc32(f"{g.get('id')}|{round(hp, 1)}|{round(ap, 1)}|{seed_extra}".encode()))
 
     # ----- lineups and first-basket player ---------------------------------------------------
-    def weights(team, names):
-        rows = {r["Player"]: r for r in (props or {}).get(team, [])}
-        out = []
-        for n in names:
-            r = rows.get(n)
-            out.append({"pts": r["Pts"], "tpm": r["3PM"], "ast": r["Ast"]} if r else {"pts": 12.0, "tpm": 1.5, "ast": 3.0})
-        return out
     lineups = {}
     featured = None
     if fb is not None and len(fb["T"]):
@@ -6822,10 +6962,52 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
         for team in (home, away):
             rows = (props or {}).get(team, [])[:5]
             lineups[team] = [r["Player"] for r in rows] + [f"Player {i + 1}" for i in range(max(0, 5 - len(rows)))]
-    wts = {t: weights(t, lineups[t]) for t in (home, away)}
-    names10 = lineups[away] + lineups[home]
-    cols10 = [ac] * 5 + [hc] * 5
-    inits = [""] * 10                               # plain dots: nothing on the court gives away who the first-basket pick is
+    ft_team = (home if featured["home"] else away) if featured else None
+
+    # ----- the nine-man rotation of each team, and who is on the floor in each stretch of the game ----------
+    rot = {}
+    for team in (home, away):
+        rows_ = {r["Player"]: r for r in (props or {}).get(team, [])}
+        names = list(lineups[team]) + [r["Player"] for r in sorted((props or {}).get(team, []), key=lambda r: -r["Min"]) if r["Player"] not in lineups[team]][:8]
+        out = []
+        for i, n in enumerate(names):
+            r = rows_.get(n)
+            if r:
+                out.append(dict(name=n, pts=max(r["Pts"], 1.0), reb=max(r["Reb"], 0.3), ast=max(r["Ast"], 0.3), tpm=max(r["3PM"], 0.0), min=max(r["Min"], 2.0)))
+            else:
+                out.append(dict(name=n, pts=12.0 if i < 5 else 6.0, reb=3.0, ast=3.0, tpm=1.2, min=30.0 if i < 5 else 14.0))
+        rot[team] = out
+    NPER = 8
+    slots = {}
+    for team in (home, away):
+        R = rot[team]
+        n = len(R)
+        tm = np.array([x["min"] for x in R], float)
+        tm = np.minimum(tm * 240.0 / tm.sum(), 44.0)
+        target = tm / 48.0 * NPER
+        played = np.zeros(n)
+        per = []
+        for j in range(NPER):
+            if j == 0:
+                S_ = list(range(5))
+            else:
+                cur = set(per[-1])
+                sc_ = target * (j + 1) / NPER - played + np.array([0.45 if i in cur else 0.0 for i in range(n)])
+                S_ = sorted(np.argsort(-sc_)[:5].tolist())
+            if per:
+                sl = list(per[-1])
+                leave = [x for x in per[-1] if x not in S_]
+                enter = [x for x in S_ if x not in per[-1]]
+                for lv, en in zip(leave, enter):
+                    sl[sl.index(lv)] = en
+            else:
+                sl = S_
+            played[sl] += 1
+            per.append(sl)
+        slots[team] = per
+    fi = {}
+    if featured:
+        fi = {"team": ft_team, "idx": next((i for i, x in enumerate(rot[ft_team]) if x["name"] == featured["name"]), 0)}
 
     cons = []
     for kind, r in zip(("SPREAD", "TOTAL", "MONEYLINE"), _vpick_rows(res)):
@@ -6835,23 +7017,49 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
     seq, first_k = sim["seq"], sim["first_k"]
     nposs = len(seq)
 
-    # ----- possession plan -------------------------------------------------------------------
+    # ----- possession plan: who has it, who shoots, who assists, who rebounds ------------------------
     poss_list, cum_h, cum_a = [], 0, 0
     wp = []
+    TWO_TXT = ["finishes at the rim", "hits a jumper", "scores in the paint", "hits a floater", "throws it down", "hits a pull-up"]
     for k, (is_home, pts) in enumerate(seq):
-        team = home if is_home else away
+        team, opp = (home, away) if is_home else (away, home)
         base = 5 if is_home else 0
-        names, w = lineups[team], wts[team]
-        if featured and k == first_k:
-            sh = names.index(featured["name"]) if featured["name"] in names else 0
+        j = min(NPER - 1, k * NPER // nposs)
+        L, R = slots[team][j], rot[team]
+        pre = featured is not None and first_k is not None and k < first_k           # nobody has hinted at the first-basket pick yet
+        hide = (lambda t_, i_: pre and t_ == fi["team"] and i_ == fi["idx"]) if featured else (lambda t_, i_: False)
+        if featured and k == first_k and fi["idx"] in L:
+            sh = L.index(fi["idx"])
         else:
-            ww = [x["tpm"] + 0.25 for x in w] if pts == 3 else [x["pts"] + 1 for x in w]
-            sh = rnd.choices(range(5), weights=ww)[0]
-        ast_order = sorted(range(5), key=lambda i: -w[i]["ast"])
-        hd = ast_order[0] if ast_order[0] != sh else ast_order[1]
-        if rnd.random() < 0.3 or (featured and k == first_k):
-            hd = sh if (featured and k == first_k and rnd.random() < 0.5) else hd
-        kind = {3: "three", 2: "two", 1: "ft"}.get(pts) or ("tov" if (rnd.random() < 0.12 and not (first_k is not None and k < first_k)) else "miss")
+            ww = [(0.0 if hide(team, L[s]) else (R[L[s]]["tpm"] + 0.25 if pts == 3 else R[L[s]]["pts"] + 1)) for s in range(5)]
+            sh = rnd.choices(range(5), weights=ww if sum(ww) > 0 else None)[0]
+        kind = {3: "three", 2: "two", 1: "ft"}.get(pts) or ("tov" if (rnd.random() < 0.12 and not pre) else "miss")
+        ast_s = None
+        if pts >= 2 and rnd.random() < (0.8 if pts == 3 else 0.55):
+            oth = [s for s in range(5) if s != sh]
+            ast_s = rnd.choices(oth, weights=[R[L[s]]["ast"] for s in oth])[0]
+        rb = None
+        if kind == "miss":
+            rteam = opp if rnd.random() < 0.74 else team
+            Lr = slots[rteam][j]
+            ww = [(0.0 if hide(rteam, Lr[s]) else rot[rteam][Lr[s]]["reb"]) for s in range(5)]
+            rb = (rteam, Lr[rnd.choices(range(5), weights=ww if sum(ww) > 0 else None)[0]])
+        if ast_s is not None:
+            hd = ast_s
+        else:
+            hd = sh if rnd.random() < 0.3 else rnd.choice([s for s in range(5) if s != sh])
+        who = lambda t_, i_: _vlast(rot[t_][i_]["name"])
+        S_nm = who(team, L[sh])
+        if kind == "three":
+            txt = f"{S_nm} hits a three" + (f"  ({who(team, L[ast_s])} assist)" if ast_s is not None else "")
+        elif kind == "two":
+            txt = f"{S_nm} {rnd.choice(TWO_TXT)}" + (f"  ({who(team, L[ast_s])} assist)" if ast_s is not None else "")
+        elif kind == "ft":
+            txt = f"{S_nm} makes a free throw"
+        elif kind == "tov":
+            txt = f"{who(team, L[hd])} turns it over"
+        else:
+            txt = f"{S_nm} misses a {rnd.choice(['three', 'jumper', 'layup', 'floater'])}, {who(*rb)} rebound"
         if is_home:
             cum_h += pts
         else:
@@ -6860,7 +7068,8 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
         m = cum_h - cum_a
         p_h = (1.0 if m > 0 else (0.0 if m < 0 else 0.5)) if left <= 0 else _vphi((m + proj_margin * left) / (16.1 * math.sqrt(left)))
         wp.append(p_h)
-        poss_list.append({"k": k, "home": is_home, "pts": pts, "kind": kind, "sh": base + sh, "hd": base + hd, "cum": (cum_a, cum_h)})
+        poss_list.append({"k": k, "home": is_home, "pts": pts, "kind": kind, "sh": base + sh, "hd": base + hd, "cum": (cum_a, cum_h), "j": j,
+                          "team": team, "who": L[sh], "ast": (L[ast_s] if ast_s is not None else None), "rb": rb, "txt": txt})
     margin_end = abs(cum_h - cum_a)
     for p in poss_list:
         k = p["k"]
@@ -6873,62 +7082,95 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
         p["hold"] = int(_VFPS * 2.6) if (first_k is not None and k == first_k and featured) else 0
     intro_n, card_n, fade_n = int(_VFPS * 3.0), int(_VFPS * 6.0), int(_VFPS * 0.5)
     have_box = bool(props and props.get(home) and props.get(away))
-    # ----- the box score of THIS simulated game: every point, three, assist and rebound comes from a play in the game ------
-    box = None
-    if have_box:
-        rot = {}
-        for team in (home, away):
-            rows_ = sorted(props[team], key=lambda r: -r["Min"])[:9]
-            rot[team] = [dict(name=r["Player"], pts=max(r["Pts"], 1.0), reb=max(r["Reb"], 0.3), ast=max(r["Ast"], 0.3), tpm=max(r["3PM"], 0.0)) for r in rows_]
-            if featured and featured["name"] in lineups[team] and featured["name"] not in [x["name"] for x in rot[team]]:
-                rot[team].insert(0, dict(name=featured["name"], pts=12.0, reb=3.0, ast=3.0, tpm=1.5))
-        stats = {team: {x["name"]: [0, 0, 0, 0] for x in rot[team]} for team in rot}
-        for p in poss_list:
-            team, opp = (home, away) if p["home"] else (away, home)
-            R = rot[team]
-            if p["pts"] > 0:
-                if featured and p["k"] == first_k:
-                    who = featured["name"] if featured["name"] in stats[team] else R[0]["name"]
-                else:
-                    who = rnd.choices(R, weights=[x["tpm"] + 0.15 for x in R] if p["pts"] == 3 else [x["pts"] for x in R])[0]["name"]
-                stats[team][who][0] += p["pts"]
-                if p["pts"] == 3:
-                    stats[team][who][3] += 1
-                if p["pts"] >= 2 and rnd.random() < (0.8 if p["pts"] == 3 else 0.55):
-                    others = [x for x in R if x["name"] != who]
-                    stats[team][rnd.choices(others, weights=[x["ast"] for x in others])[0]["name"]][2] += 1
-            elif p["kind"] == "miss":
-                rteam = opp if rnd.random() < 0.74 else team
-                RR = rot[rteam]
-                stats[rteam][rnd.choices(RR, weights=[x["reb"] for x in RR])[0]["name"]][1] += 1
-        box = stats
-    total = intro_n + sum(p["F"] + p["hold"] for p in poss_list) + card_n * (2 if have_box else 1)
 
-    # ----- static pieces ---------------------------------------------------------------------
-    bg = _vbg()
-    court = _vcourt(handle)
-    base = bg.copy()
-    bd = ImageDraw.Draw(base, "RGBA")
-    bd.rectangle([0, 0, W, 6], fill=(249, 115, 22, 255))
-    base.paste(court, (_VCX0, _VCY0), court)
-    PANEL = dict(fill=(8, 14, 32, 190), outline=(255, 255, 255, 50), width=2)
-    bd.rounded_rectangle([12, 14, W - 12, 112], 22, **PANEL)
-    bd.rounded_rectangle([906, 122, W - 12, 340], 20, **PANEL)
-    bd.rounded_rectangle([906, 350, W - 12, 590], 20, **PANEL)
-    bd.rounded_rectangle([12, 602, W - 12, 708], 20, **PANEL)
-    alogo, hlogo = _vlogo(g, "away", away, ac, 74), _vlogo(g, "home", home, hc, 74)
-    base.paste(alogo, (30, 26), alogo)
-    base.paste(hlogo, (W - 30 - hlogo.width, 26), hlogo)
-    FS = lambda s_, b=True: _gfont(s_, b)
+    def delta(p):
+        # (team, player index, [pts, fgm, fga, reb, ast, 3pm]) changes this possession causes
+        out = []
+        t_ = p["team"]
+        z = lambda: [0, 0, 0, 0, 0, 0]
+        if p["pts"] > 0:
+            a = z()
+            a[0] = p["pts"]
+            if p["pts"] >= 2:
+                a[1], a[2] = 1, 1
+            if p["pts"] == 3:
+                a[5] = 1
+            out.append((t_, p["who"], a))
+            if p["ast"] is not None:
+                b = z()
+                b[4] = 1
+                out.append((t_, p["ast"], b))
+        elif p["kind"] == "miss":
+            a = z()
+            a[2] = 1
+            out.append((t_, p["who"], a))
+            b = z()
+            b[3] = 1
+            out.append((p["rb"][0], p["rb"][1], b))
+        return out
+    final = {t_: np.zeros((len(rot[t_]), 6), int) for t_ in (home, away)}
+    for p in poss_list:
+        for t_, i_, a in delta(p):
+            final[t_][i_] += np.array(a)
+    box = {t_: {x["name"]: [int(final[t_][i][0]), int(final[t_][i][3]), int(final[t_][i][4]), int(final[t_][i][5])] for i, x in enumerate(rot[t_])} for t_ in (home, away)} if have_box else None
+    total = intro_n + sum(p["F"] + p["hold"] for p in poss_list) + card_n
+
+    # ----- the stage: arena glow, tilted hardwood with team-colored paint, hoops ---------------------
+    FS = lambda s_, b=True: _vf(s_, b)
 
     def fit(d, txt, mw, size, bold=True):
-        while size > 12 and d.textlength(txt, font=_gfont(size, bold)) > mw:
+        while size > 12 and d.textlength(txt, font=_vf(size, bold)) > mw:
             size -= 2
-        return _gfont(size, bold)
+        return _vf(size, bold)
 
-    pos0 = np.array([[40, 14], [41, 25], [43, 36], [38, 20], [38, 31], [54, 14], [53, 25], [51, 36], [56, 20], [56, 31]], dtype=float)
+    Hi = _vH()["i"]
+    SS = _VS
+    co = (SS * Hi[0, 0], SS * Hi[0, 1], SS * Hi[0, 2], SS * Hi[1, 0], SS * Hi[1, 1], SS * Hi[1, 2], Hi[2, 0], Hi[2, 1])
+    PX = {away: 6, home: W - 6 - 268}
+    PW_, PY_, PH_ = 268, 184, 412
+    rim_xy = {}
+
+    def stage(home_right):
+        im = _vbg3(hc, ac).convert("RGBA")
+        sh_ = Image.new("RGBA", (W, HH), (0, 0, 0, 0))
+        ImageDraw.Draw(sh_).polygon([_VQUAD[0], _VQUAD[1], (_VQUAD[2][0] + 24, _VQUAD[2][1] + 40), (_VQUAD[3][0] - 24, _VQUAD[3][1] + 40)], fill=(0, 0, 0, 170))
+        im = Image.alpha_composite(im, sh_.filter(ImageFilter.GaussianBlur(16)))
+        d0 = ImageDraw.Draw(im, "RGBA")
+        BL, BR = _VQUAD[3], _VQUAD[2]
+        d0.polygon([BL, BR, (BR[0], BR[1] + 15), (BL[0], BL[1] + 15)], fill=(58, 34, 18, 255))
+        d0.line([BL, BR], fill=(190, 140, 90, 255), width=2)
+        flat = _vflat(hc, ac, home_right, handle)
+        court = flat.transform((W, HH), Image.PERSPECTIVE, co, Image.BICUBIC)
+        im = Image.alpha_composite(im, court)
+        d0 = ImageDraw.Draw(im, "RGBA")
+        rim_xy.update(_vhoops(d0))
+        # side panels (live box scores are painted over these)
+        for team, col, xx in ((away, ac, PX[away]), (home, hc, PX[home])):
+            d0.rounded_rectangle([xx, PY_, xx + PW_, PY_ + PH_], 18, fill=(7, 11, 24, 232), outline=(255, 255, 255, 40), width=1)
+            d0.rounded_rectangle([xx, PY_, xx + PW_, PY_ + 7], 4, fill=col + (255,))
+            city = team.rsplit(" ", 1)[0] if " " in team else team
+            d0.text((xx + 16, PY_ + 26), city, font=fit(d0, city, 150, 24), fill=(255, 255, 255), anchor="lm")
+            for lab, cx in (("MIN", 112), ("PTS", 140), ("REB", 168), ("AST", 196), ("FG", 258)):
+                d0.text((xx + cx, PY_ + 52), lab, font=FS(10), fill=col if _vlum(col) > 70 else (150, 165, 205), anchor="rm")
+            d0.line([(xx + 12, PY_ + 64), (xx + PW_ - 12, PY_ + 64)], fill=(255, 255, 255, 40), width=1)
+            d0.text((xx + 16, PY_ + 75), "STARTERS", font=FS(11), fill=(150, 165, 205), anchor="lm")
+            d0.text((xx + 16, PY_ + 209), "BENCH", font=FS(11), fill=(150, 165, 205), anchor="lm")
+        # scoreboard
+        d0.rounded_rectangle([316, 10, 964, 170], 22, fill=(7, 11, 24, 232), outline=(255, 255, 255, 40), width=1)
+        for (x0, x1, col, sq) in ((316, 590, ac, (560, 590)), (690, 964, hc, (690, 720))):
+            d0.rounded_rectangle([x0, 10, x1, 104], 22, fill=_vdark(col, 0.5) + (255,))
+            d0.rectangle([sq[0], 10, sq[1], 104], fill=_vdark(col, 0.5) + (255,))
+            d0.rectangle([x0 + (14 if x0 == 316 else 0), 100, x1 - (14 if x0 != 316 else 0), 104], fill=col + (255,))
+        d0.rectangle([590, 10, 690, 104], fill=(10, 14, 28, 255))
+        alogo_, hlogo_ = _vlogo(g, "away", away, ac, 58), _vlogo(g, "home", home, hc, 58)
+        im.paste(alogo_, (326, 28), alogo_)
+        im.paste(hlogo_, (954 - hlogo_.width, 28), hlogo_)
+        d0.text((640, 124), "WIN PROBABILITY", font=FS(11), fill=(150, 165, 205), anchor="mm")
+        return im.convert("RGB")
+    bases = {False: stage(False), True: stage(True)}      # first half / second half: each team's paint is where it attacks
+
+    CWX, CWY, CWW, CWH = 430, 132, 420, 34
     wp_cache = {}
-    CWX, CWY, CWW, CWH = 922, 176, 330, 112
 
     def wp_panel(upto):
         if upto in wp_cache:
@@ -6940,29 +7182,60 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
             poly = [(pts_[0][0], mid)] + pts_ + [(pts_[-1][0], mid)]
             for col_, lo, hi in ((hc, 0, mid), (ac, mid + 1, CWH)):
                 layer = Image.new("RGBA", (CWW, CWH), (0, 0, 0, 0))
-                ImageDraw.Draw(layer).polygon(poly, fill=col_ + (120,))
+                ImageDraw.Draw(layer).polygon(poly, fill=col_ + (130,))
                 msk = Image.new("L", (CWW, CWH), 0)
                 ImageDraw.Draw(msk).rectangle([0, lo, CWW, hi], fill=255)
                 ov.paste(layer, (0, 0), msk)
         od = ImageDraw.Draw(ov)
-        od.line([(0, mid), (CWW, mid)], fill=(255, 255, 255, 90), width=1)
+        for xx_ in range(0, CWW, 8):
+            od.line([(xx_, mid), (xx_ + 3, mid)], fill=(255, 255, 255, 90), width=1)
         if len(pts_) > 1:
-            od.line(pts_, fill=(255, 255, 255, 255), width=3, joint="curve")
+            od.line(pts_, fill=(255, 255, 255, 255), width=2, joint="curve")
+        ex, ey = pts_[-1]
+        od.ellipse([ex - 4, ey - 4, ex + 4, ey + 4], fill=(255, 255, 255, 255), outline=(60, 120, 255, 255), width=2)
         wp_cache[upto] = ov
         return ov
 
-    def draw_header(d, cum, clock_txt, q_txt, has_ball):
-        d.text((126, 60), str(cum[0]), font=FS(68), fill=(255, 255, 255), anchor="lm")
-        d.text((W - 126, 60), str(cum[1]), font=FS(68), fill=(255, 255, 255), anchor="rm")
-        d.text((126, 98), A_.upper(), font=FS(16), fill=(160, 175, 205), anchor="lm")
-        d.text((W - 126, 98), H_.upper(), font=FS(16), fill=(160, 175, 205), anchor="rm")
-        d.text((W // 2, 32), q_txt, font=FS(24), fill=(251, 146, 60), anchor="mm")
-        d.text((W // 2, 66), clock_txt, font=FS(40), fill=(255, 255, 255), anchor="mm")
-        d.text((W // 2, 97), f"SIM #{sim['index']:,}", font=FS(14), fill=(160, 175, 205), anchor="mm")
-        if has_ball == "away":
-            d.rounded_rectangle([30, 104, 104, 108], 2, fill=ac)
-        else:
-            d.rounded_rectangle([W - 104, 104, W - 30, 108], 2, fill=hc)
+    # ----- live box scores -----------------------------------------------------------------------------
+    live = {t_: np.zeros((len(rot[t_]), 6), int) for t_ in (home, away)}
+    ocnt = {t_: np.zeros(len(rot[t_]), int) for t_ in (home, away)}
+    flash = {home: None, away: None}
+    pan_cache = {}
+
+    def box_panel(team, k, gframe):
+        col = hc if team == home else ac
+        fl = flash[team]
+        flashing = fl is not None and gframe - fl[1] < 18
+        key = (team, k, int(live[team].sum()), None if not flashing else gframe)
+        if key in pan_cache:
+            return pan_cache[key]
+        ov = Image.new("RGBA", (PW_, PH_), (0, 0, 0, 0))
+        d = ImageDraw.Draw(ov)
+        Lset = set(slots[team][min(NPER - 1, k * NPER // nposs)])
+        for i, x in enumerate(rot[team]):
+            top = 86 + 23 * i if i < 5 else 220 + 23 * (i - 5)
+            on = i in Lset
+            if flashing and fl[0] == i:
+                a_ = 1 - (gframe - fl[1]) / 18
+                d.rounded_rectangle([8, top, PW_ - 8, top + 21], 7, fill=(251, 191, 36, int(150 * a_)))
+            elif on:
+                d.rounded_rectangle([8, top, PW_ - 8, top + 21], 7, fill=col + (50,))
+            if on:
+                d.rounded_rectangle([8, top + 2, 12, top + 19], 2, fill=col + (255,))
+            st_ = live[team][i]
+            tc = (255, 255, 255) if on else (130, 142, 170)
+            nm = _vlast(x["name"])
+            nf = _vf(12)                                                    # every name the same size; only very long ones are trimmed
+            while d.textlength(nm, font=nf) > 74 and len(nm) > 3:
+                nm = nm[:-2].rstrip() + "."
+            d.text((20, top + 11), nm, font=nf, fill=tc, anchor="lm")
+            mn = int(round(ocnt[team][i] * 48.0 / nposs))
+            for txt_, cx, c_ in ((str(mn), 112, tc), (str(st_[0]), 140, (251, 191, 36) if st_[0] > 0 else tc), (str(st_[3]), 168, tc),
+                                 (str(st_[4]), 196, tc), (f"{st_[1]}-{st_[2]}", 258, tc)):
+                d.text((cx, top + 11), txt_, font=FS(14), fill=c_, anchor="rm")
+        pan_cache.clear() if len(pan_cache) > 60 else None
+        pan_cache[key] = ov
+        return ov
 
     tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
     tmp.close()
@@ -6981,6 +7254,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
             progress(min(done[0] / total, 0.99))
 
     # ----- intro -------------------------------------------------------------------------------
+    bg = _vbg3(hc, ac)
     big = _vlogo(g, "away", away, ac, 230), _vlogo(g, "home", home, hc, 230)
     for f in range(intro_n):
         t = f / (intro_n - 1)
@@ -6989,7 +7263,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
         d.rectangle([0, 0, W, 6], fill=(249, 115, 22, 255))
         d.text((W // 2, 52), "NBA SIMULATION", font=FS(34), fill=(251, 146, 60), anchor="mm")
         if tipstr:
-            d.text((W // 2, 92), str(tipstr), font=FS(22, False), fill=(160, 175, 205), anchor="mm")
+            d.text((W // 2, 92), str(tipstr), font=FS(22, False), fill=(190, 200, 225), anchor="mm")
         fr.paste(big[0], (150, 150), big[0])
         fr.paste(big[1], (W - 150 - big[1].width, 150), big[1])
         d.text((W // 2, 265), "@", font=FS(80), fill=(251, 146, 60), anchor="mm")
@@ -6997,7 +7271,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
         d.text((W - 265, 410), H_, font=fit(d, H_, 320, 40), fill=(255, 255, 255), anchor="mm")
         n = int(10000 * _vsmooth(min(1, t / 0.7)))
         d.text((W // 2, 520), f"{n:,}", font=FS(110), fill=(255, 255, 255), anchor="mm")
-        d.text((W // 2, 595), "GAMES SIMULATED", font=FS(26), fill=(160, 175, 205), anchor="mm")
+        d.text((W // 2, 595), "GAMES SIMULATED", font=FS(26), fill=(190, 200, 225), anchor="mm")
         if t > 0.72:
             a_ = _vsmooth((t - 0.72) / 0.2)
             _ph, _pa = _proj_pair(res)
@@ -7006,18 +7280,19 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
         emit(fr)
 
     # ----- the game ----------------------------------------------------------------------------
-    prev = pos0.copy()
+    prev = np.array([[40, 14], [41, 25], [43, 36], [38, 20], [38, 31], [54, 14], [53, 25], [51, 36], [56, 20], [56, 31]], dtype=float)
     pops, bursts = [], []
     last_play = "Tip-off"
     last_cum = (0, 0)
     first_done = False
+    first_gf = [None]
     gframe = 0
-    ring = _vring(82)
-    ball = _vball()
+    ring = _vring(96)
     rp = random.Random(7)
     THREE = [(27, 0), (24, -15), (24, 15), (4, -21), (4, 21), (26, -8), (26, 8)]
     TWO = [(18, -7), (18, 7), (8, -6), (8, 6), (14, 0), (11, -11)]
     ALL = [(27, 0), (24, -15), (24, 15), (4, -21), (4, 21), (18, -7), (18, 7), (8, -6), (8, 6), (14, 0)]
+    ppc = 0.0
     for p in poss_list:
         k = p["k"]
         first_half = k < nposs // 2
@@ -7059,6 +7334,10 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
         F, hold = p["F"], p["hold"]
         is_first = featured is not None and k == first_k
         steal_to = d0 + rp.randrange(5) if p["kind"] == "tov" else None
+        for t_ in (home, away):
+            for i_ in slots[t_][p["j"]]:
+                ocnt[t_][i_] += 1
+        hrim = rim_xy["R" if side == "R" else "L"]
         for f in range(F + hold):
             t = min((f + 0.5) / F, 1.0)
             if is_first and f < F:
@@ -7069,8 +7348,9 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
             for i in range(10):
                 P[i, 0] += wob * math.sin(2 * math.pi * (gframe * 0.05 + phase[i]))
                 P[i, 1] += wob * math.cos(2 * math.pi * (gframe * 0.045 + phase[i]))
-            lift = 0.0
             hd, sh = p["hd"], p["sh"]
+            # ball: (court x, court y), height above the floor in feet, and whether it is in the air on a shot
+            lift_ft = 3.2
             if p["kind"] == "tov":
                 if t < 0.45:
                     bp = P[hd]
@@ -7088,104 +7368,148 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0, fb
                 s2 = (t - 0.72) / 0.28
                 hp_ = np.array(hoop)
                 bp = P[sh] + (hp_ - P[sh]) * s2
-                lift = math.sin(math.pi * s2) * (40 if p["kind"] != "three" else 62)
+                lift_ft = 3.2 + (10 - 3.2) * s2 + math.sin(math.pi * s2) * (5.0 if p["kind"] != "three" else 8.5)
                 if p["pts"] == 0 and p["kind"] == "miss" and s2 > 0.85:
                     bp = hp_ + np.array([rp.uniform(-1, 1), rp.uniform(-1, 1)]) * 2.5 * (s2 - 0.85) / 0.15
-            fr = base.copy()
+            fr = bases[not first_half].copy()
             d = ImageDraw.Draw(fr, "RGBA")
             scored_now = t >= 0.9
-            for i in range(10):
-                x, y = _vcp(*np.clip(P[i], 1, 93))
-                spr = _vdot(cols10[i], inits[i])
+            # players, far ones first so the near ones overlap them
+            order = sorted(range(10), key=lambda i: P[i, 1])
+            for i in order:
+                px_, py_ = np.clip(P[i], 1, 93)
+                x, y = _vcp(px_, py_)
+                Rr = max(8, int(round(1.9 * _vsc(px_, py_))))
+                shd = _vshadow(Rr)
+                fr.paste(shd, (int(x - shd.width / 2), int(y - shd.height / 2 + Rr * 0.15)), shd)
+                spr = _vdot(ac if i < 5 else hc, Rr)
+                cy = y - Rr * 1.0
                 if is_first and i == sh and scored_now:
                     pulse = 0.85 + 0.15 * math.sin(gframe * 0.35)
-                    rr = ring.resize((int(82 * pulse), int(82 * pulse)), Image.BILINEAR)
-                    fr.paste(rr, (int(x - rr.width / 2), int(y - rr.height / 2)), rr)
-                fr.paste(spr, (int(x - spr.width / 2), int(y - spr.height / 2)), spr)
-            bx, by = _vcp(*np.clip(bp, 0.5, 93.5))
-            fr.paste(ball, (int(bx - ball.width / 2), int(by - lift - ball.height / 2)), ball)
+                    rr = ring.resize((int(Rr * 5.2 * pulse), int(Rr * 5.2 * pulse)), Image.BILINEAR)
+                    fr.paste(rr, (int(x - rr.width / 2), int(cy - rr.height / 2)), rr)
+                fr.paste(spr, (int(x - spr.width / 2), int(cy - spr.height / 2)), spr)
+            bxy = np.clip(bp, 0.5, 93.5)
+            bx_, by_ = _vcp(*bxy)
+            scb = _vsc(*bxy)
+            br_ = max(6, int(round(0.95 * scb)))
+            if t < 0.72 or p["kind"] == "tov":
+                bx_ += br_ * 1.4
+            bsh = _vshadow(br_)
+            fr.paste(bsh, (int(bx_ - bsh.width / 2), int(by_ - bsh.height / 2)), bsh)
+            if t >= 0.72 and p["kind"] != "tov":
+                s2 = (t - 0.72) / 0.28
+                by_ = by_ - ((lift_ft - 3.2) * 0.85 * scb) * 1.0 - 3.2 * 0.85 * scb * (1 - s2) - 0.0
+                by_ = by_ + (0 if s2 < 1 else 0)
+            else:
+                by_ = by_ - lift_ft * 0.85 * scb * 0.55
+            ball = _vball(br_)
+            fr.paste(ball, (int(bx_ - ball.width / 2), int(by_ - ball.height / 2)), ball)
             if is_first and scored_now:
-                x, y = _vcp(*np.clip(P[sh], 1, 93))
-                nm = names10[sh]
-                fnt = _gfont(24)
-                tw = max(d.textlength(nm, font=fnt), d.textlength("FIRST BASKET", font=_gfont(13)))
-                cxm = x + (-1 if side == "R" else 1) * (tw / 2 + 36)          # beside him, toward midcourt, so the hoop stays visible
-                tx0 = min(max(cxm - tw / 2 - 14, 18), 886 - tw - 28)
-                ty = min(max(y - 23, 150), 560)
-                d.rounded_rectangle([tx0, ty - 23, tx0 + tw + 28, ty + 23], 12, fill=(251, 191, 36, 255))
-                d.text((tx0 + (tw + 28) / 2, ty - 11), "FIRST BASKET", font=_gfont(13), fill=(90, 60, 0), anchor="mm")
+                px_, py_ = np.clip(P[sh], 1, 93)
+                x, y = _vcp(px_, py_)
+                nm = featured["name"]
+                fnt = _vf(22)
+                tw = max(d.textlength(nm, font=fnt), d.textlength("FIRST BASKET", font=_vf(12)))
+                cxm = x + (-1 if side == "R" else 1) * (tw / 2 + 40)
+                tx0 = min(max(cxm - tw / 2 - 14, 308), 972 - tw - 28)
+                ty = min(max(y - 30, 244), 560)
+                d.rounded_rectangle([tx0, ty - 22, tx0 + tw + 28, ty + 22], 12, fill=(251, 191, 36, 255))
+                d.text((tx0 + (tw + 28) / 2, ty - 10), "FIRST BASKET", font=_vf(12), fill=(90, 60, 0), anchor="mm")
                 d.text((tx0 + (tw + 28) / 2, ty + 8), nm, font=fnt, fill=(10, 14, 30), anchor="mm")
             cum = p["cum"] if scored_now else last_cum
             if scored_now and not p.get("popped"):
                 p["popped"] = True
                 last_cum = p["cum"]
+                for t2, i2, a in delta(p):
+                    live[t2][i2] += np.array(a)
+                    flash[t2] = (i2, gframe)
                 if is_first:
                     first_done = True
+                    first_gf[0] = gframe
+                last_play = p["txt"]
                 if p["pts"] > 0:
-                    hx, hy = _vcp(*hoop)
-                    bursts.append((gframe, hx, hy))
-                    sx, sy = _vcp(*np.clip(P[sh], 1, 93))
-                    pops.append((gframe, sx, sy - 50 if is_first else sy - 40, "+%d" % p["pts"] if p["kind"] != "ft" else "+1 FT", (251, 191, 36)))
-                    last_play = f"{H_ if off_home else A_}  +{p['pts']}" + ("  (FT)" if p["kind"] == "ft" else "")
-                else:
-                    last_play = "Turnover" if p["kind"] == "tov" else "Miss"
+                    bursts.append((gframe, hrim[0], hrim[1]))
+                    px_, py_ = np.clip(P[sh], 1, 93)
+                    sx, sy = _vcp(px_, py_)
+                    pops.append((gframe, sx, sy - 60, "+%d" % p["pts"] if p["kind"] != "ft" else "+1 FT", (251, 191, 36)))
             for (g0, hx, hy) in bursts:
                 a_ = gframe - g0
                 if 0 <= a_ < 10:
                     r = 10 + a_ * 4
-                    d.ellipse([hx - r, hy - r, hx + r, hy + r], outline=(251, 191, 36, int(255 * (1 - a_ / 10))), width=4)
-            for (g0, px_, py_, tx_, colr) in pops:
+                    d.ellipse([hx - r, hy - r * 0.55, hx + r, hy + r * 0.55], outline=(251, 191, 36, int(255 * (1 - a_ / 10))), width=4)
+            for (g0, px2, py2, tx_, colr) in pops:
                 a_ = gframe - g0
                 if 0 <= a_ < 14:
-                    d.text((px_, py_ - a_ * 2.0), tx_, font=_gfont(30), fill=colr + (int(255 * (1 - a_ / 14)),), anchor="mm", stroke_width=2, stroke_fill=(5, 8, 18, 255))
+                    d.text((px2, py2 - a_ * 2.0), tx_, font=_vf(30), fill=colr + (int(255 * (1 - a_ / 14)),), anchor="mm", stroke_width=2, stroke_fill=(5, 8, 18, 255))
+            # live box scores
+            for team in (away, home):
+                bp_ = box_panel(team, k, gframe)
+                fr.paste(bp_, (PX[team], PY_), bp_)
+            # scoreboard
             gk = k + t
             qlen = nposs / 4
             q = min(3, int(gk // qlen))
             qsec = max(0, 720 * (1 - ((gk % qlen) / qlen))) if gk < nposs else 0
-            draw_header(d, cum, f"{int(qsec // 60)}:{int(qsec % 60):02d}", f"Q{q + 1}", "home" if off_home else "away")
-            # win-probability card
-            fr.paste(wp_panel(max(k, 1)), (CWX, CWY), wp_panel(max(k, 1)))
-            d.text((924, 146), "WIN PROBABILITY", font=FS(16), fill=(160, 175, 205), anchor="lm")
-            cur = wp[k] if scored_now else (wp[k - 1] if k > 0 else float(res.get("p_home", 0.5)))
-            d.text((924, 314), f"{A_.upper()} {(1 - cur) * 100:.0f}%", font=FS(20), fill=ac if _vlum(ac) > 60 else (255, 255, 255), anchor="lm")
-            d.text((W - 24, 314), f"{H_.upper()} {cur * 100:.0f}%", font=FS(20), fill=hc if _vlum(hc) > 60 else (255, 255, 255), anchor="rm")
-            # first-basket card: nothing about the pick is shown until he actually scores
-            if featured:
-                gold = (251, 191, 36)
-                d.text((924, 376), "FIRST BASKET", font=FS(16), fill=gold, anchor="lm")
-                if first_done:
-                    d.text((924, 428), featured["name"], font=fit(d, featured["name"], 330, 36), fill=(255, 255, 255), anchor="lm")
-                    d.text((924, 464), (H_ if featured["home"] else A_).upper(), font=FS(18), fill=(160, 175, 205), anchor="lm")
-                    big_ = _am(fb_odds) if fb_odds is not None else f"{featured['prob'] * 100:.0f}%"
-                    d.text((924, 528), big_, font=FS(72 if fb_odds is None else 66), fill=gold, anchor="lm")
-                    d.text((924 + d.textlength(big_, font=FS(72 if fb_odds is None else 66)) + 12, 540), "at the books\nfirst basket" if fb_odds is not None else "model chance\npregame", font=FS(16, False), fill=(190, 200, 225), anchor="lm", spacing=4)
-                    d.text((924, 572), "SCORED FIRST IN THIS SIM", font=FS(14), fill=(34, 197, 94), anchor="lm")
-                else:
-                    d.text((1087, 465), "?", font=FS(170), fill=gold, anchor="mm")
-                    d.text((1087, 560), "Who scores it first?", font=FS(20), fill=(190, 200, 225), anchor="mm")
+            d.text((582, 57), str(cum[0]), font=FS(54), fill=(255, 255, 255), anchor="rm")
+            d.text((698, 57), str(cum[1]), font=FS(54), fill=(255, 255, 255), anchor="lm")
+            d.text((640, 32), f"Q{q + 1}", font=FS(18), fill=(251, 146, 60), anchor="mm")
+            d.text((640, 62), f"{int(qsec // 60)}:{int(qsec % 60):02d}", font=FS(30), fill=(255, 255, 255), anchor="mm")
+            d.text((640, 90), f"SIM #{sim['index']:,}", font=FS(10), fill=(150, 165, 205), anchor="mm")
+            _ph, _pa = _proj_pair(res)
+            nm_a, nm_h = A_, H_
+            d.text((392, 42), nm_a, font=fit(d, nm_a, 92, 22), fill=(255, 255, 255), anchor="lm")
+            d.text((888, 42), nm_h, font=fit(d, nm_h, 92, 22), fill=(255, 255, 255), anchor="rm")
+            d.text((392, 78), f"PROJ {_pa}", font=FS(12), fill=(205, 215, 235), anchor="lm")
+            d.text((888, 78), f"PROJ {_ph}", font=FS(12), fill=(205, 215, 235), anchor="rm")
+            if not off_home:
+                d.ellipse([392 + d.textlength(f"PROJ {_pa}", font=FS(12)) + 8, 73, 392 + d.textlength(f"PROJ {_pa}", font=FS(12)) + 18, 83], fill=(251, 191, 36))
             else:
-                d.text((924, 376), "LAST PLAY", font=FS(16), fill=(160, 175, 205), anchor="lm")
-                d.text((924, 440), last_play, font=fit(d, last_play, 330, 32), fill=(255, 255, 255), anchor="lm")
+                d.ellipse([888 - d.textlength(f"PROJ {_ph}", font=FS(12)) - 18, 73, 888 - d.textlength(f"PROJ {_ph}", font=FS(12)) - 8, 83], fill=(251, 191, 36))
+            # win probability sits right under the score
+            ovp = wp_panel(max(k, 1))
+            fr.paste(ovp, (CWX, CWY), ovp)
+            cur = wp[k] if scored_now else (wp[k - 1] if k > 0 else float(res.get("p_home", 0.5)))
+            d.text((334, 148), f"{(1 - cur) * 100:.0f}%", font=FS(32), fill=ac if _vlum(ac) > 70 else (255, 255, 255), anchor="lm")
+            d.text((946, 148), f"{cur * 100:.0f}%", font=FS(32), fill=hc if _vlum(hc) > 70 else (255, 255, 255), anchor="rm")
+            # first basket strip: nothing about the pick is shown until he actually scores
+            if featured and (not first_done or gframe - first_gf[0] < int(_VFPS * 6.5)):
+                gold = (251, 191, 36)
+                if first_done:
+                    pill = f"FIRST BASKET   {featured['name']}" + (f"   {_am(fb_odds)}" if fb_odds is not None else "")
+                    pc, pt_ = gold, (10, 14, 30)
+                else:
+                    pill = "FIRST BASKET   who scores it first?"
+                    pc, pt_ = (30, 38, 66), gold
+                pf = fit(d, pill, 600, 20)
+                pw = d.textlength(pill, font=pf) + 40
+                d.rounded_rectangle([640 - pw / 2, 178, 640 + pw / 2, 208], 15, fill=pc + (255,), outline=gold + (255,), width=2)
+                d.text((640, 193), pill, font=pf, fill=pt_, anchor="mm")
             # bottom banner
             if is_first:
-                d.rounded_rectangle([12, 602, W - 12, 708], 20, fill=(251, 191, 36, 255))
+                d.rounded_rectangle([12, 612, W - 12, 708], 20, fill=(251, 191, 36, 255))
+                d.text((W // 2, 640), "FIRST BASKET", font=FS(20), fill=(90, 60, 0), anchor="mm")
                 if not scored_now:
-                    d.text((W // 2, 632), "FIRST BASKET", font=FS(20), fill=(90, 60, 0), anchor="mm")
                     txt = "Who scores it first?"
                 else:
-                    d.text((W // 2, 632), "FIRST BASKET", font=FS(20), fill=(90, 60, 0), anchor="mm")
-                    txt = f"{featured['name']} {'hits the three' if p['pts'] == 3 else 'scores first'}  -  " + (f"books had him at {_am(fb_odds)}" if fb_odds is not None else f"model had him at {featured['prob'] * 100:.0f}%")
-                d.text((W // 2, 676), txt, font=fit(d, txt, 1200, 40), fill=(10, 14, 30), anchor="mm")
+                    txt = f"{featured['name']} {'hits the three' if p['pts'] == 3 else 'scores first'}" + (f"  -  books had him at {_am(fb_odds)}" if fb_odds is not None else f"  -  model had him at {featured['prob'] * 100:.0f}%")
+                d.text((W // 2, 678), txt, font=fit(d, txt, 1200, 38), fill=(10, 14, 30), anchor="mm")
             else:
-                d.text((36, 655), "LAST PLAY", font=FS(16), fill=(160, 175, 205), anchor="lm")
-                d.text((W - 36, 655), last_play, font=fit(d, last_play, 800, 36), fill=(255, 255, 255), anchor="rm")
+                d.rounded_rectangle([12, 618, W - 12, 702], 20, fill=(7, 11, 24, 232), outline=(255, 255, 255, 40), width=1)
+                tcol_ = hc if off_home else ac
+                d.rounded_rectangle([12, 618, 330, 702], 20, fill=_vdark(tcol_, 0.55) + (255,))
+                d.rounded_rectangle([12, 618, 20, 702], 4, fill=tcol_ + (255,))
+                nm_b = (H_ if off_home else A_).upper() + " BALL"
+                d.text((38, 650), nm_b, font=fit(d, nm_b, 200, 26), fill=(255, 255, 255), anchor="lm")
+                d.text((38, 682), "half court" if p["kind"] != "tov" else "turnover", font=FS(14, False), fill=(205, 215, 235), anchor="lm")
+                d.text((352, 660), last_play, font=fit(d, last_play, 900, 34), fill=(255, 255, 255), anchor="lm")
             emit(fr)
             gframe += 1
         prev = tgt
 
     # ----- closing cards -----------------------------------------------------------------------
     fin = _vfinal_card(res, g, sim, hc, ac, _vlogo(g, "away", away, ac, 110), _vlogo(g, "home", home, hc, 110), handle)
-    cards = [fin] + ([_vbox_card(g, box, (sim['A'], sim['H']), hc, ac, handle)] if box else [])
+    cards = [fin]
     for card in cards:
         src = last[0].convert("RGB")
         for f in range(card_n):
@@ -7215,23 +7539,31 @@ def _vcard_bg(title, sub=None):
 
 
 def _vfinal_card(res, g, sim, hc, ac, alogo, hlogo, handle):
+    # Same look as the intro (team-colored arena, big logos, away left / home right); the final score is the star, the picks sit small underneath.
+    from PIL import ImageDraw
     home, away = g["home"], g["away"]
     H_, A_ = short_pk(home), short_pk(away)
     exact = (sim["H"], sim["A"]) == tuple(_proj_pair(res))
-    im, d = _vcard_bg("FINAL", f"Simulated game #{sim['index']:,}  |  " + ("lands on the model's projected score" if exact else "closest to the model's projection"))
-    PANEL = dict(fill=(8, 14, 32, 200), outline=(255, 255, 255, 55), width=2)
-    for i, (lg, nm, sc, col) in enumerate(((alogo, A_, sim["A"], ac), (hlogo, H_, sim["H"], hc))):
-        y = 112 + i * 168
-        d.rounded_rectangle([40, y, 620, y + 150], 24, **PANEL)
-        d.rounded_rectangle([40, y + 20, 48, y + 130], 4, fill=col)
-        im.paste(lg, (70, y + 20), lg)
-        d.text((196, y + 75), nm, font=_gfont(32), fill=(255, 255, 255), anchor="lm")
-        win = (sim["A"] > sim["H"]) == (i == 0)
-        d.text((596, y + 75), str(sc), font=_gfont(96), fill=(255, 255, 255) if win else (150, 165, 195), anchor="rm")
-    d.text((330, 470), "MODEL PROJECTION", font=_gfont(18), fill=(160, 175, 205), anchor="mm")
-    d.text((330, 510), f"{A_} {_proj_pair(res)[1]}  -  {H_} {_proj_pair(res)[0]}", font=_gfont(34), fill=(255, 255, 255), anchor="mm")
-    if exact:
-        d.text((330, 556), "SIM FINAL MATCHES", font=_gfont(16), fill=(34, 197, 94), anchor="mm")
+    im = _vbg3(hc, ac)
+    d = ImageDraw.Draw(im, "RGBA")
+    d.rectangle([0, 0, _VW, 6], fill=(249, 115, 22, 255))
+    d.text((_VW // 2, 50), "FINAL", font=_vf(40), fill=(251, 146, 60), anchor="mm")
+    d.text((_VW // 2, 90), f"Simulated game #{sim['index']:,}  |  " + ("lands on the model's projected score" if exact else "closest to the model's projection"),
+           font=_vf(20, False), fill=(190, 200, 225), anchor="mm")
+    lg_a, lg_h = _vlogo(g, "away", away, ac, 190), _vlogo(g, "home", home, hc, 190)
+    from PIL import Image as _Im
+    lg_a, lg_h = [x if x.width >= 180 else x.resize((190, int(x.height * 190 / x.width)), _Im.LANCZOS) for x in (lg_a, lg_h)]
+    im.paste(lg_a, (265 - lg_a.width // 2, 118), lg_a)
+    im.paste(lg_h, (_VW - 265 - lg_h.width // 2, 118), lg_h)
+    for x, nm, sc, other in ((265, A_, sim["A"], sim["H"]), (_VW - 265, H_, sim["H"], sim["A"])):
+        fnt = _vf(38)
+        while d.textlength(nm, font=fnt) > 340 and fnt.size > 20:
+            fnt = _vf(fnt.size - 2)
+        d.text((x, 345), nm, font=fnt, fill=(255, 255, 255), anchor="mm")
+        win = sc > other
+        d.text((x, 465), str(sc), font=_vf(150), fill=(255, 255, 255) if win else (150, 165, 195), anchor="mm")
+    d.text((_VW // 2, 360), "@", font=_vf(60), fill=(251, 146, 60), anchor="mm")
+    d.text((_VW // 2, 565), f"MODEL PROJECTION   {A_} {_proj_pair(res)[1]}  -  {H_} {_proj_pair(res)[0]}", font=_vf(22), fill=(190, 200, 225), anchor="mm")
     rows = res["rows"]
 
     def best(mk):
@@ -7241,28 +7573,22 @@ def _vfinal_card(res, g, sim, hc, ac, alogo, hlogo, handle):
     items = [("SPREAD", sp, f"{short_pk(sp['side'])} {sp['line']}" if sp else "no line yet"),
              ("TOTAL", to, f"{to['side']} {to['line']}" if to else "no line yet"),
              ("MONEYLINE", ml, f"{short_pk(ml['side'])}" if ml else "no line yet")]
-    tcol = {"coin flip": (245, 158, 11), "lean": (148, 163, 184), "confident": (34, 197, 94)}
-    y = 112
-    for lab, r, big in items:
-        d.rounded_rectangle([650, y, 1240, y + 168], 24, **PANEL)
-        d.text((680, y + 30), "MODEL LIKES  -  " + lab, font=_gfont(18), fill=(160, 175, 205), anchor="lm")
-        if r and _vhit(lab, r, g, sim["H"], sim["A"]):
-            d.text((1212, y + 30), "HITS IN THIS SIM", font=_gfont(15), fill=(34, 197, 94), anchor="rm")
-        sz = 46
-        fnt = _gfont(sz)
-        while d.textlength(big, font=fnt) > 330 and sz > 22:
-            sz -= 2
-            fnt = _gfont(sz)
-        d.text((680, y + 92), big, font=fnt, fill=(255, 255, 255), anchor="lm")
+    pw, gap = 392, 24
+    x0 = (_VW - (3 * pw + 2 * gap)) // 2
+    for i, (lab, r, big) in enumerate(items):
+        x = x0 + i * (pw + gap)
+        d.rounded_rectangle([x, 598, x + pw, 690], 18, fill=(7, 11, 24, 225), outline=(255, 255, 255, 45), width=1)
+        d.text((x + 20, 620), "MODEL LIKES  -  " + lab, font=_vf(14), fill=(160, 175, 205), anchor="lm")
+        hit = bool(r and _vhit(lab, r, g, sim["H"], sim["A"]))
+        if hit:
+            d.text((x + pw - 20, 620), "HITS", font=_vf(14), fill=(34, 197, 94), anchor="rm")
+        fnt = _vf(30)
+        while d.textlength(big, font=fnt) > 230 and fnt.size > 16:
+            fnt = _vf(fnt.size - 2)
+        d.text((x + 20, 660), big, font=fnt, fill=(255, 255, 255), anchor="lm")
         if r:
-            mp = r["model_p"]
-            d.text((1212, y + 62), f"{mp * 100:.0f}%", font=_gfont(58), fill=(125, 180, 255), anchor="rm")
-            tr = conf_tier(mp)
-            d.text((1212, y + 112), tr.upper(), font=_gfont(20), fill=tcol.get(tr, (148, 163, 184)), anchor="rm")
-            d.rounded_rectangle([680, y + 140, 1212, y + 148], 4, fill=(30, 41, 59))
-            d.rounded_rectangle([680, y + 140, 680 + int(532 * min(max(mp, 0), 1)), y + 148], 4, fill=(96, 165, 250))
-        y += 186
-    d.text((_VW // 2, 696), ("@" + handle + "   |   " if handle else "") + "model picks, tracked in units   |   entertainment only", font=_gfont(16, False), fill=(160, 175, 205), anchor="mm")
+            d.text((x + pw - 20, 660), f"{r['model_p'] * 100:.0f}%", font=_vf(34), fill=(125, 180, 255), anchor="rm")
+    d.text((_VW // 2, 706), ("@" + handle + "   |   " if handle else "") + "model picks, tracked in units   |   entertainment only", font=_vf(14, False), fill=(160, 175, 205), anchor="mm")
     return im
 
 
@@ -7310,11 +7636,16 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
             for tm in (g["home"], g["away"]):
                 try:
                     for r in injury_rows(tm, injuries, ratings_for(M, tm, date)):
-                        if str(r["Status"]).lower() in ("out", "doubtful") and (r["Min/game"] or 0) >= 20:
+                        if _inj_out(r["Status"]) and (r["Min/game"] or 0) >= 20:
                             outs.append((r["Min/game"], f"{r['Player']} ({short(tm)})"))
                 except Exception:
                     pass
             outs.sort(key=lambda t: -t[0])
+            inj_all = []
+            for tm in (g["home"], g["away"]):
+                for r in injuries.get(tm, []):
+                    if str(r.get("status", "")).strip():
+                        inj_all.append(f"{r['player']} ({short(tm)}, {r['status']})")
             tipstr = ""
             try:
                 for x in home_scoreboard(date.isoformat()):
@@ -7324,10 +7655,14 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
                 tipstr = ""
             for _k in [k_ for k_ in st.session_state if str(k_).startswith((f"xg_{key}", f"xv_{key}"))]:
                 del st.session_state[_k]
-            st.session_state[key] = {"res": res, "fb": fb, "tip": tipstr, "inj": ", ".join(n for _, n in outs[:4])}
+            st.session_state[key] = {"res": res, "fb": fb, "tip": tipstr, "inj": ", ".join(n for _, n in outs[:4]), "inj_all": inj_all, "inj_loaded": bool(injuries)}
     with c2:
         _link("Open my X profile", f"https://x.com/{handle}")
     d = st.session_state.get(key)
+    if d and not d.get("inj_loaded", True):
+        st.warning("The injury report didn't load from ESPN just now, so players who are out may still show up in the lineups and the video. Wait a minute, reboot the app (Manage app), and press Generate again.")
+    elif d and d.get("inj_all"):
+        st.caption("🚑 Injury report used: " + ", ".join(d["inj_all"][:14]))
     if not d:
         st.info("Press Generate to build the post for the selected game.")
         return
@@ -7404,8 +7739,8 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
         import zlib as _z
         edited = st.text_area(label, tx, height=230, key=f"x_ta_{mode}_{i}_{g['id']}_{_z.crc32(tx.encode()):x}")
         n = len(edited)
-        lim = 280 if mode != "long" else 25000
-        st.caption(f"{n}/{lim if mode != 'long' else '280 free · 25,000 with Premium'} characters" + ("  ⚠️ too long for a free account, trim it or use a thread" if (n > 280 and mode != "long") else ""))
+        lim = 280 if (mode != "long" or video_post) else 25000
+        st.caption(f"{n}/{lim if (mode != 'long' or video_post) else '280 free · 25,000 with Premium'} characters" + ("  ⚠️ too long for a free account, trim it" if (n > 280 and (mode != "long" or video_post)) else ""))
         _link(f"🚀 Open in X: {label}", "https://x.com/intent/post?text=" + _up.quote(edited, safe=""))
     st.caption("X opens with the text filled in. Add a screenshot (like the picks cards from Home) before you post. Not financial advice.")
 

@@ -171,6 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
+APP_BUILD = "Oct 27, 3:15 PM"          # shown at the bottom of the sidebar so you can tell which version is live
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -8830,6 +8831,7 @@ div[data-testid="stMainBlockContainer"].block-container{max-width:1500px !import
                 for _m in _items:
                     st.button(nav_label(_m), key=f"sbnav_{menu.index(_m)}", use_container_width=True, on_click=_sbgo, args=(_m,),
                               type="primary" if st.session_state["main_nav"] == _m else "secondary")
+            st.markdown(f'<div style="font-size:.66rem;opacity:.4;padding:.6rem 1rem 0">Build {APP_BUILD}</div>', unsafe_allow_html=True)
             if private_ok:
                 st.markdown(f'<div class="nb-sbuser"><div class="av">{H((st.session_state.get("user_name", "") or "?")[:1].upper())}</div>'
                             f'<div class="tx"><span class="s">Signed in</span><b>{H(st.session_state.get("user_name", ""))}</b></div>'

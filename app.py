@@ -196,7 +196,7 @@ BACKTEST_NOTE = ""               # optional: paste your Colab backtest result he
 
 BASE = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-           "Accept": "application/json, text/plain, */*", "Accept-Language": "en-US,en;q=0.9", "Referer": "https://www.espn.com/", "Origin": "https://www.espn.com"}
+           "Accept": "application/json, text/plain, */*", "Accept-Language": "en-US,en;q=0.9", "Referer": "https://www.espn.com/"}
 # Automatic player ratings (from recent box scores) used to size each injury
 RATING_GAMES = 15        # team games used to rate each player
 PRIOR_GSM = 0.30         # league-typical production per minute; players with few minutes are nudged toward it
@@ -218,12 +218,15 @@ def _get(url, params=None, tries=3):
     tries_ = []                                           # (url, params, unwrap)
     tries_.append((url, params, None))
     if "://site.api.espn.com/" in url:
+        if url.split("?")[0].endswith("/basketball/nba/scoreboard"):
+            tries_.append((url, {**(params or {}), "limit": "100"}, None))          # a different cache key: ESPN answers 202 (still building) for some
         tries_.append((url.replace("://site.api.espn.com/", "://site.web.api.espn.com/"), params, None))
         if url.split("?")[0].endswith("/basketball/nba/scoreboard"):
             tries_.append(("https://cdn.espn.com/core/nba/scoreboard", {**(params or {}), "xhr": "1", "limit": "50"}, ("content", "sbData")))
     last = None
     for u, pr, unwrap in tries_:
-        for i in range(tries + 1):
+        n_ = 2 if len(tries_) > 1 else tries + 1
+        for i in range(n_):
             try:
                 r = requests.get(u, params=pr, headers=HEADERS, timeout=20)
                 if r.status_code >= 400:
@@ -240,8 +243,8 @@ def _get(url, params=None, tries=3):
                 return data
             except Exception as e:
                 last = e
-                if i < tries:
-                    _t.sleep(0.8 * (i + 1))
+                if i < n_ - 1:
+                    _t.sleep(1.2)
     raise last
 
 
@@ -408,7 +411,7 @@ def get_slate(date_iso):
 @st.cache_data(ttl=300, show_spinner=False)
 def _get_slate_raw(date_iso):
     d = dt.date.fromisoformat(date_iso)
-    data = _get(f"{BASE}/scoreboard", {"dates": d.strftime("%Y%m%d")})
+    data = _get(f"{BASE}/scoreboard", {"dates": d.strftime("%Y%m%d"), "limit": 100})
     games = []
     for ev in data.get("events", []):
         comp = ev["competitions"][0]
@@ -5747,6 +5750,10 @@ HOME_NAV = "🏠 Home"
 
 @st.cache_data(ttl=10, show_spinner=False)
 def home_scoreboard(date_iso):
+    import time as _t
+    lg_ = _last_good()
+    if lg_.get("sb_fail_" + date_iso, 0) > _t.time() and lg_.get("sb_" + date_iso) is None:
+        raise ValueError(lg_.get("sb_err_" + date_iso, "ESPN is not answering"))          # don't hammer ESPN (and slow the page) every few seconds while it is down
     try:
         out = _home_scoreboard_raw(date_iso)
         _last_good()["sb_" + date_iso] = out
@@ -5755,12 +5762,15 @@ def home_scoreboard(date_iso):
         lg = _last_good().get("sb_" + date_iso)
         if lg is not None:
             return lg                                   # show the last scores we got rather than an error
+        import sys as _s
+        _last_good()["sb_fail_" + date_iso] = _t.time() + 25
+        _last_good()["sb_err_" + date_iso] = str(_s.exc_info()[1])
         raise
 
 
 def _home_scoreboard_raw(date_iso):
     d = dt.date.fromisoformat(date_iso)
-    data = _get(f"{BASE}/scoreboard", {"dates": d.strftime("%Y%m%d")}, tries=2)
+    data = _get(f"{BASE}/scoreboard", {"dates": d.strftime("%Y%m%d"), "limit": 100}, tries=2)
     out = []
     for ev in data.get("events", []):
         comp = ev["competitions"][0]

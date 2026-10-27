@@ -5722,7 +5722,7 @@ def pickem_tab(M, date, games, injuries, b2b):
             return
         G = graded_pickem(use)
         cols = st.columns(3)
-        for col, (lab, k) in zip(cols, (("You", "me_ok"), ("Book", "book_ok"), ("Model", "model_ok"))):
+        for col, (lab, k) in zip(cols, (("You", "me_ok"), ("Model", "model_ok"), ("Book", "book_ok"))):
             w, l = _wl(list(G[k].where(G[k].notna(), None)))
             col.metric(lab, f"{w}-{l}")
             col.caption(f"{w / (w + l) * 100:.0f}% right" if w + l else "no finished games yet")
@@ -5733,7 +5733,7 @@ def pickem_tab(M, date, games, injuries, b2b):
         if not done.empty:
             st.markdown('<div class="nb-sec">Head to head</div>', unsafe_allow_html=True)
             lines = []
-            for lab, pk in (("the book", "book_pick"), ("the model", "model_pick")):
+            for lab, pk in (("the model", "model_pick"), ("the book", "book_pick")):
                 dis = done[(done[pk] != "") & (done["my_pick"] != done[pk])]
                 w, l = _wl(list(dis["me_ok"].where(dis["me_ok"].notna(), None)))
                 lines.append(f"- **When you disagreed with {lab}** ({len(dis)} game{'s' if len(dis) != 1 else ''}): you went **{w}-{l}** and {lab} went **{l}-{w}**."
@@ -5742,7 +5742,7 @@ def pickem_tab(M, date, games, injuries, b2b):
             by = []
             for d, grp in done.groupby("date"):
                 row = {"Date": d, "Games": len(grp)}
-                for lab, k in (("You", "me_ok"), ("Book", "book_ok"), ("Model", "model_ok")):
+                for lab, k in (("You", "me_ok"), ("Model", "model_ok"), ("Book", "book_ok")):
                     w, l = _wl(list(grp[k].where(grp[k].notna(), None)))
                     row[lab] = f"{w}-{l}"
                 by.append(row)

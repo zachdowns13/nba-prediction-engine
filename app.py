@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 27, 6:05 PM"
+APP_BUILD = "Oct 27, 6:20 PM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4377,6 +4377,12 @@ def open_bets_list(refresh=False):
     st.markdown("""<style>
 div[class*="st-key-bk_hdr_"] button{justify-content:flex-start !important;text-align:left !important;font-weight:700;width:400px !important;max-width:100% !important;background:rgba(128,128,128,.10) !important;border:1px solid rgba(128,128,128,.22) !important;border-radius:12px !important;padding:.55rem .9rem !important}
 div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(div[class*="st-key-bdwrap_"]){position:relative}
+div[class*="st-key-bdwrap_"]{position:absolute !important;top:30px;right:34px;width:auto !important;z-index:30;margin:0 !important}
+div[class*="st-key-bdwrap_"] [data-testid="stPopover"] button{min-height:0 !important;height:28px;padding:0 8px !important;background:transparent !important;border:0 !important;box-shadow:none !important}
+div[class*="st-key-bdwrap_"] [data-testid="stPopover"] button [data-testid="stIconMaterial"]{display:none}
+div[class*="st-key-bdwrap_"] [data-testid="stPopover"] button:hover{background:rgba(128,128,128,.18) !important}
+
 </style>""", unsafe_allow_html=True)
     if st.session_state.pop("want_refresh", False):
         refresh = True
@@ -4425,10 +4431,9 @@ div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
             def _card(r):
                 with st.container(border=True):
                     legs = split_legs(r["desc"])
-                    _tc = st.columns([12, 1.6], vertical_alignment="center") if True else None
-                    with _tc[1]:
+                    with st.container(key=f"bdwrap_{r['id']}"):          # floated into the top-right corner of the slip header by the CSS above
                         if hasattr(st, "popover"):
-                            with st.popover("🗑️", use_container_width=True):
+                            with st.popover("🗑️"):
                                 st.markdown("**Delete this bet?**")
                                 st.caption("It goes to the trash for 30 days, so you can bring it back.")
                                 if st.button("Yes, delete", key=f"bd_{r['id']}", type="primary"):
@@ -4438,8 +4443,7 @@ div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
                             if st.checkbox("🗑️", key=f"bdc_{r['id']}") and st.button("Confirm delete", key=f"bd_{r['id']}"):
                                 delete_bet(r["id"])
                                 st.rerun()
-                    with _tc[0]:
-                        pick_rows_html([bet_item(r, controls=True)])
+                    pick_rows_html([bet_item(r, controls=True)])
                     if len(legs) == 1 and games:
                         _p1 = parse_leg(legs[0])
                         if _p1:

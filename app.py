@@ -5294,7 +5294,7 @@ def _fill_hero(_navv):
               if _u and _u not in _lg:
                   _lg.append(_u)
       _logos = "".join(f'<span class="hs-lg" style="background-image:url(\'{H(u)}\')"></span>' for u in _lg[:16])
-      _HP = {"Home": ("#3b82f6", "🏠", "NBA Prediction Engine", "Live scores · Projections · Props · Picks"),
+      _HP = {"Home": ("#e56020", "SUNS", "Zach's NBA Hub", "Live scores · Projections · Props · Picks"),
              "Game odds": ("#3b82f6", "📊", "Game odds", "Simulate one matchup 10,000 times"),
              "Full slate": ("#a855f7", "📋", "Full slate", "Simulating every game 10,000 times"),
              "Player props": ("#f59e0b", "🎯", "Player props", "Lookup, projections and perfect props"),
@@ -5308,9 +5308,12 @@ def _fill_hero(_navv):
       _hk = re.sub(r"^[^A-Za-z0-9]+", "", str(_navv or "Home")).strip()
       _hc, _hi, _ht, _hs = _HP.get(_hk, _HP["Home"]) if SIDEBAR_NAV else _HP["Home"]
       _hr = tuple(int(_hc[i:i + 2], 16) for i in (1, 3, 5))
+      _suns = f'<img src="https://a.espncdn.com/i/teamlogos/nba/500/phx.png" alt="Suns" style="width:70%;height:70%;object-fit:contain">'
+      _title = H(_ht) if SIDEBAR_NAV else "Zach's NBA Hub"
+      _mark = _suns if (_hi == "SUNS" or not SIDEBAR_NAV) else _hi
       _hbg = (f' style="background:linear-gradient(115deg,rgba({_hr[0]},{_hr[1]},{_hr[2]},.95) 0%,rgba({_hr[0]},{_hr[1]},{_hr[2]},.4) 45%,#0d1020 100%) !important"' if SIDEBAR_NAV else "")
       html(f'<div class="pro-hero pro-hero-s"{_hbg}><div class="hero-ring"></div><div class="hero-ring r2"></div>'
-           f'<div class="hs-left"><span class="pro-mark">{_hi if SIDEBAR_NAV else "🏀"}</span><div><div class="pro-title">{H(_ht) if SIDEBAR_NAV else "NBA Prediction Engine"}</div>'
+           f'<div class="hs-left"><span class="pro-mark">{_mark}</span><div><div class="pro-title">{_title}</div>'
            f'<div class="pro-sub">{H(_hs) if SIDEBAR_NAV else "Live scores<i>·</i>Projections<i>·</i>Props<i>·</i>Picks"}</div></div></div>'
            '<div class="hs-right">'
            f'<div class="pro-chips"><span class="pro-live">{H(date.strftime("%A, %B %-d"))}</span>'
@@ -8754,7 +8757,8 @@ section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:focus{outline:n
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button > div,section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button [data-testid="stMarkdownContainer"]{display:flex !important;justify-content:flex-start !important;width:100% !important;margin:0 !important}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button p{justify-content:flex-start !important;width:100%}
 .nb-sbbrand{display:flex !important;align-items:center;gap:.75rem;padding:1.1rem 3rem 1rem 1.1rem;border-bottom:1px solid rgba(128,128,128,.16);margin-bottom:1.1rem;white-space:nowrap}
-.nb-sbbrand .lg{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#8b5cf6,#3b82f6);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex:none}
+.nb-sbbrand .lg{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#2b1055,#e56020);display:flex;align-items:center;justify-content:center;flex:none}
+.nb-sbbrand .lg img{width:26px;height:26px;object-fit:contain}
 .nb-sbbrand .tx{display:flex;flex-direction:column;gap:2px;min-width:0}
 .nb-sbbrand b{font-size:1.1rem;line-height:1.1}
 .nb-sbbrand .s{font-size:.74rem;opacity:.6;line-height:1.1}
@@ -8777,7 +8781,7 @@ div[data-testid="stMainBlockContainer"].block-container{max-width:1500px !import
             st.session_state["main_nav"] = m
         _groups = [("", [HOME_NAV]), ("Model", NAV[:4]), ("Track", NAV[4:7]), ("Tools", NAV[7:]), ("Account", [LOCKED_NAV])]
         with st.sidebar:
-            st.markdown('<div class="nb-sbbrand"><div class="lg">🏀</div><div class="tx"><b>NBA Hub</b><span class="s">Picks &amp; props</span></div></div>', unsafe_allow_html=True)
+            st.markdown('<div class="nb-sbbrand"><div class="lg"><img src="https://a.espncdn.com/i/teamlogos/nba/500/phx.png" alt="Suns"></div><div class="tx"><b>Zach&#39;s NBA Hub</b><span class="s">Picks &amp; props</span></div></div>', unsafe_allow_html=True)
             for _gname, _items in _groups:
                 _items = [m for m in _items if m in menu]
                 if not _items:

@@ -1428,6 +1428,12 @@ PROP_TEAM_CLIP = 0.06      # ...and never by more than this much either way
 PROP_TOTAL_CAP = 1.25      # no projection ends up more than 25% above his own recent average
 PROP_SCORING = ("pts", "ast", "tpm")      # stats that move with the team's projected score
 PROP_MIN_MPG = 10
+PROP_CUR_BONUS = 1.8       # games from this season count this much more than last season's (roles, rosters and coaches change)
+PROP_MIN_DECAY = 0.90      # minutes follow a player's current role faster than his box-score production does
+PROP_BLOWOUT_FROM = 8.0    # a projected margin beyond this starts costing starters minutes (and giving them to the bench)
+PROP_BLOWOUT_STARTERS = 0.005    # starters lose this share of their minutes per point of margin past that, up to 10%
+PROP_BLOWOUT_BENCH = 0.004       # bench players gain this much per point, up to 10%
+PROP_B2B_STARTERS = 0.97   # starters play a little less on the second night of a back-to-back
 
 
 def _stat_vals(p):
@@ -1435,11 +1441,12 @@ def _stat_vals(p):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def player_logs(team, evs):
+def player_logs(team, evs, ords=()):
     # Every game each player played for this team (oldest to newest), plus the team's points in each game.
+    # `ords` (optional) is each game's date number, so this season's games can count for more than last season's.
     boxes = load_boxes(evs)
     logs, team_pts = {}, []
-    for e in evs:
+    for gi, e in enumerate(evs):
         box = boxes.get(e)
         if not box:
             continue
@@ -1451,7 +1458,7 @@ def player_logs(team, evs):
             if p["min"] <= 0:
                 continue
             L = logs.setdefault(aid, {"name": p["name"], "games": []})
-            L["games"].append({"min": p["min"], **_stat_vals(p)})
+            L["games"].append({"min": p["min"], "o": (ords[gi] if gi < len(ords) else 0), **_stat_vals(p)})
         team_pts.append(tp)
     return logs, team_pts
 
@@ -1462,8 +1469,26 @@ def _wmean(vals):
     return float((np.array(vals) * w).sum() / w.sum())
 
 
-def project_team(team, logs, team_pts, proj_pts, out_probs, roster_ids=None):
-    # Projection for every rotation player: recent weighted averages, scaled to the game's projected score,
+def _gweights(games, decay, cs0):
+    n = len(games)
+    return np.array([decay ** (n - 1 - i) * (PROP_CUR_BONUS if (cs0 and g_.get("o", 0) >= cs0) else 1.0) for i, g_ in enumerate(games)])
+
+
+def _min_factor(mpg, margin_abs, on_b2b):
+    f = 1.0
+    over = max(0.0, margin_abs - PROP_BLOWOUT_FROM)
+    if mpg >= 28:
+        f *= 1 - min(0.10, PROP_BLOWOUT_STARTERS * over)
+        if on_b2b:
+            f *= PROP_B2B_STARTERS
+    elif mpg <= 20:
+        f *= 1 + min(0.10, PROP_BLOWOUT_BENCH * over)
+    return f
+
+
+def project_team(team, logs, team_pts, proj_pts, out_probs, roster_ids=None, cs0=None, margin_abs=0.0, on_b2b=False):
+    # Projection for every rotation player. Minutes come first (his current role, shaded for a blowout or a back-to-back), then his
+    # per-minute production over recent games (this season weighted above last), scaled to the game's projected score,
     # with extra production when teammates are out.
     avg_pts = _wmean(team_pts) if team_pts else None
     # One player's scoring does not rise point-for-point with his team's: a team projected 10% higher gives each starter about 5% more.
@@ -1473,8 +1498,15 @@ def project_team(team, logs, team_pts, proj_pts, out_probs, roster_ids=None):
         if roster_ids and aid not in roster_ids:
             continue
         g_ = L["games"]
-        base[aid] = {"name": L["name"], "gp": len(g_), "min": _wmean([x["min"] for x in g_]),
-                     **{s: _wmean([x[s] for x in g_]) for s in PROP_BASE}}
+        w, wm = _gweights(g_, PROP_DECAY, cs0), _gweights(g_, PROP_MIN_DECAY, cs0)
+        mins = np.array([x["min"] for x in g_], dtype=float)
+        mpg = float((mins * wm).sum() / wm.sum())
+        tot_min = float((mins * w).sum())
+        if tot_min <= 0:
+            continue
+        mp = float(min(mpg * _min_factor(mpg, margin_abs, on_b2b), 42.0))
+        base[aid] = {"name": L["name"], "gp": len(g_), "min": mp,
+                     **{s: float((np.array([x[s] for x in g_], dtype=float) * w).sum() / tot_min * mp) for s in PROP_BASE}}
     lost = {s: 0.0 for s in PROP_BASE}
     for aid, b in base.items():
         po = out_probs.get(aid, 0.0)
@@ -1493,6 +1525,13 @@ def project_team(team, logs, team_pts, proj_pts, out_probs, roster_ids=None):
             row[s] = min(v, b[s] * PROP_TOTAL_CAP)
         out[aid] = row
     return out
+
+
+def _prop_ctx(M, team, evs, date, res, b2b):
+    # What project_team needs beyond the box scores: each game's date, when this season began, how lopsided the game looks, and rest.
+    om = {e: o for (o, e) in M["hist"].get(team, [])}
+    return {"ords": tuple(om.get(e, 0) for e in evs), "cs0": dt.date(M["season"] - 1, 9, 1).toordinal(),
+            "margin_abs": abs(float(res["hp"]) - float(res["ap"])), "on_b2b": team in (b2b or set())}
 
 
 def sim_prop(proj, stats, n=20000):
@@ -1538,7 +1577,8 @@ def props_tab(M, g, odds, injuries, date, b2b):
     proj_pts = {home: res["hp"], away: res["ap"]}
     all_proj, rows = {}, []
     for team, tid in ((home, g.get("home_id")), (away, g.get("away_id"))):
-        logs, team_pts = player_logs(team, tuple(evs[team]))
+        _cx = _prop_ctx(M, team, evs[team], date, res, b2b)
+        logs, team_pts = player_logs(team, tuple(evs[team]), _cx["ords"])
         by_name = {L["name"].lower(): aid for aid, L in logs.items()}
         status, out_probs = {}, {}
         for r in injuries.get(team, []):
@@ -1547,7 +1587,7 @@ def props_tab(M, g, odds, injuries, date, b2b):
                 status[aid] = r["status"]
                 out_probs[aid] = STATUS_W.get(r["status"].lower(), 0.3)
         roster = set(get_roster(tid)) if tid else set()
-        pr = project_team(team, logs, team_pts, proj_pts[team], out_probs, roster or None)
+        pr = project_team(team, logs, team_pts, proj_pts[team], out_probs, roster or None, _cx["cs0"], _cx["margin_abs"], _cx["on_b2b"])
         for aid, p in sorted(pr.items(), key=lambda kv: -kv[1]["min"]):
             if status.get(aid, "").lower().startswith("out"):
                 continue                                   # players who are out get no projection
@@ -6396,8 +6436,7 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False):
     if opts["fb"] and fb:
         T = fb["T"]
         fb_line = f"🎯 First basket: {T.iloc[0]['Player']} ({T.iloc[0]['prob'] * 100:.0f}%)"
-        if video:
-            fb_line = "🎯 First basket pick: revealed in the video, watch for it 👀"      # the video hides it until he scores
+
     tip_line = ""
     if opts["fb"] and fb and mode != "short":
         tp = fb.get("tip") or {}
@@ -6409,7 +6448,7 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False):
         vhook = f"🎬 I simulated {A_} @ {H_} 10,000 times and watched the game that matched my model's projection."
         if mode == "short":
             core = [x for x in lines_core if not x.startswith("💰")]          # moneyline is on the video's end card; keep this under 280
-            fbl = ["🎯 First basket: watch for it 👀"] if (opts["fb"] and fb) else []
+            fbl = [fb_line] if fb_line else []
             return [(vhook[:-1] + " 👇\n\n" + "\n".join(core + fbl) + (f"\n\n@{handle}" if opts["tag"] else "")).strip()]
         head = vhook + "\n\nWatch it play out, then the model's picks at the end 👇" + (f"\n⏰ Tip: {tipstr}" if tipstr else "")
         if mode == "thread":
@@ -6435,7 +6474,7 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False):
 # ---------------------------------------------------------------------------------------------
 # Simulation video: one possession-by-possession game (the closest of 10,000 to the projection), drawn as dots on a court.
 # ---------------------------------------------------------------------------------------------
-def props_auto(M, g, injuries, date, res):
+def props_auto(M, g, injuries, date, res, b2b=None):
     # Projected player lines for the video's closing card (same projection the Player props tab uses). team -> rows, most minutes first.
     try:
         home, away = g["home"], g["away"]
@@ -6446,7 +6485,8 @@ def props_auto(M, g, injuries, date, res):
         proj_pts = {home: res["hp"], away: res["ap"]}
         out = {}
         for team, tid in ((home, g.get("home_id")), (away, g.get("away_id"))):
-            logs, team_pts = player_logs(team, tuple(evs[team]))
+            _cx = _prop_ctx(M, team, evs[team], date, res, b2b)
+            logs, team_pts = player_logs(team, tuple(evs[team]), _cx["ords"])
             by_name = {L["name"].lower(): aid for aid, L in logs.items()}
             status, out_probs = {}, {}
             for r in injuries.get(team, []):
@@ -6455,7 +6495,7 @@ def props_auto(M, g, injuries, date, res):
                     status[aid] = r["status"]
                     out_probs[aid] = STATUS_W.get(r["status"].lower(), 0.3)
             roster = set(get_roster(tid)) if tid else set()
-            pr = project_team(team, logs, team_pts, proj_pts[team], out_probs, roster or None)
+            pr = project_team(team, logs, team_pts, proj_pts[team], out_probs, roster or None, _cx["cs0"], _cx["margin_abs"], _cx["on_b2b"])
             rows = []
             for aid, p in sorted(pr.items(), key=lambda kv: -kv[1]["min"]):
                 if status.get(aid, "").lower().startswith("out"):
@@ -7328,7 +7368,7 @@ def x_post_tab(M, g, odds, injuries, date, b2b):
                 n_alt += 1
             try:
                 bar = st.progress(0.0, text="Simulating 10,000 games and drawing the winner...")
-                props = props_auto(M, g, injuries, date, d["res"])
+                props = props_auto(M, g, injuries, date, d["res"], b2b)
                 st.session_state[vk] = sim_video(d["res"], d["fb"], props, g, d["tip"], handle,
                                                  progress=lambda x: bar.progress(x, text="Rendering the video..."), seed_extra=n_alt)
                 bar.empty()

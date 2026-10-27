@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 27, 6:20 PM"
+APP_BUILD = "Oct 27, 6:35 PM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4377,8 +4377,8 @@ def open_bets_list(refresh=False):
     st.markdown("""<style>
 div[class*="st-key-bk_hdr_"] button{justify-content:flex-start !important;text-align:left !important;font-weight:700;width:400px !important;max-width:100% !important;background:rgba(128,128,128,.10) !important;border:1px solid rgba(128,128,128,.22) !important;border-radius:12px !important;padding:.55rem .9rem !important}
 div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
-div[data-testid="stVerticalBlockBorderWrapper"]:has(div[class*="st-key-bdwrap_"]){position:relative}
-div[class*="st-key-bdwrap_"]{position:absolute !important;top:30px;right:34px;width:auto !important;z-index:30;margin:0 !important}
+div:has(> [data-testid="stElementContainer"] > div[class*="st-key-bdwrap_"]){position:relative}
+[data-testid="stElementContainer"]:has(> div[class*="st-key-bdwrap_"]),[data-testid="stElementContainer"][class*="st-key-bdwrap_"]{position:absolute !important;top:30px;right:34px;width:auto !important;z-index:30;margin:0 !important}
 div[class*="st-key-bdwrap_"] [data-testid="stPopover"] button{min-height:0 !important;height:28px;padding:0 8px !important;background:transparent !important;border:0 !important;box-shadow:none !important}
 div[class*="st-key-bdwrap_"] [data-testid="stPopover"] button [data-testid="stIconMaterial"]{display:none}
 div[class*="st-key-bdwrap_"] [data-testid="stPopover"] button:hover{background:rgba(128,128,128,.18) !important}

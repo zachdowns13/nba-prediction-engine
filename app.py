@@ -1598,6 +1598,243 @@ def player_total(proj, stats):
     return sum(proj[s] for s in stats)
 
 
+PL_STATS = [("PTS", "Points", ("pts",)), ("REB", "Rebounds", ("reb",)), ("AST", "Assists", ("ast",)), ("3PM", "3-pointers made", ("tpm",)),
+            ("STL", "Steals", ("stl",)), ("BLK", "Blocks", ("blk",)), ("PTS+REB", "Points + Rebounds", ("pts", "reb")),
+            ("PTS+AST", "Points + Assists", ("pts", "ast")), ("REB+AST", "Rebounds + Assists", ("reb", "ast")),
+            ("PRA", "Points + Rebounds + Assists", ("pts", "reb", "ast"))]
+
+
+def _pl_games(M, team, aid, date):
+    # One player's games (oldest to newest) with the date, opponent, home/away and his full stat line.
+    evs = recent_events(M["hist"], team, date.toordinal(), PROP_GAMES)
+    if not evs:
+        return []
+    boxes = load_boxes(tuple(evs))
+    om = {e: o for (o, e) in M["hist"].get(team, [])}
+    home_of = {o: h for (o, h) in M["sched"].get(team, [])}
+    cs0 = dt.date(M["season"] - 1, 9, 1).toordinal()
+    out = []
+    for e in evs:
+        box = boxes.get(e)
+        p = (box or {}).get("players", {}).get(str(aid))
+        if not p or p["min"] <= 0:
+            continue
+        o = om.get(e, 0)
+        opp = next((t for t in {v["team"] for v in box["players"].values()} if t != p["team"]), "")
+        out.append({"o": o, "date": dt.date.fromordinal(o) if o else None, "opp": short_pk(opp) if opp else "", "home": home_of.get(o), "season": o >= cs0,
+                    "min": p["min"], "pts": p["pts"], "reb": p["oreb"] + p["dreb"], "ast": p["ast"], "tpm": p.get("tpm", 0.0), "tpa": p.get("tpa", 0.0),
+                    "stl": p["stl"], "blk": p["blk"], "fgm": p["fgm"], "fga": p["fga"], "tov": p["tov"]})
+    return out
+
+
+def _pl_bars(vals, xl, xs, line, proj=None):
+    # Bar chart of one stat over his games, with the line drawn across: green bars cleared it, red bars didn't.
+    n = len(vals)
+    bw, gap, padl, padr, H_, top, bot = 46, 20, 14, 78, 270, 36, 58
+    W_ = padl + n * (bw + gap) + padr
+    ymax = max(max(vals) if vals else 1, line, proj or 0, 1) * 1.2
+    yp = lambda v: top + (H_ - top - bot) * (1 - v / ymax)
+    base = yp(0)
+    parts = [f'<svg viewBox="0 0 {W_} {H_}" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg" font-family="inherit">']
+    parts.append(f'<line x1="0" y1="{base:.1f}" x2="{W_}" y2="{base:.1f}" stroke="currentColor" stroke-opacity=".18"/>')
+    for i, v in enumerate(vals):
+        x = padl + i * (bw + gap)
+        col = "#22c55e" if v > line else ("#ef4444" if v < line else "#9ca3af")
+        y = yp(v)
+        parts.append(f'<rect x="{x}" y="{y:.1f}" width="{bw}" height="{max(base - y, 2):.1f}" rx="7" fill="{col}" fill-opacity=".92"/>')
+        parts.append(f'<text x="{x + bw / 2}" y="{y - 8:.1f}" text-anchor="middle" font-size="17" font-weight="800" fill="currentColor">{v:g}</text>')
+        parts.append(f'<text x="{x + bw / 2}" y="{base + 18:.1f}" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor" fill-opacity=".8">{H(xl[i])}</text>')
+        parts.append(f'<text x="{x + bw / 2}" y="{base + 33:.1f}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity=".55">{H(xs[i])}</text>')
+    yl = yp(line)
+    parts.append(f'<line x1="0" y1="{yl:.1f}" x2="{W_ - padr + 8}" y2="{yl:.1f}" stroke="#facc15" stroke-width="2" stroke-dasharray="7 6"/>')
+    parts.append(f'<rect x="{W_ - padr + 10}" y="{yl - 13:.1f}" width="{padr - 12}" height="26" rx="8" fill="#facc15"/>'
+                 f'<text x="{W_ - padr + 10 + (padr - 12) / 2}" y="{yl + 5:.1f}" text-anchor="middle" font-size="14" font-weight="800" fill="#1f2937">{line:g}</text>')
+    if proj is not None:
+        yq = yp(proj)
+        parts.append(f'<line x1="0" y1="{yq:.1f}" x2="{W_ - padr + 8}" y2="{yq:.1f}" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="2 5"/>')
+        parts.append(f'<text x="{W_ - padr + 10}" y="{(yq + 4 if abs(yq - yl) >= 24 else min(yq, yl) - 18):.1f}" font-size="11" font-weight="700" fill="#60a5fa">proj {proj:.1f}</text>')
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+def _game_projections(M, g, odds, injuries, date, b2b):
+    # The same projections the Projections tab uses: {(team, name): {"p": projection, "id": player id}}, plus injury status by player id.
+    home, away = g["home"], g["away"]
+    evs = {t: recent_events(M["hist"], t, date.toordinal(), PROP_GAMES) for t in (home, away)}
+    load_boxes(tuple(sorted(set(evs[home]) | set(evs[away]))))
+    res = analyze_game(M, g, dict(odds), team_injury_pts(M, home, injuries, date), team_injury_pts(M, away, injuries, date), b2b)
+    proj_pts = {home: res["hp"], away: res["ap"]}
+    out, status = {}, {}
+    for team, tid in ((home, g.get("home_id")), (away, g.get("away_id"))):
+        _cx = _prop_ctx(M, team, evs[team], date, res, b2b)
+        logs, team_pts = player_logs(team, tuple(evs[team]), _cx["ords"])
+        by_name = {L["name"].lower(): aid for aid, L in logs.items()}
+        out_probs = {}
+        for r in injuries.get(team, []):
+            aid = str(r.get("pid")) if str(r.get("pid")) in logs else by_name.get(r["player"].lower())
+            if aid:
+                status[aid] = r["status"]
+                out_probs[aid] = STATUS_W.get(r["status"].lower(), 0.3)
+        roster = set(get_roster(tid)) if tid else set()
+        pr = project_team(team, logs, team_pts, proj_pts[team], out_probs, roster or None, _cx["cs0"], _cx["margin_abs"], _cx["on_b2b"])
+        for aid, p in pr.items():
+            out[str(aid)] = {"p": p, "team": team, "name": p["name"]}
+    return {"proj": out, "status": status}
+
+
+def player_lookup_tab(M, games, odds, injuries, date, b2b):
+    gl = [g for g in games if g.get("id") != "manual"]
+    if not gl:
+        st.info("No games on the slate for this date.")
+        return
+    st.caption("Pick a game, pick a player, then tap through any stat. The chart shows every game he played, with the line drawn across it.")
+    gid = st.selectbox("Game", [g["id"] for g in gl], format_func=lambda i: next(f"{g['away']} @ {g['home']}" for g in gl if g["id"] == i), key="pl_game")
+    g = next(x for x in gl if x["id"] == gid)
+    pk = f"pl_proj_{gid}_{date.isoformat()}"
+    if pk not in st.session_state:
+        try:
+            with st.spinner("Loading both rosters and the model's projections..."):
+                st.session_state[pk] = _game_projections(M, g, odds, injuries, date, b2b)
+        except Exception:
+            st.session_state[pk] = {"proj": {}, "status": {}}
+    gp = st.session_state[pk]
+    roster_rows = []
+    for team in (g["away"], g["home"]):
+        try:
+            evs = recent_events(M["hist"], team, date.toordinal(), PROP_GAMES)
+            load_boxes(tuple(evs))
+            om = {e: o for (o, e) in M["hist"].get(team, [])}
+            logs, _tp = player_logs(team, tuple(evs), tuple(om.get(e, 0) for e in evs))
+            tid = g.get("home_id") if team == g["home"] else g.get("away_id")
+            roster = set(get_roster(tid)) if tid else set()
+            for aid, L in logs.items():
+                if roster and str(aid) not in roster:
+                    continue
+                last = L["games"][-10:]
+                roster_rows.append({"id": str(aid), "name": L["name"], "team": team, "mpg": float(np.mean([x["min"] for x in last])), "gp": len(L["games"])})
+        except Exception:
+            continue
+    roster_rows = [r for r in roster_rows if r["mpg"] >= 4]
+    if not roster_rows:
+        st.info("Couldn't find player data for this game yet.")
+        return
+    roster_rows.sort(key=lambda r: (r["team"] != g["away"], -r["mpg"]))
+    byid = {r["id"]: r for r in roster_rows}
+
+    def _plabel(i):
+        r = byid[i]
+        stt = gp["status"].get(i, "")
+        return f"{r['name']}  ·  {short_pk(r['team'])}" + (f"  ·  {stt.upper()}" if stt else "")
+    pid = st.selectbox("Player", [r["id"] for r in roster_rows], format_func=_plabel, key=f"pl_player_{gid}")
+    r0 = byid[pid]
+    team = r0["team"]
+    games_all = _pl_games(M, team, pid, date)
+    if not games_all:
+        st.info("No games found for this player yet.")
+        return
+    stt = gp["status"].get(pid, "")
+    home_side = team == g["home"]
+    opp = g["away"] if home_side else g["home"]
+    tlogo = g.get("home_logo") if home_side else g.get("away_logo")
+    html(f'<div class="nb-card" style="padding:14px 16px;display:flex;gap:14px;align-items:center;margin:8px 0">'
+         f'<div class="nb-head" style="width:78px;height:78px;margin:0;flex:none;background-image:url(\'{headshot(pid)}\')"></div>'
+         f'<div style="flex:1;min-width:0"><div class="nb-muted">{H(short_pk(g["away"]))} @ {H(short_pk(g["home"]))}</div>'
+         f'<div class="nb-title" style="font-size:1.45rem">{H(r0["name"])} {badge(stt, "bad" if _inj_out(stt) else "lean") if stt else ""}</div>'
+         f'<div class="nb-muted">{logo(tlogo)}{H(team)} · {r0["mpg"]:.0f} min per game lately · {len(games_all)} games on record</div></div></div>')
+    if _inj_out(stt):
+        st.warning(f"ESPN lists {r0['name']} as **{stt}**, so he is not expected to play tonight.")
+
+    # ----- stat picker: each tab shows his average for that stat -----
+    def _tot(x, keys):
+        return float(sum(x[k] for k in keys))
+    avgs = {lab: float(np.mean([_tot(x, keys) for x in games_all[-10:]])) for lab, _n, keys in PL_STATS}
+    lab = st.pills("Stat", [s[0] for s in PL_STATS], default="PTS", key=f"pl_stat_{gid}_{pid}", label_visibility="collapsed",
+                   format_func=lambda s: f"{s}  {avgs[s]:.1f}") if hasattr(st, "pills") else st.radio("Stat", [s[0] for s in PL_STATS], horizontal=True, key=f"pl_stat_{gid}_{pid}")
+    lab = lab or "PTS"
+    _l, nm, keys = next(s for s in PL_STATS if s[0] == lab)
+    proj = None
+    info = gp["proj"].get(pid)
+    if info:
+        try:
+            proj = float(player_total(info["p"], keys))
+        except Exception:
+            proj = None
+
+    # ----- line, splits and window -----
+    c1, c2 = st.columns([1, 2])
+    default_line = float(np.floor(np.mean([_tot(x, keys) for x in games_all[-10:]])) + 0.5)
+    line = c1.number_input(f"{nm} line", value=default_line, step=0.5, min_value=0.0, key=f"pl_line_{gid}_{pid}_{lab}",
+                           help="Type the number your sportsbook has. It starts at his recent average, rounded to a half point.")
+    split = c2.pills("Split", ["All games", "This season", "Home", "Away", f"vs {short_pk(opp)}"], default="All games", key=f"pl_split_{gid}_{pid}") if hasattr(st, "pills") else "All games"
+    pool = list(games_all)
+    if split == "This season":
+        pool = [x for x in pool if x["season"]]
+    elif split == "Home":
+        pool = [x for x in pool if x["home"] == 1]
+    elif split == "Away":
+        pool = [x for x in pool if x["home"] == 0]
+    elif split and split.startswith("vs "):
+        pool = [x for x in pool if x["opp"] == short_pk(opp)]
+    if not pool:
+        st.info("No games match that split yet.")
+        return
+
+    def _hit(sub):
+        v = [_tot(x, keys) for x in sub]
+        return sum(1 for t in v if t > line), len(v)
+    wins = {"Last 5": pool[-5:], "Last 10": pool[-10:], "Last 20": pool[-20:], "Season": [x for x in pool if x["season"]] or pool}
+    wpick = st.pills("Window", list(wins), default="Last 5", key=f"pl_win_{gid}_{pid}", label_visibility="collapsed",
+                     format_func=lambda k: f"{k}  {_hit(wins[k])[0]}/{_hit(wins[k])[1]}") if hasattr(st, "pills") else "Last 5"
+    wname = wpick or "Last 5"
+    sub = wins[wname][-30:]
+    vals = [_tot(x, keys) for x in sub]
+    over = sum(1 for t in vals if t > line)
+    under = sum(1 for t in vals if t < line)
+    n = len(vals)
+    pct_o = over / n * 100 if n else 0
+
+    def _tile(label, val, sub_=""):
+        return (f'<div style="flex:1;min-width:110px;border:1px solid var(--line);border-radius:12px;padding:8px 10px;text-align:center">'
+                f'<div style="font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.6">{label}</div>'
+                f'<div style="font-size:1.35rem;font-weight:800;line-height:1.25">{val}</div><div class="nb-muted" style="font-size:.72rem">{sub_}</div></div>')
+    hc = "var(--ok)" if pct_o >= 60 else ("#ef4444" if pct_o <= 40 else "inherit")
+    tiles = [_tile(f"Over {line:g}", f'<span style="color:{hc}">{pct_o:.0f}%</span>', f"{over} of {n} games"),
+             _tile("Under", f"{under / n * 100 if n else 0:.0f}%", f"{under} of {n}"),
+             _tile("Average", f"{np.mean(vals):.1f}", f"median {np.median(vals):g}"),
+             _tile("Range", f"{min(vals):g} to {max(vals):g}", "low to high")]
+    if proj is not None:
+        try:
+            po, pp, pu = prop_probs(sim_prop(info["p"], keys), line)
+            tiles.append(_tile("Model", f"{proj:.1f}", f"{po * 100:.0f}% over {line:g}"))
+        except Exception:
+            tiles.append(_tile("Model", f"{proj:.1f}", "projection"))
+    html('<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">' + "".join(tiles) + '</div>')
+    xl = [x["date"].strftime("%-m/%-d") if x["date"] else "" for x in sub]
+    xs = [(("vs " if x["home"] == 1 else "@ ") + x["opp"]) if x["opp"] else "" for x in sub]
+    html('<div class="nb-card" style="padding:14px 12px 6px">' + _pl_bars(vals, xl, xs, line, proj if wname != "Season" or True else None) + '</div>')
+    st.caption(f"Green bars cleared {line:g}, red bars didn't. The dashed yellow line is your line" + (", the blue dotted line is the model's projection." if proj is not None else "."))
+
+    # ----- open any single game -----
+    glabels = [f"{xl[i]}  {xs[i]}" for i in range(len(sub))]
+    pickg = st.pills("Open a game", glabels[::-1], key=f"pl_open_{gid}_{pid}_{lab}_{wname}") if hasattr(st, "pills") else None
+    if pickg:
+        x = sub[glabels.index(pickg)]
+        t = _tot(x, keys)
+        verdict = ("OVER", "var(--ok)") if t > line else (("UNDER", "#ef4444") if t < line else ("PUSH", "inherit"))
+        chips = [("MIN", f"{x['min']:.0f}"), ("PTS", f"{x['pts']:g}"), ("REB", f"{x['reb']:g}"), ("AST", f"{x['ast']:g}"), ("3PM", f"{x['tpm']:g}/{x['tpa']:g}"),
+                 ("STL", f"{x['stl']:g}"), ("BLK", f"{x['blk']:g}"), ("FG", f"{x['fgm']:g}/{x['fga']:g}"), ("TO", f"{x['tov']:g}")]
+        html(f'<div class="nb-card" style="padding:12px 14px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">'
+             f'<div style="font-weight:800;font-size:1.05rem">{H(pickg)}</div>'
+             f'<div style="font-weight:800;color:{verdict[1]}">{nm} {t:g} · {verdict[0]} {line:g}</div></div>'
+             f'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px">'
+             + "".join(f'<div style="text-align:center;border:1px solid var(--line);border-radius:10px;padding:6px 2px"><div style="font-size:.6rem;font-weight:700;letter-spacing:.05em;opacity:.6">{a}</div>'
+                       f'<div style="font-size:1.15rem;font-weight:800">{b}</div></div>' for a, b in chips) + '</div></div>')
+    with st.expander("Full game log"):
+        st.dataframe(pd.DataFrame([{"Date": (x["date"].strftime("%b %-d") if x["date"] else ""), "Opp": ("vs " if x["home"] == 1 else "@ ") + x["opp"], "MIN": round(x["min"]),
+                                    "PTS": x["pts"], "REB": x["reb"], "AST": x["ast"], "3PM": x["tpm"], "STL": x["stl"], "BLK": x["blk"], f"{lab}": _tot(x, keys)} for x in reversed(pool)]),
+                     hide_index=True, use_container_width=True)
+
+
 PP_STD = {"player_points": ("Points", ("pts",)), "player_rebounds": ("Rebounds", ("reb",)), "player_assists": ("Assists", ("ast",)),
           "player_threes": ("3-pointers", ("tpm",)), "player_points_rebounds_assists": ("Pts + Reb + Ast", ("pts", "reb", "ast"))}
 PP_ALL = {**PP_STD, **{k + "_alternate": v for k, v in PP_STD.items()}}
@@ -8795,7 +9032,9 @@ if nav == NAV[1]:
     how_it_works()
 
 if nav == NAV[2]:
-    _pt1, _pt2 = st.tabs(["Projections", "Perfect props"])
+    _pt0, _pt1, _pt2 = st.tabs(["Player lookup", "Projections", "Perfect props"])
+    with _pt0:
+        player_lookup_tab(M, games, odds, injuries, date, b2b_teams)
     with _pt1:
         game_picker("props")
         props_tab(M, g, odds, injuries, date, b2b_teams)

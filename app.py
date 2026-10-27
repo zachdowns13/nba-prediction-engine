@@ -1732,7 +1732,7 @@ def perfect_props_tab(M, games, injuries, date, b2b):
             tot = [sum(x[s] for s in stats) for x in v["games"]]
             if not (all(t > pt for t in tot) if side == "over" else all(t < pt for t in tot)):
                 continue
-            rows.append({"Player": v["name"], "Team": short(v["team"]), "Prop": label, "Pick": f"{side.title()} {pt:g}", "Price": f"{price:+d}", "Book": book,
+            rows.append({"Player": v["name"], "Team": short(v["team"]), "Prop": label, "Pick": f"{side.title()} {pt:g}", "Price": int(price), "Book": book,
                          "Record": f"{len(tot)}/{len(tot)}", "Season low": min(tot), "Season high": max(tot), "Season avg": round(float(np.mean(tot)), 1),
                          "_k": (v["name"], label, side), "_pt": pt, "_p": price})
         if rows and not every:
@@ -1746,8 +1746,10 @@ def perfect_props_tab(M, games, injuries, date, b2b):
              f'<span class="nb-muted" style="font-weight:500;font-size:.85rem">{len(rows)} prop{"s" if len(rows) != 1 else ""}</span></div>')
         if rows:
             shown += len(rows)
-            df = pd.DataFrame(rows).sort_values(["Player", "Prop", "_pt"]).drop(columns=["_k", "_pt", "_p"])
-            st.dataframe(df, hide_index=True, use_container_width=True)
+            df = pd.DataFrame(rows)
+            df["_o"] = df["Price"].map(_am_dec)                                   # sort by what it pays, so +120 ranks above -110 above -180
+            df = df.sort_values(["_o", "Player"], ascending=[False, True]).drop(columns=["_k", "_pt", "_p", "_o"])
+            st.dataframe(df, hide_index=True, use_container_width=True, column_config={"Price": st.column_config.NumberColumn("Price", format="%+d")})
         else:
             st.caption("Nothing here has cleared every game at your price limit." if pd_["lines"].get(pair) else "No prop lines posted for this game yet.")
     if not shown:

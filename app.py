@@ -3971,7 +3971,19 @@ def game_card_html(res, best, has_val):
             f'<div class="gc-pl"><span>{H(short(g["away"]))} {pa * 100:.0f}%</span><span>{ph * 100:.0f}% {H(short(g["home"]))}</span></div>'
             f'<div class="gc-chips"><span class="nb-chip">Spread {H(short(g["home"]))} {-res["med_m"]:+.1f}</span><span class="nb-chip">Total {res["med_t"]:.0f}</span></div>'
             + (f'<div class="gc-best"><span>Best spot</span><b>{H(pick_name(best))}</b><em>{best["edge"] * 100:+.1f} pts</em></div>' if has_val else "")
+            + _gc_picks_html(res)
             + '</div>')
+
+
+def _gc_picks_html(res):
+    # The model's spread and total picks, small along the bottom of each game card.
+    out = []
+    for mk, lab in (("Spread", "Spread"), ("Total", "Total")):
+        pair = [r for r in res["rows"] if r["market"] == mk]
+        if len(pair) == 2:
+            r = max(pair, key=lambda x: x["model_p"])
+            out.append(f'<span>{lab} <b>{H(pick_name(r))}</b> <i>{r["model_p"] * 100:.0f}%</i></span>')
+    return ('<div class="gc-picks"><em>Model picks</em>' + "".join(out) + '</div>') if out else ""
 
 
 def ch_fix(c):
@@ -6543,7 +6555,7 @@ def _vinit(name):
     return (parts[0][0] + (parts[-1][0] if len(parts) > 1 else "")).upper()
 
 
-def _vsim(hp, ap, first_home, seed, N=10000, poss=100):
+def _vsim(hp, ap, first_home, seed, N=10000, poss=100, cons=None, rank=0):
     # N possession-by-possession games at the model's projected pace; returns the one closest to the projected score
     # (and, when a first-basket player is given, one where his team scores first).
     rng = np.random.default_rng(seed)
@@ -6572,14 +6584,51 @@ def _vsim(hp, ap, first_home, seed, N=10000, poss=100):
     ok = np.where(first_is_home, vh, va) >= 2            # the very first points of the game are a made basket, never a free throw
     if first_home is not None:
         ok = ok & (first_is_home == bool(first_home))
-    sc = np.abs(ph.sum(1) - hp) + np.abs(pa.sum(1) - ap) + rng.random(N) * 0.01
-    i = int(np.argmin(np.where(ok, sc, 1e9)))
+    Hs, As = ph.sum(1), pa.sum(1)
+    masks = [m(Hs, As) for m in (cons or [])]            # the model's own picks (spread, total, moneyline) must all come true in the game we show
+    n = len(masks)
+    while True:
+        ok2 = ok.copy()
+        for m_ in masks[:n]:
+            ok2 = ok2 & m_
+        if ok2.any() or n == 0:
+            break
+        n -= 1
+    if not ok2.any():
+        ok2 = ok
+    sc = np.abs(Hs - hp) + np.abs(As - ap) + rng.random(N) * 0.01
+    order = np.argsort(np.where(ok2, sc, 1e9))
+    i = int(order[min(rank, len(order) - 1)])          # rank 0 = the closest game; "make a different one" takes the next-closest
     seq = []
     for k in range(2 * poss):
         is_home = ((k % 2 == 0) == bool(tip_h[i]))
         seq.append((is_home, int((ph if is_home else pa)[i, k // 2])))
     first_k = next((k for k, (_, p) in enumerate(seq) if p >= 1), None)
     return {"seq": seq, "index": i + 1, "first_k": first_k, "H": int(ph[i].sum()), "A": int(pa[i].sum())}
+
+
+def _vpick_rows(res):
+    rows = res["rows"]
+
+    def best(mk):
+        pair = [r for r in rows if r["market"] == mk]
+        return max(pair, key=lambda r: r["model_p"]) if len(pair) == 2 else None
+    return best("Spread"), best("Total"), best("Moneyline")
+
+
+def _vhit(kind, r, g, H, A):
+    # does this pick come true in the simulated final?
+    try:
+        home = g["home"]
+        if kind == "SPREAD":
+            m = (H - A) if r["side"] == home else (A - H)
+            return m + float(str(r["line"]).replace("+", "")) > 0
+        if kind == "TOTAL":
+            tl = float(str(r["line"]))
+            return (H + A > tl) if str(r["side"]).lower().startswith("over") else (H + A < tl)
+        return (H > A) if r["side"] == home else (A > H)
+    except Exception:
+        return None
 
 
 def _vphi(z):
@@ -6636,7 +6685,11 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
     cols10 = [ac] * 5 + [hc] * 5
     inits = [""] * 10                               # plain dots: nothing on the court gives away who the first-basket pick is
 
-    sim = _vsim(hp, ap, featured["home"] if featured else None, zlib.crc32(f"{g.get('id')}|{seed_extra}|v".encode()))
+    cons = []
+    for kind, r in zip(("SPREAD", "TOTAL", "MONEYLINE"), _vpick_rows(res)):
+        if r:
+            cons.append(lambda Hs, As, kind=kind, r=r: _vhit(kind, r, g, Hs, As))
+    sim = _vsim(hp, ap, featured["home"] if featured else None, zlib.crc32(f"{g.get('id')}|{seed_extra}|v".encode()), cons=cons, rank=seed_extra % 6)
     seq, first_k = sim["seq"], sim["first_k"]
     nposs = len(seq)
 
@@ -7016,6 +7069,8 @@ def _vfinal_card(res, g, sim, hc, ac, alogo, hlogo, handle):
     for lab, r, big in items:
         d.rounded_rectangle([650, y, 1240, y + 168], 24, **PANEL)
         d.text((680, y + 30), "MODEL LIKES  -  " + lab, font=_gfont(18), fill=(160, 175, 205), anchor="lm")
+        if r and _vhit(lab, r, g, sim["H"], sim["A"]):
+            d.text((1212, y + 30), "HITS IN THIS SIM", font=_gfont(15), fill=(34, 197, 94), anchor="rm")
         sz = 46
         fnt = _gfont(sz)
         while d.textlength(big, font=fnt) > 330 and sz > 22:
@@ -8316,6 +8371,9 @@ h1,h2,h3,h4{ letter-spacing:-.025em; }
 .gc-split span{ display:block; height:100%; transition:width .9s ease; } .gc-split span:first-child{ border-radius:99px 0 0 99px; } .gc-split span:last-child{ border-radius:0 99px 99px 0; }
 .gc-pl{ display:flex; justify-content:space-between; font-size:.8rem; font-weight:650; margin:.35rem 0 .1rem; font-variant-numeric:tabular-nums; }
 .gc-chips{ margin:.55rem 0 .5rem; }
+.gc-picks{ display:flex; flex-wrap:wrap; align-items:center; gap:.25rem .7rem; margin-top:.55rem; padding-top:.5rem; border-top:1px solid rgba(255,255,255,.08); font-size:.72rem; color:var(--p-mute); }
+.gc-picks em{ font-style:normal; text-transform:uppercase; letter-spacing:.07em; font-size:.62rem; opacity:.8; }
+.gc-picks b{ color:inherit; font-weight:700; opacity:1; } .gc-picks i{ font-style:normal; opacity:.75; }
 .gc-best{ display:flex; align-items:center; gap:.5rem; margin-top:auto;  padding:.5rem .7rem; border-radius:12px; background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.28); font-size:.84rem; }
 .gc-best span{ color:var(--p-mute); font-size:.7rem; text-transform:uppercase; letter-spacing:.07em; } .gc-best b{ flex:1; } .gc-best em{ font-style:normal; color:#4ade80; font-weight:700; }
 

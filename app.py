@@ -8540,33 +8540,26 @@ with _nav_box:
     if SIDEBAR_NAV:
         st.markdown("""<style>
 .st-key-navbar, *:has(> .st-key-navbar):not(:has(> *:not(.st-key-navbar))){display:none !important}
-section[data-testid="stSidebar"]{background:#0b0b16 !important;border-right:1px solid rgba(255,255,255,.07);min-width:250px !important}
-section[data-testid="stSidebar"] > div{padding-top:.4rem}
-section[data-testid="stSidebar"] *{color:#e5e7eb}
-section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"]{padding:.4rem .8rem 1rem}
-section[data-testid="stSidebar"] [role="radiogroup"]{gap:.15rem;display:flex;flex-direction:column}
-section[data-testid="stSidebar"] [role="radiogroup"] label{padding:.5rem .85rem;border-radius:999px;width:100%;cursor:pointer;border:1px solid transparent;margin:0;transition:background .15s,border-color .15s}
-section[data-testid="stSidebar"] [role="radiogroup"] label > div:first-child{display:none}
-section[data-testid="stSidebar"] [role="radiogroup"] label:hover{background:rgba(255,255,255,.06)}
-section[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked){background:#15152a;border-color:rgba(255,255,255,.22);box-shadow:0 0 0 1px rgba(139,92,246,.35) inset}
-section[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) p{color:#fff;font-weight:700}
-section[data-testid="stSidebar"] [role="radiogroup"] label p{font-size:.92rem;font-weight:500;color:#cbd5e1}
-section[data-testid="stSidebar"] [role="radiogroup"] label:nth-child(1)::before,
-section[data-testid="stSidebar"] [role="radiogroup"] label:nth-child(6)::before{display:block;width:100%;font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7c7c96;margin:.55rem 0 .25rem}
-section[data-testid="stSidebar"] [role="radiogroup"] label:nth-child(1)::before{content:"Model"}
-section[data-testid="stSidebar"] [role="radiogroup"] label:nth-child(6)::before{content:"Track & tools"}
-section[data-testid="stSidebar"] [role="radiogroup"] label:nth-child(1),
-section[data-testid="stSidebar"] [role="radiogroup"] label:nth-child(6){flex-wrap:wrap}
-.nb-sbhead{display:flex;align-items:center;gap:10px;padding:.3rem .2rem .6rem;border-bottom:1px solid rgba(255,255,255,.07);margin-bottom:.2rem}
-.nb-sbhead b{font-size:1.15rem;font-style:italic;letter-spacing:.01em}
-.nb-sbfoot{margin-top:1.2rem;padding:.8rem;border-radius:14px;background:#12121f;border:1px solid rgba(255,255,255,.08);font-size:.78rem;opacity:.9}
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"]{padding:.5rem .6rem 1rem}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.1rem}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button{justify-content:flex-start;text-align:left;background:transparent;border:0;box-shadow:none;
+  padding:.5rem .75rem;min-height:0;border-radius:10px;width:100%;color:inherit;font-weight:500}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button p{font-size:.95rem;text-align:left;color:inherit}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:hover{background:rgba(128,128,128,.14);color:inherit}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"]{background:rgba(128,128,128,.22);color:inherit}
+section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"] p{font-weight:600}
+.nb-sbhead{padding:.3rem .75rem .7rem;font-size:1.05rem;font-weight:700}
 </style>""", unsafe_allow_html=True)
+        if st.session_state.get("main_nav") not in menu:
+            st.session_state["main_nav"] = st.session_state.get("_main_last") if st.session_state.get("_main_last") in menu else menu[0]
+        def _sbgo(m):
+            st.session_state["main_nav"] = m
         with st.sidebar:
-            st.markdown('<div class="nb-sbhead"><span style="font-size:1.5rem">🏀</span><b>NBA Hub</b></div>', unsafe_allow_html=True)
-            if st.session_state.get("main_nav") not in menu:
-                st.session_state["main_nav"] = st.session_state.get("_main_last") if st.session_state.get("_main_last") in menu else menu[0]
-            nav = st.radio("Section", menu, key="main_nav", label_visibility="collapsed", format_func=nav_label)
-            st.markdown('<div class="nb-sbfoot"><b>Model picks</b><br>Posted before tip and tracked in units. Entertainment only.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="nb-sbhead">🏀 NBA Hub</div>', unsafe_allow_html=True)
+            for _i, _m in enumerate(menu):
+                st.button(nav_label(_m), key=f"sbnav_{_i}", use_container_width=True, on_click=_sbgo, args=(_m,),
+                          type="primary" if st.session_state["main_nav"] == _m else "secondary")
+        nav = st.session_state["main_nav"]
     else:
         try:
             nav = st.segmented_control("Section", menu, key="main_nav", label_visibility="collapsed", format_func=nav_label)

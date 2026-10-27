@@ -1598,6 +1598,162 @@ def player_total(proj, stats):
     return sum(proj[s] for s in stats)
 
 
+PP_STD = {"player_points": ("Points", ("pts",)), "player_rebounds": ("Rebounds", ("reb",)), "player_assists": ("Assists", ("ast",)),
+          "player_threes": ("3-pointers", ("tpm",)), "player_points_rebounds_assists": ("Pts + Reb + Ast", ("pts", "reb", "ast"))}
+PP_ALL = {**PP_STD, **{k + "_alternate": v for k, v in PP_STD.items()}}
+
+
+def _am_dec(p):
+    return 1 + p / 100.0 if p > 0 else 1 + 100.0 / abs(p)
+
+
+def _nick(team):
+    return str(team).split()[-1].lower() if team else ""
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_prop_lines(api_key, markets, books, pairs):
+    # Every sportsbook's player prop prices for the games we care about, keeping the best price for each (player, stat, side, line).
+    events = _get("https://api.the-odds-api.com/v4/sports/basketball_nba/events", {"apiKey": api_key}, tries=1)
+    out = {}
+    for ev in events:
+        pair = (_nick(ev.get("home_team")), _nick(ev.get("away_team")))
+        if pair not in pairs:
+            continue
+        data = _get(f"https://api.the-odds-api.com/v4/sports/basketball_nba/events/{ev['id']}/odds",
+                    {"apiKey": api_key, "regions": "us", "markets": ",".join(markets), "oddsFormat": "american", "bookmakers": ",".join(books)}, tries=1)
+        best = {}
+        for bm in data.get("bookmakers", []):
+            bname = ODDS_BOOKS.get(bm.get("key"), bm.get("title", ""))
+            for mk in bm.get("markets", []):
+                label = (PP_ALL.get(mk.get("key")) or ("",))[0]
+                if not label:
+                    continue
+                for oc in mk.get("outcomes", []):
+                    try:
+                        pt, pr = float(oc["point"]), int(oc["price"])
+                    except Exception:
+                        continue
+                    k = (_nn(oc.get("description", "")), label, str(oc.get("name", "")).lower(), pt)
+                    if k not in best or _am_dec(pr) > _am_dec(best[k][0]):
+                        best[k] = (pr, bname)
+        out[pair] = list(best.items())
+    return out
+
+
+def _season_lookup(M, team, date, injuries):
+    # {normalized name: {"name", "games": [this season's games]}} for one team, minus players who are out.
+    evs = recent_events(M["hist"], team, date.toordinal(), PROP_GAMES)
+    if not evs:
+        return {}
+    om = {e: o for (o, e) in M["hist"].get(team, [])}
+    cs0 = dt.date(M["season"] - 1, 9, 1).toordinal()
+    load_boxes(tuple(sorted(evs)))
+    logs, _ = player_logs(team, tuple(evs), tuple(om.get(e, 0) for e in evs))
+    out_n = {_nn(r["player"]) for r in injuries.get(team, []) if _inj_out(r["status"])}
+    res = {}
+    for aid, L in logs.items():
+        if _nn(L["name"]) in out_n:
+            continue
+        sg = [x for x in L["games"] if x.get("o", 0) >= cs0]
+        if sg:
+            res[_nn(L["name"])] = {"name": L["name"], "team": team, "games": sg}
+    return res
+
+
+def perfect_props_tab(M, games, injuries, date, b2b):
+    gl = [g for g in games if g.get("id") != "manual"]
+    if not gl:
+        st.info("No games on the slate for this date.")
+        return
+    st.caption("Player props that have cleared the line in **every game this season**, with the sportsbook price at or better than your limit, "
+               "split up by game. A prop that has never missed is not a lock, so use it as a starting point, not a reason to bet.")
+    c1, c2, c3 = st.columns(3)
+    min_games = int(c1.number_input("Games this season (at least)", min_value=1, max_value=30, value=3, step=1, key="pp_min_games"))
+    worst = int(c2.number_input("Worst price allowed", value=-200, step=10, key="pp_worst", help="-200 or better means -200, -180, -110, +100 and so on, but not -250."))
+    alts = c3.checkbox("Include alternate lines", True, key="pp_alts", help="Alternate lines are the 'over 12.5' style ladders at different prices. They use more of your Odds API credits.")
+    key = odds_api_key()
+    look = {}
+    for g in gl:
+        for team in (g["home"], g["away"]):
+            if team not in look:
+                try:
+                    look[team] = _season_lookup(M, team, date, injuries)
+                except Exception:
+                    look[team] = {}
+    if not key:
+        st.info("To see sportsbook prices, add a key from **the-odds-api.com** to your Streamlit secrets as `ODDS_API_KEY = \"your-key\"` "
+                "(the same key the Edge tools scanner uses). ESPN doesn't publish player prop lines. Until then, here is each player's **season floor**: "
+                "the lowest he has finished this season in each stat. Any line below those numbers is one he has cleared every game.")
+        for g in gl:
+            html(f'<div style="display:flex;align-items:center;gap:8px;margin:16px 0 6px;font-weight:700;font-size:1.05rem">{logo(g.get("away_logo"))} {H(g["away"])} @ {logo(g.get("home_logo"))} {H(g["home"])}</div>')
+            rows = []
+            for team in (g["away"], g["home"]):
+                for v in sorted(look.get(team, {}).values(), key=lambda v: -np.mean([x["min"] for x in v["games"]]))[:8]:
+                    if len(v["games"]) < min_games:
+                        continue
+                    sg = v["games"]
+                    rows.append({"Player": v["name"], "Team": short(team), "Games": len(sg), "Min (avg)": round(float(np.mean([x["min"] for x in sg]))),
+                                 "Pts floor": min(x["pts"] for x in sg), "Reb floor": min(x["reb"] for x in sg), "Ast floor": min(x["ast"] for x in sg),
+                                 "3PM floor": min(x["tpm"] for x in sg), "PRA floor": min(x["pts"] + x["reb"] + x["ast"] for x in sg)})
+            if rows:
+                st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            else:
+                st.caption("Not enough games this season yet.")
+        return
+    markets = tuple(PP_STD) + (tuple(k + "_alternate" for k in PP_STD) if alts else ())
+    pairs = tuple((_nick(g["home"]), _nick(g["away"])) for g in gl)
+    books = tuple(ODDS_BOOKS)
+    st.caption(f"One search uses about {len(markets) * len(gl)} of your Odds API credits (results are kept for 30 minutes).")
+    sig = (date.isoformat(), markets, min_games, worst)
+    if st.button("🔎 Find props that haven't missed", type="primary", key="pp_find", use_container_width=True):
+        try:
+            with st.spinner("Pulling prop prices from the sportsbooks..."):
+                st.session_state["pp_data"] = {"sig": sig, "lines": fetch_prop_lines(key, markets, books, pairs)}
+        except Exception as e:
+            st.error(f"Couldn't get prop prices ({e}). A free Odds API plan may not include player props.")
+            return
+    pd_ = st.session_state.get("pp_data")
+    if not pd_ or pd_["sig"] != sig:
+        st.info("Press the button to search today's games.")
+        return
+    every = st.checkbox("Show every line, not just the toughest one each player has cleared", False, key="pp_every")
+    shown = 0
+    for g in gl:
+        pair = (_nick(g["home"]), _nick(g["away"]))
+        rows = []
+        for (nm, label, side, pt), (price, book) in pd_["lines"].get(pair, []):
+            if price < worst:
+                continue
+            v = look.get(g["home"], {}).get(nm) or look.get(g["away"], {}).get(nm)
+            if not v or len(v["games"]) < min_games:
+                continue
+            stats = next(s_ for lab, s_ in PP_STD.values() if lab == label)
+            tot = [sum(x[s] for s in stats) for x in v["games"]]
+            if not (all(t > pt for t in tot) if side == "over" else all(t < pt for t in tot)):
+                continue
+            rows.append({"Player": v["name"], "Team": short(v["team"]), "Prop": label, "Pick": f"{side.title()} {pt:g}", "Price": f"{price:+d}", "Book": book,
+                         "Record": f"{len(tot)}/{len(tot)}", "Season low": min(tot), "Season high": max(tot), "Season avg": round(float(np.mean(tot)), 1),
+                         "_k": (v["name"], label, side), "_pt": pt, "_p": price})
+        if rows and not every:
+            best = {}
+            for r in rows:
+                cur = best.get(r["_k"])
+                if cur is None or (r["_pt"] > cur["_pt"] if r["Pick"].startswith("Over") else r["_pt"] < cur["_pt"]):
+                    best[r["_k"]] = r
+            rows = list(best.values())
+        html(f'<div style="display:flex;align-items:center;gap:8px;margin:16px 0 6px;font-weight:700;font-size:1.05rem">{logo(g.get("away_logo"))} {H(g["away"])} @ {logo(g.get("home_logo"))} {H(g["home"])}'
+             f'<span class="nb-muted" style="font-weight:500;font-size:.85rem">{len(rows)} prop{"s" if len(rows) != 1 else ""}</span></div>')
+        if rows:
+            shown += len(rows)
+            df = pd.DataFrame(rows).sort_values(["Player", "Prop", "_pt"]).drop(columns=["_k", "_pt", "_p"])
+            st.dataframe(df, hide_index=True, use_container_width=True)
+        else:
+            st.caption("Nothing here has cleared every game at your price limit." if pd_["lines"].get(pair) else "No prop lines posted for this game yet.")
+    if not shown:
+        st.caption("Try lowering the games minimum, or allowing a worse price.")
+
+
 def props_tab(M, g, odds, injuries, date, b2b):
     home, away = g["home"], g["away"]
     proj_note = st.empty()
@@ -8601,9 +8757,13 @@ if nav == NAV[1]:
     how_it_works()
 
 if nav == NAV[2]:
-    game_picker("props")
-    props_tab(M, g, odds, injuries, date, b2b_teams)
-    terms_help()
+    _pt1, _pt2 = st.tabs(["Projections", "Perfect props"])
+    with _pt1:
+        game_picker("props")
+        props_tab(M, g, odds, injuries, date, b2b_teams)
+        terms_help()
+    with _pt2:
+        perfect_props_tab(M, games, injuries, date, b2b_teams)
 
 if nav == NAV[3]:
     game_picker("fb")

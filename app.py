@@ -4213,11 +4213,14 @@ def _want_refresh():
 
 def open_bets_list(refresh=False):
     st.markdown("""<style>
-div[class*="st-key-bk_hdr_"] button{justify-content:flex-start !important;text-align:left !important;font-weight:700;width:auto !important;background:rgba(128,128,128,.10) !important;border:1px solid rgba(128,128,128,.22) !important;border-radius:12px !important;padding:.55rem .9rem !important}
+div[class*="st-key-bk_hdr_"] button{justify-content:flex-start !important;text-align:left !important;font-weight:700;width:400px !important;max-width:100% !important;background:rgba(128,128,128,.10) !important;border:1px solid rgba(128,128,128,.22) !important;border-radius:12px !important;padding:.55rem .9rem !important}
 div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
 div[class*="st-key-seg_"]{display:flex;justify-content:flex-end;width:100%}
 div[class*="st-key-seg_"] [data-testid="stButtonGroup"]{justify-content:flex-end}
-[data-testid="stColumn"]:has(div[class*="st-key-seg_"]){display:flex;align-items:flex-end}
+[data-testid="stColumn"]:has(div[class*="st-key-seg_"]){display:flex;align-items:flex-end;flex:0 0 auto !important;width:auto !important;min-width:fit-content !important}
+[data-testid="stColumn"]:has(div[class*="st-key-seg_"]) div[class*="st-key-seg_"]{width:auto}
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] div[class*="st-key-seg_"]){flex-wrap:nowrap !important;align-items:center}
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] div[class*="st-key-seg_"]) > [data-testid="stColumn"]:first-child{flex:1 1 0 !important;min-width:0 !important;width:auto !important}
 </style>""", unsafe_allow_html=True)
     if st.session_state.pop("want_refresh", False):
         refresh = True

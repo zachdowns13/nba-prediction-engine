@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 27, 6:35 PM"
+APP_BUILD = "Oct 27, 6:50 PM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -3745,6 +3745,7 @@ Today's date is {today}. Return {{"bets": [ ... ]}} with one object per bet slip
   NFL player prop: "NFL: <Player> over|under <line> <stat>" where stat is one of: passing yards, passing tds, interceptions, pass attempts, pass completions, rushing yards, rushing attempts, rushing tds, receiving yards, receptions, receiving tds, rushing + receiving yards, passing + rushing yards, fantasy score
   MLB player prop: "MLB: <Player> over|under <line> <stat>" where stat is one of: hits, home runs, rbis, runs, walks, hitter strikeouts, strikeouts (for a pitcher), total bases, hits + runs + rbis, stolen bases, earned runs allowed, outs recorded, hits allowed, fantasy score
   NFL or MLB moneyline, spread or totals: same formats as the NBA ones, with "NFL: " or "MLB: " in front, e.g. "NFL: Kansas City Chiefs ML vs Las Vegas Raiders"
+  For Underdog "Higher/Lower" and PrizePicks "More/Less" always write over/under. Write MLB "HRR" as "hits + runs + rbis". Game totals: "MLB: <Team> vs <Opponent>: game total over|under <line>" (never "@").
   "Fantasy Score" on an NBA player is just "<Player> over|under <line> fantasy score" (no prefix). For NFL or MLB players put the prefix first.
   Any other sport or anything that does not fit: "NFL: <short description>" (or "CFB: <short description>" for college)
 Never invent bets or numbers that are not on the screenshot. If a value is unreadable, use null."""
@@ -3992,13 +3993,19 @@ STAT_PARTS = {"points": ("pts",), "rebounds": ("reb",), "assists": ("ast",), "3s
               "rebounds + assists": ("reb", "ast"), "3s attempted": ("tpa",), "field goals made": ("fgm",), "field goals attempted": ("fga",),
               "free throws made": ("ftm",), "free throws attempted": ("fta",), "fantasy score": ("fantasy",)}
 FANTASY_W = {"pts": 1.0, "reb": 1.2, "ast": 1.5, "blk": 3.0, "stl": 3.0, "tov": -1.0}      # PrizePicks NBA fantasy score
-_LEG_RE = re.compile(r"^(?P<who>.+?) (?P<side>over|under) (?P<line>\d+(?:\.\d+)?) (?P<stat>.+)$", re.I)
+_LEG_RE = re.compile(r"^(?P<who>.+?) (?P<side>over|under|higher|lower|more|less) (?P<line>\d+(?:\.\d+)?) (?P<stat>.+)$", re.I)
+_GT2_RE = re.compile(r"^(?P<team>.+?)\s+(?:@|at|vs\.?|v)\s+(?P<opp>.+?):?\s+(?:game\s+)?total(?:\s+(?:runs|points|score))?\s+(?P<side>over|under|higher|lower|more|less)\s+(?P<line>\d+(?:\.\d+)?)$", re.I)
+_SIDE_WORD = {"over": "over", "higher": "over", "more": "over", "under": "under", "lower": "under", "less": "under"}
+_STAT_ALIAS = {"hrr": "hits + runs + rbis", "h+r+rbi": "hits + runs + rbis", "h + r + rbi": "hits + runs + rbis", "hits + runs + rbi": "hits + runs + rbis", "hits+runs+rbis": "hits + runs + rbis",
+               "hits + runs + rbis": "hits + runs + rbis", "tb": "total bases", "hr": "home runs", "rbi": "rbis", "ks": "strikeouts", "pitcher ks": "strikeouts", "so": "strikeouts",
+               "pitcher strikeouts": "strikeouts", "hits allowed": "hits allowed", "sb": "stolen bases", "pass yds": "passing yards", "rush yds": "rushing yards", "rec yds": "receiving yards",
+               "rec": "receptions", "pass tds": "passing tds", "rush tds": "rushing tds", "rec tds": "receiving tds", "fantasy points": "fantasy score", "fantasy pts": "fantasy score"}
 _DD_RE = re.compile(r"^(?P<who>.+?) (?P<kind>double-double|triple-double)$", re.I)
 
 
 _ML_RE = re.compile(r"^(?P<team>.+?) ML(?: vs (?P<opp>.+))?$", re.I)
-_TT_RE = re.compile(r"^(?P<team>.+?) team total (?P<side>over|under) (?P<line>\d+(?:\.\d+)?)(?: vs (?P<opp>.+))?$", re.I)
-_GT_RE = re.compile(r"^(?P<team>.+?)(?: vs (?P<opp>.+?))?:? game total (?P<side>over|under) (?P<line>\d+(?:\.\d+)?)$", re.I)
+_TT_RE = re.compile(r"^(?P<team>.+?) team total (?P<side>over|under|higher|lower) (?P<line>\d+(?:\.\d+)?)(?: vs (?P<opp>.+))?$", re.I)
+_GT_RE = re.compile(r"^(?P<team>.+?)(?: vs (?P<opp>.+?))?:? game total (?P<side>over|under|higher|lower) (?P<line>\d+(?:\.\d+)?)$", re.I)
 _SP_RE = re.compile(r"^(?P<team>.+?) (?P<sp>[+-]\d+(?:\.\d+)?)(?: vs (?P<opp>.+))?$", re.I)
 
 
@@ -4028,17 +4035,21 @@ def parse_leg(leg):
         sport, leg = tag.lower(), m0.group(2).strip()
     if re.search(r"\(1H\)|first half|1st half|\bfirst [0-9]+ innings|\b1st [0-9]+ innings|\bF5\b", leg, re.I):
         return None
+    m2 = _GT2_RE.match(leg)
+    if m2:
+        return {"kind": "gtotal", "sport": sport, "team": m2["team"].strip(), "opp": m2["opp"].strip(), "side": _SIDE_WORD[m2["side"].lower()], "line": float(m2["line"])}
     for kind, rx in (("ml", _ML_RE), ("ttotal", _TT_RE), ("gtotal", _GT_RE)):
         m = rx.match(leg)
         if m:
             d = m.groupdict()
-            return {"kind": kind, "sport": sport, "team": d["team"].strip(), "opp": (d.get("opp") or "").strip(), "side": (d.get("side") or "").lower(),
+            return {"kind": kind, "sport": sport, "team": d["team"].strip(), "opp": (d.get("opp") or "").strip(), "side": _SIDE_WORD.get((d.get("side") or "").lower(), ""),
                     "line": float(d["line"]) if d.get("line") else None}
     m = _LEG_RE.match(leg.replace(" & ", " + "))
     if m:
         stat = m["stat"].lower().strip()
+        stat = _STAT_ALIAS.get(stat, stat)
         if stat in SPORT_STATS[sport] or (sport != "nba" and stat in STAT_PARTS) or stat in NFL_STATS or stat in MLB_STATS:
-            return {"kind": "stat", "sport": sport, "who": m["who"], "side": m["side"].lower(), "line": float(m["line"]), "stat": stat}
+            return {"kind": "stat", "sport": sport, "who": m["who"], "side": _SIDE_WORD[m["side"].lower()], "line": float(m["line"]), "stat": stat}
     if sport == "nba":
         m = _DD_RE.match(leg)
         if m:

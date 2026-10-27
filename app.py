@@ -3916,11 +3916,33 @@ def bets_tab():
 # FULL SLATE
 # =====================================================================
 def _proj_pair(res):
-    # Projected score as whole numbers whose gap equals the rounded margin (so 111.6-108.4 shows 111-108, not 112-108 "by 4").
-    m = int(round(res["hp"] - res["ap"]))
-    t = res["hp"] + res["ap"]
-    a = int(round((t - m) / 2))
-    return a + m, a                    # (home, away)
+    # Projected score as whole numbers (home, away) that keep the model's real margin and total, and agree with its own picks
+    # (so a Pistons +3.5 / Over 219.5 lean never shows as "Knicks by 4, total 219").
+    hp, ap = float(res["hp"]), float(res["ap"])
+    cons = []
+    try:
+        home = res["game"]["home"]
+        for kind, r in zip(("SPREAD", "TOTAL", "MONEYLINE"), _vpick_rows(res)):
+            if r:
+                cons.append((kind, r))
+    except Exception:
+        cons, home = [], None
+    for n in range(len(cons), -1, -1):
+        best = None
+        for dh in range(-4, 5):
+            for da in range(-4, 5):
+                H_, A_ = int(round(hp)) + dh, int(round(ap)) + da
+                try:
+                    if not all(_vhit(k, r, {"home": home}, H_, A_) for k, r in cons[:n]):
+                        continue
+                except Exception:
+                    continue
+                cost = abs((H_ - A_) - (hp - ap)) + 0.6 * abs((H_ + A_) - (hp + ap)) + 0.01 * (abs(H_ - hp) + abs(A_ - ap))
+                if best is None or cost < best[0]:
+                    best = (cost, H_, A_)
+        if best:
+            return best[1], best[2]
+    return int(round(hp)), int(round(ap))
 
 
 def pick_name(r):
@@ -6596,56 +6618,76 @@ def _vinit(name):
     return (parts[0][0] + (parts[-1][0] if len(parts) > 1 else "")).upper()
 
 
-def _vsim(hp, ap, first_home, seed, N=10000, poss=100, cons=None, rank=0):
-    # N possession-by-possession games at the model's projected pace; returns the one closest to the projected score
-    # (and, when a first-basket player is given, one where his team scores first).
-    rng = np.random.default_rng(seed)
+def _vsim(hp, ap, first_home, seed, N=10000, poss=100, cons=None, rank=0, target=None, batches=8):
+    # Possession-by-possession games at the model's projected pace. The game we show must: open with a made basket by the
+    # first-basket pick's team, satisfy the model's own picks, avoid long scoring droughts (especially late), and finish on
+    # exactly the projected score. Several batches of 10,000 are searched until one qualifies; if none does, the constraints
+    # are relaxed in the order (exact score, droughts, picks).
+    best = None
+    for b in range(batches):
+        rng = np.random.default_rng(seed + b * 7919)
 
-    def draw(ppp):
-        p3, pft = 0.125, 0.05
-        p2 = min(max((ppp - 3 * p3 - pft) / 2, 0.2), 0.5)
-        u = rng.random((N, poss))
-        o = np.zeros((N, poss), dtype=np.int8)
-        o[u < p3 + p2 + pft] = 1
-        o[u < p3 + p2] = 2
-        o[u < p3] = 3
-        return o
-    ph, pa = draw(hp / poss), draw(ap / poss)
-    tip_h = rng.random(N) < 0.5
+        def draw(ppp):
+            p3, pft = 0.125, 0.05
+            p2 = min(max((ppp - 3 * p3 - pft) / 2, 0.2), 0.5)
+            u = rng.random((N, poss))
+            o = np.zeros((N, poss), dtype=np.int8)
+            o[u < p3 + p2 + pft] = 1
+            o[u < p3 + p2] = 2
+            o[u < p3] = 3
+            return o
+        ph, pa = draw(hp / poss), draw(ap / poss)
+        tip_h = rng.random(N) < 0.5
 
-    def first_pt(a):
-        m = a >= 1
-        idx = np.where(m.any(1), m.argmax(1), 10 ** 6)
-        return idx, a[np.arange(N), np.minimum(idx, poss - 1)]
-    fh, vh = first_pt(ph)
-    fa, va = first_pt(pa)
-    kh = np.where(tip_h, 2 * fh, 2 * fh + 1)
-    ka = np.where(tip_h, 2 * fa + 1, 2 * fa)
-    first_is_home = kh < ka
-    ok = np.where(first_is_home, vh, va) >= 2            # the very first points of the game are a made basket, never a free throw
-    if first_home is not None:
-        ok = ok & (first_is_home == bool(first_home))
-    Hs, As = ph.sum(1), pa.sum(1)
-    masks = [m(Hs, As) for m in (cons or [])]            # the model's own picks (spread, total, moneyline) must all come true in the game we show
-    n = len(masks)
-    while True:
-        ok2 = ok.copy()
-        for m_ in masks[:n]:
-            ok2 = ok2 & m_
-        if ok2.any() or n == 0:
+        def first_pt(a):
+            m = a >= 1
+            idx = np.where(m.any(1), m.argmax(1), 10 ** 6)
+            return idx, a[np.arange(N), np.minimum(idx, poss - 1)]
+        fh, vh = first_pt(ph)
+        fa, va = first_pt(pa)
+        kh = np.where(tip_h, 2 * fh, 2 * fh + 1)
+        ka = np.where(tip_h, 2 * fa + 1, 2 * fa)
+        first_is_home = kh < ka
+        ok = np.where(first_is_home, vh, va) >= 2            # the very first points are a made basket, never a free throw
+        if first_home is not None:
+            ok = ok & (first_is_home == bool(first_home))
+        Hs, As = ph.sum(1), pa.sum(1)
+        picks_ok = np.ones(N, bool)
+        for m_ in (cons or []):
+            picks_ok &= m_(Hs, As)
+        # scoring droughts: never more than 6 scoreless possessions in a row (about 3 game minutes), and the last 6 minutes stay lively
+        inter = np.empty((N, 2 * poss), dtype=np.int8)
+        inter[:, 0::2] = np.where(tip_h[:, None], ph, pa)
+        inter[:, 1::2] = np.where(tip_h[:, None], pa, ph)
+        zero = inter == 0
+        run = np.zeros(N, dtype=np.int16)
+        mx = np.zeros(N, dtype=np.int16)
+        mx_late = np.zeros(N, dtype=np.int16)
+        for j in range(2 * poss):
+            run = np.where(zero[:, j], run + 1, 0)
+            mx = np.maximum(mx, run)
+            if j >= 2 * poss - 24:
+                mx_late = np.maximum(mx_late, run)
+        lively = (mx <= 6) & (mx_late <= 3) & ((inter[:, -12:] > 0).sum(1) >= 6)
+        exact = np.ones(N, bool) if target is None else ((Hs == target[0]) & (As == target[1]))
+        dist = np.abs(Hs - hp) + np.abs(As - ap) + rng.random(N) * 0.01
+        for level, mask in enumerate((ok & picks_ok & lively & exact, ok & picks_ok & lively, ok & picks_ok & exact, ok & picks_ok, ok & lively & exact, ok)):
+            if mask.any():
+                idxs = np.flatnonzero(mask)
+                idxs = idxs[np.argsort(dist[idxs])]
+                cand = (level, b, int(idxs[min(rank, len(idxs) - 1)]), tip_h, ph, pa)
+                if best is None or level < best[0]:
+                    best = cand
+                break
+        if best is not None and best[0] == 0:
             break
-        n -= 1
-    if not ok2.any():
-        ok2 = ok
-    sc = np.abs(Hs - hp) + np.abs(As - ap) + rng.random(N) * 0.01
-    order = np.argsort(np.where(ok2, sc, 1e9))
-    i = int(order[min(rank, len(order) - 1)])          # rank 0 = the closest game; "make a different one" takes the next-closest
+    level, b, i, tip_h, ph, pa = best if best else (9, 0, 0, tip_h, ph, pa)
     seq = []
     for k in range(2 * poss):
         is_home = ((k % 2 == 0) == bool(tip_h[i]))
         seq.append((is_home, int((ph if is_home else pa)[i, k // 2])))
     first_k = next((k for k, (_, p) in enumerate(seq) if p >= 1), None)
-    return {"seq": seq, "index": i + 1, "first_k": first_k, "H": int(ph[i].sum()), "A": int(pa[i].sum())}
+    return {"seq": seq, "index": b * N + i + 1, "first_k": first_k, "H": int(ph[i].sum()), "A": int(pa[i].sum()), "level": level}
 
 
 def _vpick_rows(res):
@@ -6730,7 +6772,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
     for kind, r in zip(("SPREAD", "TOTAL", "MONEYLINE"), _vpick_rows(res)):
         if r:
             cons.append(lambda Hs, As, kind=kind, r=r: _vhit(kind, r, g, Hs, As))
-    sim = _vsim(hp, ap, featured["home"] if featured else None, zlib.crc32(f"{g.get('id')}|{seed_extra}|v".encode()), cons=cons, rank=seed_extra % 6)
+    sim = _vsim(hp, ap, featured["home"] if featured else None, zlib.crc32(f"{g.get('id')}|{seed_extra}|v".encode()), cons=cons, rank=seed_extra % 6, target=_proj_pair(res))
     seq, first_k = sim["seq"], sim["first_k"]
     nposs = len(seq)
 
@@ -6750,7 +6792,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
         hd = ast_order[0] if ast_order[0] != sh else ast_order[1]
         if rnd.random() < 0.3 or (featured and k == first_k):
             hd = sh if (featured and k == first_k and rnd.random() < 0.5) else hd
-        kind = {3: "three", 2: "two", 1: "ft"}.get(pts) or ("tov" if (rnd.random() < 0.3 and not (first_k is not None and k < first_k)) else "miss")
+        kind = {3: "three", 2: "two", 1: "ft"}.get(pts) or ("tov" if (rnd.random() < 0.12 and not (first_k is not None and k < first_k)) else "miss")
         if is_home:
             cum_h += pts
         else:
@@ -6763,17 +6805,44 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
     margin_end = abs(cum_h - cum_a)
     for p in poss_list:
         k = p["k"]
-        if first_k is not None and k < first_k:
-            p["F"] = int(_VFPS * max(0.55, min(1.3, 6.0 / max(first_k, 1))))
-        elif first_k is not None and k == first_k:
-            p["F"] = int(_VFPS * 4.0)
-        elif k >= nposs - 8 and margin_end <= 10:
+        if first_k is not None and k == first_k:
+            p["F"] = int(_VFPS * 2.5)                  # normal pace into the shot, slow motion only once it goes up and in
+        elif k >= nposs - 8 and margin_end <= 10 and k != first_k:
             p["F"] = int(_VFPS * 0.7)
         else:
             p["F"] = 5
         p["hold"] = int(_VFPS * 2.6) if (first_k is not None and k == first_k and featured) else 0
     intro_n, card_n, fade_n = int(_VFPS * 3.0), int(_VFPS * 6.0), int(_VFPS * 0.5)
     have_box = bool(props and props.get(home) and props.get(away))
+    # ----- the box score of THIS simulated game: every point, three, assist and rebound comes from a play in the game ------
+    box = None
+    if have_box:
+        rot = {}
+        for team in (home, away):
+            rows_ = sorted(props[team], key=lambda r: -r["Min"])[:9]
+            rot[team] = [dict(name=r["Player"], pts=max(r["Pts"], 1.0), reb=max(r["Reb"], 0.3), ast=max(r["Ast"], 0.3), tpm=max(r["3PM"], 0.0)) for r in rows_]
+            if featured and featured["name"] in lineups[team] and featured["name"] not in [x["name"] for x in rot[team]]:
+                rot[team].insert(0, dict(name=featured["name"], pts=12.0, reb=3.0, ast=3.0, tpm=1.5))
+        stats = {team: {x["name"]: [0, 0, 0, 0] for x in rot[team]} for team in rot}
+        for p in poss_list:
+            team, opp = (home, away) if p["home"] else (away, home)
+            R = rot[team]
+            if p["pts"] > 0:
+                if featured and p["k"] == first_k:
+                    who = featured["name"] if featured["name"] in stats[team] else R[0]["name"]
+                else:
+                    who = rnd.choices(R, weights=[x["tpm"] + 0.15 for x in R] if p["pts"] == 3 else [x["pts"] for x in R])[0]["name"]
+                stats[team][who][0] += p["pts"]
+                if p["pts"] == 3:
+                    stats[team][who][3] += 1
+                if p["pts"] >= 2 and rnd.random() < (0.8 if p["pts"] == 3 else 0.55):
+                    others = [x for x in R if x["name"] != who]
+                    stats[team][rnd.choices(others, weights=[x["ast"] for x in others])[0]["name"]][2] += 1
+            elif p["kind"] == "miss":
+                rteam = opp if rnd.random() < 0.74 else team
+                RR = rot[rteam]
+                stats[rteam][rnd.choices(RR, weights=[x["reb"] for x in RR])[0]["name"]][1] += 1
+        box = stats
     total = intro_n + sum(p["F"] + p["hold"] for p in poss_list) + card_n * (2 if have_box else 1)
 
     # ----- static pieces ---------------------------------------------------------------------
@@ -6830,7 +6899,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
         d.text((W - 126, 98), H_.upper(), font=FS(16), fill=(160, 175, 205), anchor="rm")
         d.text((W // 2, 32), q_txt, font=FS(24), fill=(251, 146, 60), anchor="mm")
         d.text((W // 2, 66), clock_txt, font=FS(40), fill=(255, 255, 255), anchor="mm")
-        d.text((W // 2, 97), f"SIM #{sim['index']:,} OF 10,000", font=FS(14), fill=(160, 175, 205), anchor="mm")
+        d.text((W // 2, 97), f"SIM #{sim['index']:,}", font=FS(14), fill=(160, 175, 205), anchor="mm")
         if has_ball == "away":
             d.rounded_rectangle([30, 104, 104, 108], 2, fill=ac)
         else:
@@ -6873,7 +6942,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
         if t > 0.72:
             a_ = _vsmooth((t - 0.72) / 0.2)
             _ph, _pa = _proj_pair(res)
-            line = f"Now watching the one closest to the model's projection:  {A_} {_pa} - {H_} {_ph}"
+            line = f"Now watching a game that lands on the model's projection:  {A_} {_pa} - {H_} {_ph}"
             d.text((W // 2, 665), line, font=fit(d, line, 1180, 30), fill=(int(40 + 215 * a_),) * 3, anchor="mm")
         emit(fr)
 
@@ -6933,6 +7002,9 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
         steal_to = d0 + rp.randrange(5) if p["kind"] == "tov" else None
         for f in range(F + hold):
             t = min((f + 0.5) / F, 1.0)
+            if is_first and f < F:
+                cut = int(F * 0.33)
+                t = min(0.72 * (f + 0.5) / cut if f < cut else 0.72 + 0.28 * (f - cut + 0.5) / (F - cut), 1.0)
             P = prev + (tgt - prev) * _vsmooth(min(t / 0.6, 1.0))
             wob = 0.5 if t < 1 else 0.3
             for i in range(10):
@@ -7053,7 +7125,7 @@ def sim_video(res, fb, props, g, tipstr, handle, progress=None, seed_extra=0):
 
     # ----- closing cards -----------------------------------------------------------------------
     fin = _vfinal_card(res, g, sim, hc, ac, _vlogo(g, "away", away, ac, 110), _vlogo(g, "home", home, hc, 110), handle)
-    cards = [fin] + ([_vbox_card(g, props, hc, ac, handle)] if have_box else [])
+    cards = [fin] + ([_vbox_card(g, box, (sim['A'], sim['H']), hc, ac, handle)] if box else [])
     for card in cards:
         src = last[0].convert("RGB")
         for f in range(card_n):
@@ -7085,7 +7157,8 @@ def _vcard_bg(title, sub=None):
 def _vfinal_card(res, g, sim, hc, ac, alogo, hlogo, handle):
     home, away = g["home"], g["away"]
     H_, A_ = short_pk(home), short_pk(away)
-    im, d = _vcard_bg("FINAL", f"Simulated game #{sim['index']:,} of 10,000  |  closest to the model's projection")
+    exact = (sim["H"], sim["A"]) == tuple(_proj_pair(res))
+    im, d = _vcard_bg("FINAL", f"Simulated game #{sim['index']:,}  |  " + ("lands on the model's projected score" if exact else "closest to the model's projection"))
     PANEL = dict(fill=(8, 14, 32, 200), outline=(255, 255, 255, 55), width=2)
     for i, (lg, nm, sc, col) in enumerate(((alogo, A_, sim["A"], ac), (hlogo, H_, sim["H"], hc))):
         y = 112 + i * 168
@@ -7097,6 +7170,8 @@ def _vfinal_card(res, g, sim, hc, ac, alogo, hlogo, handle):
         d.text((596, y + 75), str(sc), font=_gfont(96), fill=(255, 255, 255) if win else (150, 165, 195), anchor="rm")
     d.text((330, 470), "MODEL PROJECTION", font=_gfont(18), fill=(160, 175, 205), anchor="mm")
     d.text((330, 510), f"{A_} {_proj_pair(res)[1]}  -  {H_} {_proj_pair(res)[0]}", font=_gfont(34), fill=(255, 255, 255), anchor="mm")
+    if exact:
+        d.text((330, 556), "SIM FINAL MATCHES", font=_gfont(16), fill=(34, 197, 94), anchor="mm")
     rows = res["rows"]
 
     def best(mk):
@@ -7131,32 +7206,32 @@ def _vfinal_card(res, g, sim, hc, ac, alogo, hlogo, handle):
     return im
 
 
-def _vbox_card(g, props, hc, ac, handle):
+def _vbox_card(g, box, scores, hc, ac, handle):
     home, away = g["home"], g["away"]
-    im, d = _vcard_bg("PROJECTED PLAYER LINES", "what the model expects from each rotation player")
-    for team, col, x0 in ((away, ac, 40), (home, hc, 660)):
-        rows = sorted((props.get(team) or [])[:7], key=lambda r: -r["Pts"])[:6]
+    im, d = _vcard_bg("BOX SCORE FROM THIS SIM", "how each player finished in the simulated game")
+    for team, col, x0, sc in ((away, ac, 40, scores[0]), (home, hc, 660, scores[1])):
+        rows = sorted(box[team].items(), key=lambda kv: (-kv[1][0], -kv[1][2], -kv[1][1]))[:6]
         bw = 580
         d.rounded_rectangle([x0, 96, x0 + bw, 146], 16, fill=col + (255,))
         tc = (10, 14, 30) if _vlum(col) > 150 else (255, 255, 255)
-        d.text((x0 + bw // 2, 121), short_pk(team).upper(), font=_gfont(28), fill=tc, anchor="mm")
+        d.text((x0 + 24, 121), short_pk(team).upper(), font=_gfont(28), fill=tc, anchor="lm")
+        d.text((x0 + bw - 24, 121), str(sc), font=_gfont(34), fill=tc, anchor="rm")
         for lab, cx in (("PTS", x0 + 322), ("REB", x0 + 400), ("AST", x0 + 476), ("3PM", x0 + 544)):
             d.text((cx, 164), lab, font=_gfont(15), fill=(160, 175, 205), anchor="mm")
-        for i, r in enumerate(rows):
+        for i, (name, (pt, rb, asst, tp)) in enumerate(rows):
             ry = 182 + i * 84
             d.rounded_rectangle([x0, ry, x0 + bw, ry + 76], 14, fill=(8, 14, 32, 190), outline=(255, 255, 255, 40), width=1)
-            nm = _vabbr(r["Player"])
-            sz = 28
+            nm = _vabbr(name)
+            sz = 30
             fnt = _gfont(sz)
-            while d.textlength(nm, font=fnt) > 220 and sz > 14:
+            while d.textlength(nm, font=fnt) > 235 and sz > 14:
                 sz -= 2
                 fnt = _gfont(sz)
-            d.text((x0 + 18, ry + 29), nm, font=fnt, fill=(255, 255, 255), anchor="lm")
-            d.text((x0 + 18, ry + 58), f"{r['Min']:.0f} min", font=_gfont(16, False), fill=(160, 175, 205), anchor="lm")
-            for val, cx, fs, colr in ((r["Pts"], x0 + 322, 34, (251, 191, 36)), (r["Reb"], x0 + 400, 30, (255, 255, 255)),
-                                      (r["Ast"], x0 + 476, 30, (255, 255, 255)), (r["3PM"], x0 + 544, 26, (190, 200, 225))):
-                d.text((cx, ry + 38), f"{val:.1f}", font=_gfont(fs), fill=colr, anchor="mm")
-    d.text((_VW // 2, 698), ("@" + handle + "   |   " if handle else "") + "model projections, not guarantees   |   entertainment only", font=_gfont(16, False), fill=(160, 175, 205), anchor="mm")
+            d.text((x0 + 18, ry + 38), nm, font=fnt, fill=(255, 255, 255), anchor="lm")
+            for val, cx, fs, colr in ((pt, x0 + 322, 38, (251, 191, 36)), (rb, x0 + 400, 32, (255, 255, 255)),
+                                      (asst, x0 + 476, 32, (255, 255, 255)), (tp, x0 + 544, 28, (190, 200, 225))):
+                d.text((cx, ry + 38), str(val), font=_gfont(fs), fill=colr, anchor="mm")
+    d.text((_VW // 2, 698), ("@" + handle + "   |   " if handle else "") + "one simulated game, not a guarantee   |   entertainment only", font=_gfont(16, False), fill=(160, 175, 205), anchor="mm")
     return im
 
 

@@ -6479,16 +6479,17 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False, f
         pair = [r for r in rows if r["market"] == mk]
         return max(pair, key=lambda r: r["model_p"]) if len(pair) == 2 else None
     ml, sp, to = best("Moneyline"), best("Spread"), best("Total")
+    bo = lambda r: (_am(r.get("book_odds")) if r and r.get("book_odds") not in (None, "") and _am(r.get("book_odds")) else "")        # the sportsbook's price on this pick
     when = "tonight" if (tipstr and ("PM" in tipstr) and int(tipstr.split(":")[0]) in (5, 6, 7, 8, 9, 10, 11)) else "today"
     lines_core = []
     if opts["score"]:
         lines_core.append(f"🔮 Score: {A_} {ap:.0f}, {H_} {hp:.0f}")
     if ml:
-        lines_core.append(f"💰 ML: {short(ml['side'])} {ml['model_p'] * 100:.0f}%" + "")
+        lines_core.append(f"💰 ML: {short(ml['side'])}" + (f" ({bo(ml)})" if bo(ml) else "") + f" {ml['model_p'] * 100:.0f}%")
     if sp:
-        lines_core.append(f"📏 Spread: {short(sp['side'])} {sp['line']}" + (f" ({sp['model_p'] * 100:.0f}%)" if mode != "short" else ""))
+        lines_core.append(f"📏 Spread: {short(sp['side'])} {sp['line']}" + (f" ({bo(sp)})" if bo(sp) else "") + (f" {sp['model_p'] * 100:.0f}%" if mode != "short" else ""))
     if to:
-        lines_core.append(f"📊 Total: {to['side']} {to['line']}" + (f" (proj {res['med_t']:.0f})" if mode != "short" else ""))
+        lines_core.append(f"📊 Total: {to['side']} {to['line']}" + (f" ({bo(to)})" if bo(to) else "") + (f" (proj {res['med_t']:.0f})" if mode != "short" else ""))
     fb_line = ""
     if opts["fb"] and fb:
         T = fb["T"]
@@ -6508,13 +6509,13 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False, f
         lines2 = []
         if ml or opts["score"]:
             win = short(ml["side"]) if ml else (H_ if hp >= ap else A_)
-            lines2.append(f"🏆 Model's winner: {win}" + (f" ({ml['model_p'] * 100:.0f}% to win)" if ml else ""))
+            lines2.append(f"🏆 Model's winner: {win}" + (f" ({ml['model_p'] * 100:.0f}% to win" + (f", {bo(ml)} at the books" if bo(ml) else "") + ")" if ml else ""))
             if opts["score"]:
                 lines2.append(f"🔮 Projected score: {A_} {ap:.0f}, {H_} {hp:.0f}")
         if sp:
-            lines2.append(f"📏 Spread: {short(sp['side'])} {sp['line']} ({sp['model_p'] * 100:.0f}%)")
+            lines2.append(f"📏 Spread: {short(sp['side'])} {sp['line']}" + (f" ({bo(sp)})" if bo(sp) else "") + f" - model {sp['model_p'] * 100:.0f}%")
         if to:
-            lines2.append(f"📊 Total: {to['side']} {to['line']} ({to['model_p'] * 100:.0f}%, model projects {res['med_t']:.0f})")
+            lines2.append(f"📊 Total: {to['side']} {to['line']}" + (f" ({bo(to)})" if bo(to) else "") + f" - model {to['model_p'] * 100:.0f}%, projects {res['med_t']:.0f}")
         if lines2:
             out.append("\n".join(lines2))
         last = "\n".join(x for x in (fb_line, inj_line) if x)

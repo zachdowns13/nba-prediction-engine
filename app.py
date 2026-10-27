@@ -6508,21 +6508,22 @@ def x_post_texts(res, fb, g, tipstr, inj_txt, mode, opts, handle, video=False, f
         out = [main]
         if ml or opts["score"]:
             win = short(ml["side"]) if ml else (H_ if hp >= ap else A_)
-            t1 = f"🏆 Projected winner: {win}" + (f" ({ml['model_p'] * 100:.0f}% to win)" if ml else "")
+            t1 = f"🏆 Model's winner: {win}" + (f" ({ml['model_p'] * 100:.0f}% to win)" if ml else "")
             if opts["score"]:
-                t1 += f"\n🔮 Typical final: {A_} {ap:.0f}, {H_} {hp:.0f}"
+                t1 += f"\n🔮 Projected score: {A_} {ap:.0f}, {H_} {hp:.0f}"
             out.append(t1)
+        picks = []
         if sp:
-            out.append(f"📏 Spread pick: {short(sp['side'])} {sp['line']}\nModel gives it {sp['model_p'] * 100:.0f}% to cover.")
+            picks.append(f"📏 Spread: {short(sp['side'])} {sp['line']} ({sp['model_p'] * 100:.0f}%)")
         if to:
-            out.append(f"📊 Total pick: {to['side']} {to['line']}\nModel projects about {res['med_t']:.0f} combined points ({to['model_p'] * 100:.0f}% on the {str(to['side']).lower()}).")
-        if fb_line:
-            out.append(fb_line + ("\nPlayer to score the first basket of the game." if fb_odds is not None else ""))
-        extra = "\n".join(x for x in (tip_line, inj_line) if x)
-        if extra:
-            out.append(extra)
+            picks.append(f"📊 Total: {to['side']} {to['line']} ({to['model_p'] * 100:.0f}%, model projects {res['med_t']:.0f})")
+        if picks:
+            out.append("\n".join(picks))
+        last = "\n".join(x for x in (fb_line, tip_line, inj_line) if x)
         if opts["tag"]:
-            out.append(f"Every pick is posted before tip and tracked in units. Entertainment only, not financial advice.\n\nFollow @{handle} for the full record 📊")
+            last += ("\n\n" if last else "") + f"Every pick is posted before tip and tracked in units. Entertainment only.\nFollow @{handle} for the full record 📊"
+        if last:
+            out.append(last)
         return out
     if mode == "short":
         head = f"🏀 Betting on the {A_} @ {H_} game {when}?\nI simulated it 10,000 times 👇"

@@ -372,8 +372,24 @@ def _team_logo(team):
     return url or ""
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_resource
+def _last_good():
+    return {}                      # most recent successful ESPN answers, kept so a bad moment from ESPN doesn't blank the app
+
+
 def get_slate(date_iso):
+    try:
+        out = _get_slate_raw(date_iso)
+        _last_good()[("slate", date_iso)] = out
+        return out
+    except Exception:
+        if ("slate", date_iso) in _last_good():
+            return _last_good()[("slate", date_iso)]       # ESPN is having a moment: show the last games we got
+        raise
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _get_slate_raw(date_iso):
     d = dt.date.fromisoformat(date_iso)
     data = _get(f"{BASE}/scoreboard", {"dates": d.strftime("%Y%m%d")})
     games = []
@@ -389,8 +405,17 @@ def get_slate(date_iso):
     return games
 
 
-@st.cache_data(ttl=600, show_spinner=False)
 def get_injuries():
+    try:
+        out = _get_injuries_raw()
+        _last_good()["inj"] = out
+        return out
+    except Exception:
+        return _last_good().get("inj", {})              # injuries are optional: carry on without them rather than blocking the whole app
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _get_injuries_raw():
     data = _get(f"{BASE}/injuries")
     out = {}
     for t in data.get("injuries", []):

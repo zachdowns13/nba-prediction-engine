@@ -211,14 +211,20 @@ BREAKEVEN = 110 / 210
 # SMALL HELPERS
 # =====================================================================
 def _get(url, params=None, tries=3):
+    # ESPN sometimes answers with an empty page when it is busy or throttling; wait a moment and try again instead of failing at once.
+    import time as _t
     last = None
-    for _ in range(tries):
+    for i in range(tries + 1):
         try:
             r = requests.get(url, params=params, headers=HEADERS, timeout=20)
             r.raise_for_status()
+            if not (r.text or "").strip():
+                raise ValueError("ESPN sent an empty response")
             return r.json()
         except Exception as e:
             last = e
+            if i < tries:
+                _t.sleep(0.8 * (i + 1))
     raise last
 
 

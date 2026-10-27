@@ -8564,9 +8564,9 @@ section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"]{padding:0 
 section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] > div,section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] [data-testid="stVerticalBlock"]{gap:0 !important}
 section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] [data-testid="stElementContainer"]{width:100% !important}
 section[data-testid="stSidebar"] [data-testid="stSidebarContent"],section[data-testid="stSidebar"] [data-testid="stSidebarContent"] > div{padding-left:0 !important;padding-right:0 !important}
-section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] [data-testid="stElementContainer"][class*="st-key-sbnav_"]{margin:0 0 .2rem !important;padding:0 .6rem !important;width:100% !important}
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] [data-testid="stElementContainer"][class*="st-key-sbnav_"]{margin:0 0 .3rem !important;padding:0 .6rem !important;width:100% !important}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button{justify-content:flex-start !important;text-align:left !important;background:transparent !important;border:0 !important;box-shadow:none !important;
-  padding:.68rem 1rem !important;min-height:0 !important;border-radius:12px !important;width:100% !important;color:inherit !important;font-weight:500 !important;opacity:.82;transition:background .15s,opacity .15s}
+  padding:.8rem 1rem !important;min-height:0 !important;border-radius:12px !important;width:100% !important;color:inherit !important;font-weight:500 !important;opacity:.82;transition:background .15s,opacity .15s}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button p{font-size:.95rem !important;text-align:left !important;color:inherit !important;display:flex;align-items:center;gap:.7rem;margin:0 !important}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:hover{background:rgba(128,128,128,.15) !important;opacity:1;color:inherit !important}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"]{background:linear-gradient(90deg,rgba(139,92,246,.34),rgba(139,92,246,.08)) !important;
@@ -8575,18 +8575,20 @@ section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button[kind="primary"]
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button:focus{outline:none !important}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button > div,section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button [data-testid="stMarkdownContainer"]{display:flex !important;justify-content:flex-start !important;width:100% !important;margin:0 !important}
 section[data-testid="stSidebar"] [class*="st-key-sbnav_"] button p{justify-content:flex-start !important;width:100%}
-.nb-sbbrand{display:flex !important;align-items:center;gap:.75rem;padding:1.1rem 3rem 1rem 1.1rem;border-bottom:1px solid rgba(128,128,128,.16);margin-bottom:.8rem;white-space:nowrap}
+.nb-sbbrand{display:flex !important;align-items:center;gap:.75rem;padding:1.1rem 3rem 1rem 1.1rem;border-bottom:1px solid rgba(128,128,128,.16);margin-bottom:1.1rem;white-space:nowrap}
 .nb-sbbrand .lg{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#8b5cf6,#3b82f6);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex:none}
 .nb-sbbrand .tx{display:flex;flex-direction:column;gap:2px;min-width:0}
 .nb-sbbrand b{font-size:1.1rem;line-height:1.1}
 .nb-sbbrand .s{font-size:.74rem;opacity:.6;line-height:1.1}
 .nb-sbgrp{font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.5;padding:1.1rem 1.1rem .15rem;line-height:1.2;display:block;margin:0 !important}
 section[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(.nb-sbgrp),section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(.nb-sbgrp){margin-bottom:.35rem !important;height:auto !important;overflow:visible !important}
-.nb-sbuser{position:sticky;bottom:0;display:flex;align-items:center;gap:.7rem;padding:.6rem 1rem;margin-top:.3rem;border-top:1px solid rgba(128,128,128,.18);background:var(--nb-bg,#0e1117);z-index:3}
+.nb-sbuser{position:fixed;left:0;bottom:0;width:238px;box-sizing:border-box;display:flex;align-items:center;gap:.6rem;padding:.7rem 1rem;border-top:1px solid rgba(128,128,128,.18);background:var(--nb-bg,#0e1117);z-index:50}
+section[data-testid="stSidebar"][aria-expanded="false"] .nb-sbuser{display:none}
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"]{padding-bottom:4.5rem !important}
 .nb-sbuser .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#3b82f6);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
-.nb-sbuser .tx{display:flex;flex-direction:column;min-width:0;flex:1;line-height:1.2}
+.nb-sbuser .tx{display:flex;flex-direction:column;min-width:0;flex:1 1 0;overflow:hidden;line-height:1.2}
 .nb-sbuser .tx .s{font-size:.68rem;opacity:.55;white-space:nowrap}.nb-sbuser .tx b{font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.nb-sbuser a{font-size:.75rem;font-weight:600;text-decoration:none;padding:.3rem .6rem;border:1px solid rgba(128,128,128,.35);border-radius:8px;color:inherit !important}
+.nb-sbuser a{flex:none;white-space:nowrap;font-size:.75rem;font-weight:600;text-decoration:none;padding:.3rem .6rem;border:1px solid rgba(128,128,128,.35);border-radius:8px;color:inherit !important}
 .nb-sbfoot{padding:1rem 1.4rem;margin-top:1rem;border-top:1px solid rgba(128,128,128,.16);font-size:.72rem;opacity:.55;line-height:1.5}
 /* give the pages more room */
 div[data-testid="stMainBlockContainer"].block-container{max-width:1500px !important;padding-top:4.4rem !important}
@@ -8609,7 +8611,7 @@ div[data-testid="stMainBlockContainer"].block-container{max-width:1500px !import
                               type="primary" if st.session_state["main_nav"] == _m else "secondary")
             if private_ok:
                 st.markdown(f'<div class="nb-sbuser"><div class="av">{H((st.session_state.get("user_name", "") or "?")[:1].upper())}</div>'
-                            f'<div class="tx"><span class="s">Signed in as</span><b>{H(st.session_state.get("user_name", ""))}</b></div>'
+                            f'<div class="tx"><span class="s">Signed in</span><b>{H(st.session_state.get("user_name", ""))}</b></div>'
                             '<a href="?so=1" target="_self">Sign out</a></div>', unsafe_allow_html=True)
         nav = st.session_state["main_nav"]
     else:

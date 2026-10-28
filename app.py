@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 28, 1:30 AM"
+APP_BUILD = "Oct 28, 1:50 AM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4105,6 +4105,11 @@ def _sport_value(p, sport, stat, book=""):
     return sum(p.get(k, 0) for k in parts), approx
 
 
+@st.cache_resource
+def _live_dbg():
+    return {"errs": {}}          # last ESPN problem per sport/date, shown in the Live tracking check
+
+
 _SPORT_PATH = {"nfl": "football/nfl", "mlb": "baseball/mlb"}
 
 
@@ -4185,7 +4190,8 @@ def live_scores(dates, sports=("nba",)):
         sp_, d_ = spd
         try:
             return sp_, d_, _get(f"{_sport_base(sp_)}/scoreboard", {"dates": dt.date.fromisoformat(d_).strftime("%Y%m%d")}, tries=2, fast=(sp_ != "nba"))
-        except Exception:
+        except Exception as _e:
+            _live_dbg()["errs"][f"{sp_} {d_}"] = str(_e)[:160]
             return sp_, d_, None
     with ThreadPoolExecutor(3) as _ex:
         _boards = list(_ex.map(_sb, [(sp, d) for sp in sports for d in dates]))
@@ -4418,6 +4424,27 @@ def _want_refresh():
     st.session_state["want_refresh"] = True
 
 
+def _live_check_panel(games, open_all):
+    with st.expander("🔧 Live tracking check"):
+        if not games:
+            st.write("No games loaded from ESPN right now.")
+        else:
+            rows = [{"sport": g.get("sport", "nba"), "date": g.get("date"), "game": f"{g['away']} @ {g['home']}", "state": g["state"], "players in box": len(g.get("players") or {})} for g in games]
+            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        for k, v in _live_dbg()["errs"].items():
+            st.caption(f"ESPN problem ({k}): {v}")
+        st.caption("Bet legs that can be tracked and what the page matched:")
+        out = []
+        for _, r in open_all.iterrows():
+            for leg in split_legs(r["desc"]):
+                pl = parse_leg(leg)
+                if pl and pl["kind"] in ("stat", "dd"):
+                    info = leg_live(pl, games, r["date"], r["book"]) if games else {"status": "wait", "label": "no games", "cur": None}
+                    out.append({"leg": leg[:60], "sport": pl.get("sport"), "matched as": _nm(pl["who"]), "result": info["status"], "note": info["label"]})
+        if out:
+            st.dataframe(pd.DataFrame(out), hide_index=True, use_container_width=True)
+
+
 def _backup_panel():
     with st.expander("☁️ Load my saved data from the backup"):
         st.caption("Use this if bets or model picks are missing here but are in the GitHub backup. It replaces what is on this page with the backup copy of each file you tick.")
@@ -4645,6 +4672,10 @@ div[class*="st-key-bdwrap_"] [data-testid="stPopover"] button:hover{background:r
                 _grid(_rows)
     if games:
         st.caption(f"Live stats as of {_snap[0].strftime('%-I:%M:%S %p')}. They refresh by themselves about every 30 seconds (or tap Refresh). They come from ESPN's live box score, which can run about a minute behind the broadcast.")
+    try:
+        _live_check_panel(games, open_all)
+    except Exception:
+        pass
     try:
         if _gh_cfg():
             _backup_panel()

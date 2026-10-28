@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 28, 2:30 AM"
+APP_BUILD = "Oct 28, 2:45 AM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -3426,7 +3426,10 @@ def settle_bet(bet_id, returned, result=None):
         stake = float(df.at[i, "stake"])
         df.at[i, "returned"] = float(returned)
         df.at[i, "profit"] = float(returned) - stake
-        df.at[i, "result"] = result or ("W" if returned > stake + 0.005 else ("P" if abs(returned - stake) <= 0.005 else "L"))
+        if stake <= 0.005:                                       # free bet: any winnings are a win, nothing back is a loss (never a push)
+            df.at[i, "result"] = result or ("W" if returned > 0.005 else "L")
+        else:
+            df.at[i, "result"] = result or ("W" if returned > stake + 0.005 else ("P" if abs(returned - stake) <= 0.005 else "L"))
         df.at[i, "settled_at"] = local_now().strftime("%Y-%m-%d %H:%M")
     save_bets(df)
 
@@ -3849,7 +3852,7 @@ def slip_import():
             for use, book, legs, stake, payout, placed, status, cord in picks:
                 if not use:
                     continue
-                if not legs or stake <= 0 or payout <= stake:
+                if not legs or stake < 0 or payout <= 0 or payout <= stake:
                     skipped += 1
                     continue
                 row = {"id": uuid.uuid4().hex[:8], "date": placed.isoformat(), "book": book, "type": "Parlay" if len(legs) > 1 else "Straight",
@@ -3924,15 +3927,17 @@ def bets_input_view():
         e1, e2 = st.columns(2)
         stake = num_box("Amount you put in ($)", k("stake"), e1, "10")
         payout = num_box("Payout if it wins ($, the total you get back)", k("payout"), e2, "30")
+        if stake == 0 and payout > 0:
+            st.caption("🎁 **Stake $0 = free bet / bonus bet.** Only the winnings count as profit, and a loss costs you nothing. Enter just the winnings as the payout.")
         if stake > 0 and payout > stake:
             st.caption(f"Profit if it wins: **${payout - stake:,.2f}** · you'd need to win about **{stake / payout * 100:.0f}%** of bets like this to break even.")
         cord = st.checkbox("💬 Also add to Cord plays", key=k("cord"), help="Tags this bet as a Cord play. It still counts in all your bets, and also shows in its own Cord plays section.")
         if st.button("💾 Save bet", type="primary", key=k("save")):
             if not str(desc).strip() or len(parts) < legs:
                 st.error("Fill in every leg of the bet first.")
-            elif stake <= 0:
-                st.error("Enter how much you put in.")
-            elif payout <= stake:
+            elif stake < 0:
+                st.error("The amount you put in can't be negative. Use 0 for a free bet.")
+            elif payout <= 0 or payout <= stake:
                 st.error("The payout is the total you get back, so it has to be more than what you put in.")
             else:
                 add_bet({"id": uuid.uuid4().hex[:8], "date": placed.isoformat(), "book": book, "type": btype, "desc": str(desc).strip(),
@@ -4830,7 +4835,7 @@ def bets_open_view():
             new_legs = int(h6.number_input("Legs", min_value=1, max_value=20, value=max(1, int(row["legs"]) if pd.notna(row["legs"]) else 1), key=kk("legs")))
             new_cord = st.checkbox("💬 Cord play", value=(row["cord"] == "Y"), key=kk("cord"))
             if st.button("💾 Save changes", key=kk("save"), type="primary"):
-                if not new_desc.strip() or new_stake <= 0 or new_pay <= new_stake:
+                if not new_desc.strip() or new_stake < 0 or new_pay <= 0 or new_pay <= new_stake:
                     st.error("Needs a description, a stake, and a payout bigger than the stake.")
                 else:
                     update_bet(bid, date=new_date.isoformat(), book=new_book, type=new_type, desc=new_desc.strip(),

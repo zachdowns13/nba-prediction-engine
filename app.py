@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 28, 2:15 AM"
+APP_BUILD = "Oct 28, 2:30 AM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -3265,6 +3265,11 @@ def props_results_view():
         if st.button("🗑️ Erase saved props") and confirm:
             save_props(clean_props(pd.DataFrame(columns=PROP_LOG_COLS)))
             st.success("Props erased.")
+    try:
+        if _gh_cfg():
+            _backup_panel()
+    except Exception:
+        pass
 
 
 def results_day():

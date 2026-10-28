@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 27, 11:15 PM"
+APP_BUILD = "Oct 27, 11:40 PM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -214,7 +214,7 @@ BREAKEVEN = 110 / 210
 # =====================================================================
 # SMALL HELPERS
 # =====================================================================
-def _get(url, params=None, tries=3):
+def _get(url, params=None, tries=3, fast=False):
     # ESPN sometimes answers with an empty page when it is busy or throttling (shared cloud IPs get hit most): wait and retry, then
     # try ESPN's other front doors for the same data before giving up. The error says what ESPN actually sent back.
     import time as _t
@@ -228,10 +228,10 @@ def _get(url, params=None, tries=3):
             tries_.append(("https://cdn.espn.com/core/nba/scoreboard", {**(params or {}), "xhr": "1", "limit": "50"}, ("content", "sbData")))
     last = None
     for u, pr, unwrap in tries_:
-        n_ = 2 if len(tries_) > 1 else tries + 1
+        n_ = 1 if fast else (2 if len(tries_) > 1 else tries + 1)
         for i in range(n_):
             try:
-                r = requests.get(u, params=pr, headers=HEADERS, timeout=20)
+                r = requests.get(u, params=pr, headers=HEADERS, timeout=8 if fast else 20)
                 if r.status_code >= 400:
                     raise ValueError(f"ESPN answered HTTP {r.status_code}")
                 if not (r.text or "").strip():
@@ -4120,7 +4120,7 @@ def _ip_outs(x):
 def _fetch_box_other(sport, event_id):
     """NFL / MLB box score as {"players": {id: stats}}, read by group name + column label so column order doesn't matter."""
     try:
-        data = _get(f"{_sport_base(sport)}/summary", {"event": event_id}, tries=2)
+        data = _get(f"{_sport_base(sport)}/summary", {"event": event_id}, tries=1, fast=True)
     except Exception:
         return None
     players = {}
@@ -4180,10 +4180,16 @@ def _fetch_box_other(sport, event_id):
 def live_scores(dates, sports=("nba",)):
     """Games on these dates with their status and, for games that have started, every player's box-score line."""
     out = []
-    for sp, d in [(sp, d) for sp in sports for d in dates]:
+    def _sb(spd):
+        sp_, d_ = spd
         try:
-            data = _get(f"{_sport_base(sp)}/scoreboard", {"dates": dt.date.fromisoformat(d).strftime("%Y%m%d")}, tries=2)
+            return sp_, d_, _get(f"{_sport_base(sp_)}/scoreboard", {"dates": dt.date.fromisoformat(d_).strftime("%Y%m%d")}, tries=2, fast=(sp_ != "nba"))
         except Exception:
+            return sp_, d_, None
+    with ThreadPoolExecutor(6) as _ex:
+        _boards = list(_ex.map(_sb, [(sp, d) for sp in sports for d in dates]))
+    for sp, d, data in _boards:
+        if not data:
             continue
         for ev in data.get("events", []):
             comp = ev["competitions"][0]
@@ -4366,7 +4372,10 @@ def refresh_live_snapshot():
         live_scores.clear()
     except Exception:
         pass
-    games = live_games_for(open_) if len(open_) else []
+    try:
+        games = live_games_for(open_) if len(open_) else []
+    except Exception:
+        games = []                                     # a live-stats hiccup must never hide the bets themselves
     st.session_state["live_snap"] = (local_now(), games)
     if games:                                                         # mark legs the live stats have already decided
         for _, r in open_.iterrows():

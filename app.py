@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 27, 11:55 PM"
+APP_BUILD = "Oct 28, 12:10 AM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4436,6 +4436,18 @@ div[class*="st-key-bdwrap_"] [data-testid="stPopover"] button:hover{background:r
         else:
             _ok = (_GH.get("ok") or {}).get(upath(BET_LOG_PATH))
             st.caption("☁️ Backup on" + (f" · last saved {_ok}" if _ok else " · saves each time you add or change a bet"))
+            with st.expander("☁️ Load my bets from the backup"):
+                st.caption("Use this if your bets are missing here but are in the GitHub backup. It replaces the bets on this page with the backup copy.")
+                if st.button("Load bets from backup now", key="restore_cloud_bets"):
+                    _txt, _sha = _gh_get(upath(BET_LOG_PATH))
+                    if _txt is None:
+                        st.error("No bets file found in the backup.")
+                    else:
+                        with open(upath(BET_LOG_PATH), "w", encoding="utf-8", newline="") as _f:
+                            _f.write(_txt)
+                        st.session_state.pop("bets_df", None)
+                        st.success("Loaded your bets from the backup.")
+                        st.rerun()
     except Exception:
         pass
     with st.container():

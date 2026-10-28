@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 28, 1:50 AM"
+APP_BUILD = "Oct 28, 2:05 AM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4269,7 +4269,8 @@ def _team_leg_live(p, games, bet_date):
 def _nm(name):
     """Name for matching: accents, dots, apostrophes, case and Jr./III endings ignored (Luka Doncic = Luka Dončić)."""
     import unicodedata
-    t = unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode().lower()
+    t = str(name).translate({ord("đ"): "d", ord("Đ"): "D", ord("ł"): "l", ord("Ł"): "L", ord("ø"): "o", ord("Ø"): "O", ord("ß"): "ss", ord("æ"): "ae", ord("ı"): "i"})
+    t = unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode().lower()
     t = re.sub(r"[.'`’\-]", " ", t)
     t = re.sub(r"\b(jr|sr|ii|iii|iv|v)\b", " ", t)
     return " ".join(t.split())
@@ -4292,6 +4293,10 @@ def leg_live(parsed, games, bet_date=None, book=""):
         if _nmap is None:
             _nmap = g["_nm"] = {_nm(k): v for k, v in g["players"].items()}
         p = _nmap.get(who)
+        if p is None:                                           # spelling still differs a little: take a very close name from this game's box score
+            import difflib
+            _close = difflib.get_close_matches(who, list(_nmap), n=1, cutoff=0.8)
+            p = _nmap[_close[0]] if _close else None
         if p is None:
             continue
         final, live_ = g["state"] == "post", g["state"] == "in"

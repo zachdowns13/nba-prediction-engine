@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 27, 11:40 PM"
+APP_BUILD = "Oct 27, 11:55 PM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -2296,6 +2296,7 @@ def _gh_put(path):
                 r.raise_for_status()
                 _GH["sha"][path] = r.json()["content"]["sha"]
                 _GH["err"] = ""
+                _GH.setdefault("ok", {})[path] = dt.datetime.now().strftime("%b %-d, %-I:%M:%S %p")
                 break
         except Exception as e:
             _GH["err"] = str(e)[:200]
@@ -4427,6 +4428,16 @@ div[class*="st-key-bdwrap_"] [data-testid="stPopover"] button:hover{background:r
                 st.button("🔄 Refresh", key="live_refresh", on_click=_want_refresh, help="Refresh the live stats")
     head_ph = hc1.empty()
     head_ph.markdown(f'<div class="nb-sec">Open bets ({len(open_all)})</div>', unsafe_allow_html=True)
+    try:                                                                  # backup status, so a failing backup is never silent
+        if not _gh_cfg():
+            st.warning("⚠️ Backup is OFF: bets are only kept until the app restarts.")
+        elif _GH.get("err"):
+            st.error(f"⚠️ Backup to GitHub is failing, so new bets may be lost on restart: {_GH['err']}")
+        else:
+            _ok = (_GH.get("ok") or {}).get(upath(BET_LOG_PATH))
+            st.caption("☁️ Backup on" + (f" · last saved {_ok}" if _ok else " · saves each time you add or change a bet"))
+    except Exception:
+        pass
     with st.container():
         if open_all.empty:
             st.caption("No open bets. Add one in the **Add a bet** tab.")

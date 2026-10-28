@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 28, 12:25 AM"
+APP_BUILD = "Oct 28, 12:40 AM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4602,7 +4602,7 @@ div[class*="st-key-bdwrap_"] [data-testid="stPopover"] button:hover{background:r
             else:
                 _grid(_rows)
     if games:
-        st.caption(f"Live stats as of {_snap[0].strftime('%-I:%M:%S %p')}. Tap Refresh live stats to update. They come from ESPN's live box score, which can run about a minute behind the broadcast.")
+        st.caption(f"Live stats as of {_snap[0].strftime('%-I:%M:%S %p')}. They refresh by themselves about every 30 seconds (or tap Refresh). They come from ESPN's live box score, which can run about a minute behind the broadcast.")
     try:
         if _gh_cfg():
             _backup_panel()
@@ -4710,7 +4710,7 @@ def bets_open_view():
             if u3.button("✕", key="undo_dismiss", help="Hide this"):
                 st.session_state.pop("last_deleted", None)
                 st.rerun()
-    open_bets_list(refresh="live_snap" not in st.session_state)
+    open_bets_list_auto()                                  # re-fetches the live stats every 30 seconds on its own
     if len(df):
         bulk_dates_section(df)
         with st.expander("✏️ Edit or delete a bet"):

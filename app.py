@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 28, 1:10 AM"
+APP_BUILD = "Oct 28, 1:30 AM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4187,7 +4187,7 @@ def live_scores(dates, sports=("nba",)):
             return sp_, d_, _get(f"{_sport_base(sp_)}/scoreboard", {"dates": dt.date.fromisoformat(d_).strftime("%Y%m%d")}, tries=2, fast=(sp_ != "nba"))
         except Exception:
             return sp_, d_, None
-    with ThreadPoolExecutor(6) as _ex:
+    with ThreadPoolExecutor(3) as _ex:
         _boards = list(_ex.map(_sb, [(sp, d) for sp in sports for d in dates]))
     for sp, d, data in _boards:
         if not data:
@@ -4389,6 +4389,18 @@ def refresh_live_snapshot():
         games = live_games_for(open_) if len(open_) else []
     except Exception:
         games = []                                     # a live-stats hiccup must never hide the bets themselves
+    # A refresh where ESPN throttles or misses a request must not erase what we already knew: keep earlier games, and earlier box scores for any game whose new box score came back empty.
+    _prev = st.session_state.get("live_snap")
+    if _prev and _prev[1]:
+        _old = {(g.get("sport", "nba"), g["id"]): g for g in _prev[1]}
+        _new_keys = set()
+        for g in games:
+            k = (g.get("sport", "nba"), g["id"])
+            _new_keys.add(k)
+            o = _old.get(k)
+            if o and not g.get("players") and o.get("players"):
+                g["players"] = o["players"]
+        games = games + [g for k, g in _old.items() if k not in _new_keys and g.get("date", "") >= (local_today() - dt.timedelta(days=3)).isoformat()]
     st.session_state["live_snap"] = (local_now(), games)
     if games:                                                         # mark legs the live stats have already decided
         for _, r in open_.iterrows():

@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 28, 2:45 AM"
+APP_BUILD = "Oct 28, 1:55 PM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -2281,6 +2281,16 @@ def _gh_put(path):
     with _GH["lock"]:
         try:
             body = open(path, "rb").read()
+            if path.endswith(".csv") and path not in _GH.setdefault("synced", set()):
+                # First save of this file since the app started: if the backup already holds MORE rows than this copy, this copy is stale
+                # (a fresh server that never restored) and must not replace the backup.
+                _ctxt, _csha = _gh_get(path)
+                if _ctxt is not None:
+                    _rows = lambda t: max(0, len([l for l in t.splitlines() if l.strip()]) - 1)
+                    if _rows(_ctxt) > _rows(body.decode("utf-8", "ignore")):
+                        _GH["err"] = f"Save to backup skipped for {path}: the backup has {_rows(_ctxt)} rows but this copy only {_rows(body.decode('utf-8', 'ignore'))}. Use 'Load my saved data from the backup'."
+                        return
+                _GH["synced"].add(path)
             for _ in range(2):
                 sha = _GH["sha"].get(path)
                 if sha is None:
@@ -2295,6 +2305,7 @@ def _gh_put(path):
                     continue
                 r.raise_for_status()
                 _GH["sha"][path] = r.json()["content"]["sha"]
+                _GH.setdefault("synced", set()).add(path)
                 _GH["err"] = ""
                 _GH.setdefault("ok", {})[path] = dt.datetime.now().strftime("%b %-d, %-I:%M:%S %p")
                 break
@@ -8864,6 +8875,7 @@ def _restore_user_files(u):
     if st.session_state.get("_restored_user") == u or not _gh_cfg():
         st.session_state["_restored_user"] = u
         return
+    _failed = False
     for n in PERSONAL_FILES:
         p = f"users/{u}/{n}"
         if not os.path.exists(p):
@@ -8872,9 +8884,11 @@ def _restore_user_files(u):
                 if txt is not None:
                     os.makedirs(os.path.dirname(p), exist_ok=True)
                     open(p, "w", encoding="utf-8", newline="").write(txt)
+                    _GH.setdefault("synced", set()).add(p)
             except Exception:
-                pass
-    st.session_state["_restored_user"] = u
+                _failed = True                             # GitHub hiccup: try again on the next rerun instead of starting from nothing
+    if not _failed:
+        st.session_state["_restored_user"] = u
 
 
 def _claim_existing_data(u):
@@ -8884,6 +8898,13 @@ def _claim_existing_data(u):
         dst = f"users/{u}/{n}"
         if os.path.exists(dst):
             continue
+        if _gh_cfg():                                   # never let the old pre-profile copy replace what is already backed up for this profile
+            try:
+                _ctxt, _csha = _gh_get(dst)
+            except Exception:
+                continue                                # can't tell what is in the backup, so leave it alone
+            if _csha is not None:
+                continue
         txt = None
         if os.path.exists(n):
             txt = open(n, encoding="utf-8", newline="").read()
@@ -8903,6 +8924,7 @@ def _claim_existing_data(u):
 def _sign_in(u, users):
     st.session_state["user"] = u
     st.session_state["user_name"] = users[u].get("name", u)
+    _restore_user_files(u)                      # first: bring this profile's own saved files back from the backup after a restart
     if u == next(iter(users)):                  # the first profile (the owner) inherits anything saved before profiles existed
         try:
             _claim_existing_data(u)

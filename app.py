@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 28, 2:05 AM"
+APP_BUILD = "Oct 28, 2:15 AM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4677,10 +4677,6 @@ div[class*="st-key-bdwrap_"] [data-testid="stPopover"] button:hover{background:r
                 _grid(_rows)
     if games:
         st.caption(f"Live stats as of {_snap[0].strftime('%-I:%M:%S %p')}. They refresh by themselves about every 30 seconds (or tap Refresh). They come from ESPN's live box score, which can run about a minute behind the broadcast.")
-    try:
-        _live_check_panel(games, open_all)
-    except Exception:
-        pass
     try:
         if _gh_cfg():
             _backup_panel()

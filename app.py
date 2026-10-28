@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 28, 1:55 PM"
+APP_BUILD = "Oct 28, 2:05 PM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -3799,7 +3799,15 @@ def read_slip(upl, key):
             {"type": "text", "text": SLIP_PROMPT.format(today=local_today().isoformat())}]}])
     txt = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text").strip()
     txt = re.sub(r"^```(?:json)?|```$", "", txt.strip(), flags=re.M).strip()
-    out = _json.loads(txt)
+    out = None
+    for m in re.finditer(r"[\{\[]", txt):                    # the reply sometimes has extra text around or after the JSON: take the first complete JSON piece
+        try:
+            out, _end = _json.JSONDecoder().raw_decode(txt[m.start():])
+            break
+        except ValueError:
+            continue
+    if out is None:
+        raise ValueError("couldn't find the bets in the reply, please try again")
     return out.get("bets", []) if isinstance(out, dict) else out
 
 

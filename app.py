@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 28, 12:55 AM"
+APP_BUILD = "Oct 28, 1:10 AM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4407,17 +4407,35 @@ def _want_refresh():
 
 
 def _backup_panel():
-    with st.expander("☁️ Load my bets from the backup"):
-        st.caption("Use this if your bets are missing here but are in the GitHub backup. It replaces the bets on this page with the backup copy.")
-        if st.button("Load bets from backup now", key="restore_cloud_bets"):
-            _txt, _sha = _gh_get(upath(BET_LOG_PATH))
-            if _txt is None:
-                st.error("No bets file found in the backup.")
-            else:
-                with open(upath(BET_LOG_PATH), "w", encoding="utf-8", newline="") as _f:
+    with st.expander("☁️ Load my saved data from the backup"):
+        st.caption("Use this if bets or model picks are missing here but are in the GitHub backup. It replaces what is on this page with the backup copy of each file you tick.")
+        _names = {"bets_log.csv": "My bets", "picks_log.csv": "Model picks", "pickem_log.csv": "Pick'em", "pickem_fb_log.csv": "Pick'em (first basket)",
+                  "locked_picks.txt": "Locked picks", "props_log.csv": "Props log", "bets_trash.csv": "Deleted bets"}
+        _opts = [n for n in _names if n in PERSONAL_FILES]
+        _pick = st.multiselect("What to load", _opts, default=["bets_log.csv"], format_func=lambda n: _names[n], key="restore_cloud_pick")
+        if st.button("Load from backup now", key="restore_cloud_bets"):
+            _done, _miss = [], []
+            for _n in _pick:
+                _pth = upath(_n)
+                try:
+                    _txt, _sha = _gh_get(_pth)
+                except Exception as _e:
+                    _txt = None
+                if _txt is None:
+                    _miss.append(_names[_n])
+                    continue
+                with open(_pth, "w", encoding="utf-8", newline="") as _f:
                     _f.write(_txt)
-                st.session_state.pop("bets_df", None)
-                st.success("Loaded your bets from the backup.")
+                _done.append(_names[_n])
+            st.session_state.pop("bets_df", None)
+            try:
+                st.cache_data.clear()
+            except Exception:
+                pass
+            if _miss:
+                st.warning("Not found in the backup: " + ", ".join(_miss))
+            if _done:
+                st.success("Loaded: " + ", ".join(_done))
                 st.rerun()
 
 

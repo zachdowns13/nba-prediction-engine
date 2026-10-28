@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 28, 12:40 AM"
+APP_BUILD = "Oct 28, 12:55 AM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4260,6 +4260,15 @@ def _team_leg_live(p, games, bet_date):
     return out
 
 
+def _nm(name):
+    """Name for matching: accents, dots, apostrophes, case and Jr./III endings ignored (Luka Doncic = Luka Dončić)."""
+    import unicodedata
+    t = unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode().lower()
+    t = re.sub(r"[.'`’\-]", " ", t)
+    t = re.sub(r"\b(jr|sr|ii|iii|iv|v)\b", " ", t)
+    return " ".join(t.split())
+
+
 def leg_live(parsed, games, bet_date=None, book=""):
     """Where one leg stands: dict with cur, line, status (hit / miss / push / live / wait / dnp), game label."""
     sport = parsed.get("sport", "nba")
@@ -4271,9 +4280,12 @@ def leg_live(parsed, games, bet_date=None, book=""):
     if bet_date:                                            # prefer the game on the day the bet was placed
         same = [g for g in games if g.get("date") == bet_date]
         games = same + [g for g in games if g not in same]
-    who = parsed["who"].lower()
+    who = _nm(parsed["who"])
     for g in games:
-        p = g["players"].get(who)
+        _nmap = g.get("_nm")
+        if _nmap is None:
+            _nmap = g["_nm"] = {_nm(k): v for k, v in g["players"].items()}
+        p = _nmap.get(who)
         if p is None:
             continue
         final, live_ = g["state"] == "post", g["state"] == "in"

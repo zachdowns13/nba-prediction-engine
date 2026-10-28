@@ -171,7 +171,7 @@ METRIC_HELP = {"Picks": "How many picks are counted.", "Record (W-L-P)": "Wins, 
 
 # Set to False to go back to the tabs across the top.
 SIDEBAR_NAV = True
-APP_BUILD = "Oct 27, 7:20 PM"
+APP_BUILD = "Oct 27, 11:15 PM"
 st.set_page_config(page_title="NBA Hub", page_icon="🏀", layout="wide", initial_sidebar_state="expanded" if SIDEBAR_NAV else "auto")
 inject_css()
 hero = st.container()          # filled in below once the date and games are known
@@ -4388,10 +4388,12 @@ def open_bets_list(refresh=False):
     st.markdown("""<style>
 div[class*="st-key-bk_hdr_"] button{justify-content:flex-start !important;text-align:left !important;font-weight:700;width:400px !important;max-width:100% !important;background:rgba(128,128,128,.10) !important;border:1px solid rgba(128,128,128,.22) !important;border-radius:12px !important;padding:.55rem .9rem !important}
 div[class*="st-key-bk_hdr_"] button p{text-align:left;width:100%}
+@media (min-width:901px){
 [data-testid="stElementContainer"]:has(> div[class*="st-key-bdwrap_"]),[data-testid="stLayoutWrapper"]:has(> div[class*="st-key-bdwrap_"]){height:0 !important;min-height:0 !important;margin:0 0 -1rem 0 !important;position:relative;z-index:30;overflow:visible !important}
 div[class*="st-key-bdwrap_"]{display:flex !important;justify-content:flex-end;width:100% !important;transform:translate(-14px,2px);gap:0 !important}
 div[class*="st-key-bdwrap_"] > *{width:auto !important;margin-left:auto !important;flex:0 0 auto !important}
 div[class*="st-key-bdwrap_"] [data-testid="stPopover"]{width:auto !important}
+}
 div[class*="st-key-bdwrap_"] [data-testid="stPopover"] button{min-height:0 !important;height:28px;padding:0 8px !important;background:transparent !important;border:0 !important;box-shadow:none !important}
 div[class*="st-key-bdwrap_"] [data-testid="stPopover"] button [data-testid="stIconMaterial"]{display:none}
 div[class*="st-key-bdwrap_"] [data-testid="stPopover"] button:hover{background:rgba(128,128,128,.18) !important}
